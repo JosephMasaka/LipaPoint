@@ -1,0 +1,154 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum SubscriptionTier {
+  LITE
+  PRO
+  ENTERPRISE
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  COMPLETED
+  CANCELLED
+}
+
+enum TenantType {
+  RETAIL
+  RESTAURANT
+  BAR
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  CASHIER
+  KITCHEN
+}
+
+model Tenant {
+  id        String           @id @default(uuid())
+  name      String
+  slug      String           @unique
+  type      TenantType
+  tier      SubscriptionTier @default(LITE)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  users     User[]
+  locations Location[]
+  products  Product[]
+  orders    Order[]
+  categories Category[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  role      UserRole @default(CASHIER)
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model Location {
+  id        String     @id @default(uuid())
+  name      String
+  address   String
+  tenantId  String
+  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  registers Register[]
+  stocks    Stock[]
+
+  @@index([tenantId])
+}
+
+model Register {
+  id         String   @id @default(uuid())
+  name       String
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  orders     Order[]
+
+  @@index([locationId])
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  name     String
+  color    String    @default("#6366f1")
+  tenantId String
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products Product[]
+
+  @@index([tenantId])
+}
+
+model Product {
+  id         String      @id @default(uuid())
+  sku        String      @unique
+  name       String
+  price      Decimal     @db.Decimal(10, 2)
+  cost       Decimal     @db.Decimal(10, 2)
+  image      String?
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   Category?   @relation(fields: [categoryId], references: [id])
+  stocks     Stock[]
+  orderItems OrderItem[]
+
+  @@index([tenantId])
+  @@index([categoryId])
+}
+
+model Stock {
+  id         String   @id @default(uuid())
+  quantity   Int
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, locationId])
+}
+
+model Order {
+  id         String      @id @default(uuid())
+  orderNo    String      @unique
+  status     OrderStatus @default(PENDING)
+  total      Decimal     @db.Decimal(10, 2)
+  tax        Decimal     @db.Decimal(10, 2)
+  tenantId   String
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  registerId String
+  register   Register    @relation(fields: [registerId], references: [id])
+  items      OrderItem[]
+  createdAt  DateTime    @default(now())
+
+  @@index([tenantId])
+  @@index([registerId])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  quantity  Int
+  price     Decimal @db.Decimal(10, 2)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+}
