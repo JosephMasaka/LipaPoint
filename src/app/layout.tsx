@@ -13,13 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "LipaPoint | Enterprise POS",
-  description: "Premium multi-tenant Point of Sale system for retail, bars, and restaurants",
+  title: "LipaPoint | Enterprise POS System",
+  description:
+    "Multi-tenant Point of Sale system for retail, restaurants, bars, supermarkets and more. Built for Kenyan businesses.",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} dark`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="min-h-screen bg-zinc-950 text-zinc-100 antialiased">
         {children}
       </body>
