@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     if (categoriesOnly === "true") {
       const categories = await db.category.findMany({
         where: { tenantId: user.tenantId },
-        select: { id: true, name: true, color: true },
+        select: { id: true, name: true, color: true, parentId: true },
         orderBy: { name: "asc" },
       });
       return NextResponse.json({ categories });
@@ -41,7 +41,8 @@ export async function GET(request: NextRequest) {
     const products = await db.product.findMany({
       where,
       include: {
-        category: { select: { id: true, name: true, color: true } },
+        category: { select: { id: true, name: true, color: true, parentId: true } },
+        unit: { select: { id: true, name: true, abbreviation: true } },
         stocks: { select: { quantity: true } },
       },
       orderBy: { createdAt: "desc" },

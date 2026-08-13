@@ -22,8 +22,8 @@ const navItems = [
   { icon: ClipboardList, label: "Orders", href: "/orders" },
   { icon: Package, label: "Inventory", href: "/inventory" },
   { icon: Receipt, label: "Transactions", href: "/transactions" },
+  { icon: TrendingUp, label: "Analytics", href: "/analytics" },
   { icon: Users, label: "Staff", href: "/users" },
-  { icon: TrendingUp, label: "Analytics", href: "/dashboard" },
   { icon: Settings, label: "Settings", href: "/settings" },
 ];
 

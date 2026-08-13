@@ -28,6 +28,7 @@ enum OrderStatus {
   COMPLETED
   CANCELLED
   REFUNDED
+  TAB
 }
 
 enum PaymentMethod {
@@ -82,13 +83,14 @@ model Tenant {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
-  users        User[]
-  locations    Location[]
-  categories   Category[]
-  products     Product[]
-  orders       Order[]
-  transactions Transaction[]
-  activityLogs ActivityLog[]
+  users          User[]
+  locations      Location[]
+  categories     Category[]
+  products       Product[]
+  orders         Order[]
+  transactions   Transaction[]
+  activityLogs   ActivityLog[]
+  unitsOfMeasure UnitOfMeasure[]
 
   @@index([slug])
   @@index([isActive])
@@ -156,43 +158,77 @@ model Register {
 }
 
 model Category {
-  id       String    @id @default(cuid())
+  id       String     @id @default(cuid())
   name     String
-  color    String    @default("#6366f1")
+  color    String     @default("#6366f1")
   icon     String?
+  parentId String?
+  parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children Category[] @relation("CategoryHierarchy")
   tenantId String
-  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products Product[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([parentId])
+}
+
+model UnitOfMeasure {
+  id           String           @id @default(cuid())
+  name         String
+  abbreviation String
+  tenantId     String
+  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products     Product[]
+  conversionsFrom UnitConversion[] @relation("FromUnit")
+  conversionsTo   UnitConversion[] @relation("ToUnit")
 
   @@unique([tenantId, name])
   @@index([tenantId])
 }
 
+model UnitConversion {
+  id         String        @id @default(cuid())
+  fromUnitId String
+  fromUnit   UnitOfMeasure @relation("FromUnit", fields: [fromUnitId], references: [id], onDelete: Cascade)
+  toUnitId   String
+  toUnit     UnitOfMeasure @relation("ToUnit", fields: [toUnitId], references: [id], onDelete: Cascade)
+  factor     Float
+
+  @@unique([fromUnitId, toUnitId])
+  @@index([fromUnitId])
+  @@index([toUnitId])
+}
+
 model Product {
-  id            String      @id @default(cuid())
+  id            String         @id @default(cuid())
   name          String
   sku           String
   barcode       String?
   description   String?
   image         String?
   price         Float
-  cost          Float       @default(0)
-  isActive      Boolean     @default(true)
-  trackStock    Boolean     @default(true)
-  lowStockAlert Int         @default(10)
+  cost          Float          @default(0)
+  isActive      Boolean        @default(true)
+  trackStock    Boolean        @default(true)
+  lowStockAlert Int            @default(10)
+  unitId        String?
+  unit          UnitOfMeasure? @relation(fields: [unitId], references: [id])
   tenantId      String
-  tenant        Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   categoryId    String?
-  category      Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category      Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   stocks        Stock[]
   orderItems    OrderItem[]
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
   @@unique([tenantId, sku])
   @@index([tenantId])
   @@index([categoryId])
   @@index([barcode])
+  @@index([unitId])
 }
 
 model Stock {
@@ -213,6 +249,7 @@ model Order {
   id            String        @id @default(cuid())
   orderNo       String        @unique
   status        OrderStatus   @default(PENDING)
+  tabName       String?
   subtotal      Float
   taxAmount     Float
   discount      Float         @default(0)
@@ -245,10 +282,11 @@ model Order {
 }
 
 model OrderItem {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   quantity  Int
   unitPrice Float
   total     Float
+  note      String?
   productId String
   product   Product @relation(fields: [productId], references: [id])
   orderId   String
@@ -259,19 +297,19 @@ model OrderItem {
 }
 
 model Transaction {
-  id            String        @id @default(cuid())
-  type          String
-  amount        Float
-  method        PaymentMethod
-  status        PaymentStatus @default(PENDING)
-  reference     String?       @unique
-  paystackRef   String?
-  description   String?
-  tenantId      String
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  orderId       String?
-  order         Order?        @relation(fields: [orderId], references: [id])
-  createdAt     DateTime      @default(now())
+  id          String        @id @default(cuid())
+  type        String
+  amount      Float
+  method      PaymentMethod
+  status      PaymentStatus @default(PENDING)
+  reference   String?       @unique
+  paystackRef String?
+  description String?
+  tenantId    String
+  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orderId     String?
+  order       Order?        @relation(fields: [orderId], references: [id])
+  createdAt   DateTime      @default(now())
 
   @@index([tenantId])
   @@index([reference])

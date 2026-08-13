@@ -27,7 +27,7 @@ interface Order {
   createdAt: string;
 }
 
-const statusFilters = ["ALL", "PENDING", "COMPLETED", "CANCELLED"];
+const statusFilters = ["ALL", "TAB", "PENDING", "COMPLETED", "CANCELLED"];
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -64,6 +64,7 @@ export default function OrdersPage() {
         return "success" as const;
       case "PENDING":
       case "PREPARING":
+      case "TAB":
         return "warning" as const;
       case "CANCELLED":
       case "REFUNDED":
