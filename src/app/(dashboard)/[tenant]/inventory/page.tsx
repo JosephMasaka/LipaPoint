@@ -241,32 +241,17 @@ function StockSheetTab() {
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [locationId, setLocationId] = useState("");
   const [editing, setEditing] = useState<Record<string, { addedStock?: number; closingStock?: number }>>({});
+  const [addStockModal, setAddStockModal] = useState<{ productId: string; productName: string } | null>(null);
+  const [addStockQty, setAddStockQty] = useState("");
 
   useEffect(() => {
-    fetch("/api/auth/me").then(r => r.json()).then(data => {
-      if (data.user?.tenant) {
-        fetch(`/api/settings`).then(r => r.json()).catch(() => {});
+    fetch("/api/locations").then(r => r.json()).then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        setLocations(data);
+        setLocationId(data[0].id);
       }
-    }).catch(() => {});
-    // Fetch locations
-    fetch("/api/settings").then(r => r.json()).then(() => {
-      // Use a simple approach - get from stock API
-    }).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    // Auto-detect location from first load
-    if (!locationId) {
-      fetch("/api/stock?date=" + date).then(r => r.json()).then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          const locs = [...new Map(data.map((r: StockRecord) => [r.location.id, r.location])).values()];
-          setLocations(locs);
-          setLocationId(locs[0]?.id || "");
-          setRecords(data);
-        }
-        setLoading(false);
-      }).catch(() => setLoading(false));
-    }
+      setLoading(false);
+    }).catch(() => setLoading(false));
   }, []);
 
   const fetchRecords = async () => {
@@ -302,14 +287,15 @@ function StockSheetTab() {
     fetchRecords();
   };
 
-  const handleAddStock = async (productId: string) => {
-    const qty = prompt("Enter quantity to add:");
-    if (!qty || isNaN(Number(qty))) return;
+  const handleAddStock = async () => {
+    if (!addStockModal || !addStockQty || isNaN(Number(addStockQty))) return;
     await fetch("/api/stock", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "addStock", date, locationId, productId, quantity: parseInt(qty) }),
+      body: JSON.stringify({ action: "addStock", date, locationId, productId: addStockModal.productId, quantity: parseInt(addStockQty) }),
     });
+    setAddStockModal(null);
+    setAddStockQty("");
     fetchRecords();
   };
 
@@ -329,9 +315,9 @@ function StockSheetTab() {
           )}
         </div>
         <div className="flex gap-2">
-          {records.length === 0 && (
-            <Button variant="outline" onClick={handleInitialize}>
-              Initialize Day
+          {locationId && records.length === 0 && !loading && (
+            <Button onClick={handleInitialize}>
+              <Plus className="h-4 w-4 mr-1" /> Initialize Day
             </Button>
           )}
           {Object.keys(editing).length > 0 && (
@@ -367,7 +353,7 @@ function StockSheetTab() {
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[650px]">
               <thead>
                 <tr className="border-b border-border bg-surface-elevated/50">
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">Product</th>
@@ -416,7 +402,7 @@ function StockSheetTab() {
                       </span>
                     </td>
                     <td className="px-4 py-2 text-center">
-                      <Button variant="ghost" size="sm" onClick={() => handleAddStock(r.product.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => { setAddStockModal({ productId: r.product.id, productName: r.product.name }); setAddStockQty(""); }}>
                         <Plus className="h-3 w-3" />
                       </Button>
                     </td>
@@ -427,6 +413,34 @@ function StockSheetTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Add Stock Modal */}
+      {addStockModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setAddStockModal(null)} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden">
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="text-base font-bold text-text-primary">Add Stock</h3>
+                <p className="text-xs text-text-muted mt-0.5">{addStockModal.productName}</p>
+              </div>
+              <Input
+                label="Quantity to add"
+                type="number"
+                min="1"
+                value={addStockQty}
+                onChange={(e) => setAddStockQty(e.target.value)}
+                autoFocus
+                placeholder="Enter quantity"
+              />
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setAddStockModal(null)}>Cancel</Button>
+                <Button className="flex-1" onClick={handleAddStock} disabled={!addStockQty || isNaN(Number(addStockQty))}>Add</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

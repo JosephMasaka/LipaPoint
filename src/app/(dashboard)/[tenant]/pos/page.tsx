@@ -5,11 +5,11 @@ import { useCartStore } from "@/store/cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import {
   Search, Grid3X3, List, Minus, Plus, Trash2,
   CreditCard, Banknote, Smartphone, Package, ShoppingCart, ChevronUp,
-  Clock, Users, X, ScanBarcode,
+  Clock, Users, X, ScanBarcode, Printer, CheckCircle, Wifi,
 } from "lucide-react";
 
 interface Product {
@@ -41,6 +41,18 @@ interface Tab {
   createdAt: string;
 }
 
+interface CompletedOrder {
+  id: string;
+  orderNo: string;
+  subtotal: number;
+  taxAmount: number;
+  discount: number;
+  total: number;
+  paymentMethod: string;
+  items: { quantity: number; unitPrice: number; total: number; product: { name: string; sku: string } }[];
+  user: { name: string };
+}
+
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -51,7 +63,9 @@ export default function POSPage() {
   const [processing, setProcessing] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [taxRate, setTaxRate] = useState(16);
-  const [scannerActive, setScannerActive] = useState(false);
+  const [scannerActive, setScannerActive] = useState(true);
+  const [tenantName, setTenantName] = useState("");
+  const [receiptFooter, setReceiptFooter] = useState("Thank you for shopping with us!");
 
   // Tab management
   const [mode, setMode] = useState<"sale" | "tabs">("sale");
@@ -61,26 +75,39 @@ export default function POSPage() {
   const [tabName, setTabName] = useState("");
   const [tabCustomer, setTabCustomer] = useState("");
 
+  // Receipt & success state
+  const [completedOrder, setCompletedOrder] = useState<CompletedOrder | null>(null);
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Notification
+  const [notification, setNotification] = useState<{ type: "success" | "error" | "info"; message: string } | null>(null);
+
   // Barcode scanner buffer
   const barcodeBuffer = useRef("");
   const barcodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { items, addItem, removeItem, updateQuantity, clearCart, getSubtotal, getTax, getTotal } = useCartStore();
 
-  // Barcode scanner handler - scanners type rapidly then hit Enter
+  const notify = (type: "success" | "error" | "info", message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  // Barcode scanner handler
   const handleBarcodeInput = useCallback((e: KeyboardEvent) => {
     if (!scannerActive) return;
-    // Ignore if focused on an input field
     const target = e.target as HTMLElement;
     if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
 
     if (e.key === "Enter" && barcodeBuffer.current.length > 3) {
       const barcode = barcodeBuffer.current.trim();
       barcodeBuffer.current = "";
-      // Find product by barcode or SKU
       const product = products.find(p => p.barcode === barcode || p.sku === barcode);
       if (product) {
         addItem({ id: product.id, name: product.name, price: product.price, sku: product.sku });
+        notify("success", `Added: ${product.name}`);
+      } else {
+        notify("error", `Product not found: ${barcode}`);
       }
     } else if (e.key === "Enter") {
       barcodeBuffer.current = "";
@@ -98,9 +125,13 @@ export default function POSPage() {
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(data => {
-      if (data.user?.tenant?.taxRate != null) {
-        setTaxRate(data.user.tenant.taxRate);
+      if (data.user?.tenant) {
+        setTaxRate(data.user.tenant.taxRate ?? 16);
+        setTenantName(data.user.tenant.name);
       }
+    }).catch(() => {});
+    fetch("/api/settings").then(r => r.json()).then(data => {
+      if (data?.receiptFooter) setReceiptFooter(data.receiptFooter);
     }).catch(() => {});
     fetch("/api/products").then(r => r.json()).then(data => {
       if (Array.isArray(data)) setProducts(data);
@@ -139,15 +170,17 @@ export default function POSPage() {
         }),
       });
       if (res.ok) {
+        const order = await res.json();
+        setCompletedOrder(order);
+        setShowSuccess(true);
         clearCart();
         setCartOpen(false);
-        alert("Sale completed!");
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to process sale");
+        notify("error", data.error || "Failed to process sale");
       }
     } catch {
-      alert("Network error");
+      notify("error", "Network error. Please try again.");
     } finally {
       setProcessing(false);
     }
@@ -173,13 +206,13 @@ export default function POSPage() {
         setTabName("");
         setTabCustomer("");
         loadTabs();
-        alert("Tab opened!");
+        notify("success", `Tab "${tabName}" opened`);
       } else {
         const data = await res.json();
-        alert(data.error || "Failed to open tab");
+        notify("error", data.error || "Failed to open tab");
       }
     } catch {
-      alert("Network error");
+      notify("error", "Network error");
     } finally {
       setProcessing(false);
     }
@@ -202,10 +235,10 @@ export default function POSPage() {
         clearCart();
         loadTabs();
         setActiveTab(null);
-        alert(`Added to "${tab.tabName}"`);
+        notify("success", `Added to "${tab.tabName}"`);
       }
     } catch {
-      alert("Network error");
+      notify("error", "Network error");
     } finally {
       setProcessing(false);
     }
@@ -223,25 +256,116 @@ export default function POSPage() {
         loadTabs();
         setActiveTab(null);
         setMode("sale");
-        alert(`Tab "${tab.tabName}" settled!`);
+        notify("success", `Tab "${tab.tabName}" settled`);
       }
     } catch {
-      alert("Network error");
+      notify("error", "Network error");
     } finally {
       setProcessing(false);
     }
   };
 
-  // Get parent categories (no parentId)
+  const handlePrintReceipt = () => {
+    if (!completedOrder) return;
+    const receipt = document.getElementById("receipt-content");
+    if (!receipt) return;
+    const printWindow = window.open("", "_blank", "width=300,height=600");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html><head><title>Receipt</title>
+      <style>
+        body { font-family: 'Courier New', monospace; font-size: 12px; padding: 10px; max-width: 280px; margin: 0 auto; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .divider { border-top: 1px dashed #000; margin: 8px 0; }
+        .row { display: flex; justify-content: space-between; margin: 2px 0; }
+        .item-name { max-width: 160px; }
+        @media print { body { margin: 0; padding: 5px; } }
+      </style></head><body>
+      ${receipt.innerHTML}
+      <script>window.print(); window.close();</script>
+      </body></html>
+    `);
+    printWindow.document.close();
+  };
+
   const parentCategories = categories.filter(c => !c.parentId);
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen relative">
+    <div className="flex flex-col lg:flex-row h-screen relative overflow-x-hidden">
+      {/* Notification Toast */}
+      {notification && (
+        <div className={cn(
+          "fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border backdrop-blur-sm animate-in slide-in-from-top-2 fade-in duration-300",
+          notification.type === "success" && "bg-emerald-500/10 border-emerald-500/30 text-emerald-400",
+          notification.type === "error" && "bg-red-500/10 border-red-500/30 text-red-400",
+          notification.type === "info" && "bg-blue-500/10 border-blue-500/30 text-blue-400",
+        )}>
+          {notification.type === "success" && <CheckCircle className="h-4 w-4 shrink-0" />}
+          {notification.type === "error" && <X className="h-4 w-4 shrink-0" />}
+          <span className="text-sm font-medium">{notification.message}</span>
+        </div>
+      )}
+
+      {/* Sale Success Modal */}
+      {showSuccess && completedOrder && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSuccess(false)} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            {/* Success header */}
+            <div className="bg-emerald-500/10 border-b border-emerald-500/20 p-6 text-center">
+              <div className="mx-auto h-16 w-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-3">
+                <CheckCircle className="h-8 w-8 text-emerald-400" />
+              </div>
+              <h2 className="text-xl font-bold text-text-primary">Sale Complete</h2>
+              <p className="text-sm text-text-secondary mt-1">Order #{completedOrder.orderNo}</p>
+            </div>
+
+            {/* Receipt Preview */}
+            <div className="p-6 max-h-[50vh] overflow-y-auto">
+              <div id="receipt-content" className="font-mono text-xs space-y-1">
+                <div className="center bold">{tenantName}</div>
+                <div className="divider"></div>
+                <div className="row"><span>Order:</span><span>{completedOrder.orderNo}</span></div>
+                <div className="row"><span>Date:</span><span>{new Date().toLocaleDateString("en-KE")}</span></div>
+                <div className="row"><span>Served by:</span><span>{completedOrder.user?.name}</span></div>
+                <div className="row"><span>Payment:</span><span>{completedOrder.paymentMethod}</span></div>
+                <div className="divider"></div>
+                {completedOrder.items.map((item, i) => (
+                  <div key={i}>
+                    <div className="item-name">{item.product.name}</div>
+                    <div className="row"><span>{item.quantity} x {formatCurrency(item.unitPrice)}</span><span>{formatCurrency(item.total)}</span></div>
+                  </div>
+                ))}
+                <div className="divider"></div>
+                <div className="row"><span>Subtotal</span><span>{formatCurrency(completedOrder.subtotal)}</span></div>
+                <div className="row"><span>VAT ({taxRate}%)</span><span>{formatCurrency(completedOrder.taxAmount)}</span></div>
+                {completedOrder.discount > 0 && <div className="row"><span>Discount</span><span>-{formatCurrency(completedOrder.discount)}</span></div>}
+                <div className="divider"></div>
+                <div className="row bold"><span>TOTAL</span><span>{formatCurrency(completedOrder.total)}</span></div>
+                <div className="divider"></div>
+                <div className="center">{receiptFooter}</div>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="border-t border-border p-4 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={handlePrintReceipt}>
+                <Printer className="h-4 w-4 mr-2" /> Print Receipt
+              </Button>
+              <Button className="flex-1" onClick={() => setShowSuccess(false)}>
+                New Sale
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Products Panel */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Search Bar + Mode Toggle */}
-        <div className="flex items-center gap-2 sm:gap-3 border-b border-border p-3 sm:p-4 bg-surface pt-14 lg:pt-4">
-          <div className="relative flex-1">
+        <div className="flex items-center gap-2 border-b border-border p-3 bg-surface pt-14 lg:pt-3 shrink-0">
+          <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <Input
               placeholder="Search products..."
@@ -250,33 +374,33 @@ export default function POSPage() {
               className="pl-9"
             />
           </div>
-          <div className="flex rounded-lg border border-border overflow-hidden">
+          <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
             <button
               onClick={() => setMode("sale")}
-              className={cn("px-3 py-2 text-xs font-medium transition-colors", mode === "sale" ? "bg-gold/10 text-gold" : "text-text-secondary")}
+              className={cn("px-2.5 py-2 text-xs font-medium transition-colors", mode === "sale" ? "bg-gold/10 text-gold" : "text-text-secondary")}
             >
               Sale
             </button>
             <button
               onClick={() => { setMode("tabs"); loadTabs(); }}
-              className={cn("px-3 py-2 text-xs font-medium transition-colors flex items-center gap-1", mode === "tabs" ? "bg-gold/10 text-gold" : "text-text-secondary")}
+              className={cn("px-2.5 py-2 text-xs font-medium transition-colors flex items-center gap-1", mode === "tabs" ? "bg-gold/10 text-gold" : "text-text-secondary")}
             >
               <Clock className="h-3 w-3" />
-              Tabs{tabs.length > 0 && <Badge variant="warning" className="text-[9px] px-1">{tabs.length}</Badge>}
+              Tabs{tabs.length > 0 && <Badge variant="warning" className="text-[9px] px-1 ml-0.5">{tabs.length}</Badge>}
             </button>
           </div>
           <button
             onClick={() => setScannerActive(!scannerActive)}
-            className={cn("p-2.5 rounded-lg border border-border transition-colors", scannerActive ? "bg-gold/10 text-gold border-gold/30" : "text-text-secondary")}
+            className={cn("p-2 rounded-lg border transition-colors shrink-0", scannerActive ? "bg-gold/10 text-gold border-gold/30" : "border-border text-text-secondary")}
             title={scannerActive ? "Scanner active" : "Enable barcode scanner"}
           >
             <ScanBarcode className="h-4 w-4" />
           </button>
-          <div className="hidden sm:flex rounded-lg border border-border overflow-hidden">
-            <button onClick={() => setViewMode("grid")} className={cn("p-2.5", viewMode === "grid" && "bg-surface-hover text-gold")}>
+          <div className="hidden md:flex rounded-lg border border-border overflow-hidden shrink-0">
+            <button onClick={() => setViewMode("grid")} className={cn("p-2", viewMode === "grid" && "bg-surface-hover text-gold")}>
               <Grid3X3 className="h-4 w-4" />
             </button>
-            <button onClick={() => setViewMode("list")} className={cn("p-2.5", viewMode === "list" && "bg-surface-hover text-gold")}>
+            <button onClick={() => setViewMode("list")} className={cn("p-2", viewMode === "list" && "bg-surface-hover text-gold")}>
               <List className="h-4 w-4" />
             </button>
           </div>
@@ -284,11 +408,11 @@ export default function POSPage() {
 
         {mode === "sale" ? (
           <>
-            {/* Categories */}
-            <div className="flex gap-2 overflow-x-auto border-b border-border bg-surface px-3 sm:px-4 py-2 sm:py-3 scrollbar-none">
+            {/* Categories - horizontal scroll, no x-overflow leak */}
+            <div className="flex gap-2 border-b border-border bg-surface px-3 py-2 overflow-x-auto scrollbar-none shrink-0">
               <button
                 onClick={() => setActiveCategory("all")}
-                className={cn("whitespace-nowrap rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all", activeCategory === "all" ? "bg-surface-hover text-text-primary border border-border" : "text-text-muted hover:text-text-secondary")}
+                className={cn("whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all shrink-0", activeCategory === "all" ? "bg-surface-hover text-text-primary border border-border" : "text-text-muted hover:text-text-secondary")}
               >
                 All Items
               </button>
@@ -296,23 +420,23 @@ export default function POSPage() {
                 <button
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
-                  className={cn("flex items-center gap-2 whitespace-nowrap rounded-lg px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium transition-all", activeCategory === cat.id ? "bg-surface-hover text-text-primary border border-border" : "text-text-muted hover:text-text-secondary")}
+                  className={cn("flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-all shrink-0", activeCategory === cat.id ? "bg-surface-hover text-text-primary border border-border" : "text-text-muted hover:text-text-secondary")}
                 >
-                  <span className="h-2 w-2 sm:h-2.5 sm:w-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: cat.color }} />
                   {cat.name}
                 </button>
               ))}
             </div>
 
-            {/* Product Grid */}
-            <div className="flex-1 overflow-y-auto p-3 sm:p-4 pb-20 lg:pb-4">
+            {/* Product Grid - contained, no x overflow */}
+            <div className="flex-1 overflow-y-auto p-3 pb-20 lg:pb-3">
               {filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 text-text-muted">
                   <Package className="h-12 w-12 mb-3 opacity-50" />
                   <p className="text-sm">No products found</p>
                 </div>
               ) : viewMode === "grid" ? (
-                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-2">
                   {filtered.map((product) => (
                     <button
                       key={product.id}
@@ -328,7 +452,7 @@ export default function POSPage() {
                       )}
                       <p className="text-[10px] sm:text-xs font-medium text-text-primary text-center line-clamp-2 leading-tight">{product.name}</p>
                       <div className="flex items-center gap-0.5 mt-0.5">
-                        <p className="text-xs sm:text-sm font-bold text-gold">KSh {product.price.toLocaleString()}</p>
+                        <p className="text-xs sm:text-sm font-bold text-gold">{formatCurrency(product.price)}</p>
                         {product.unit && <span className="text-[8px] text-text-muted">/{product.unit.abbreviation}</span>}
                       </div>
                       {product.stocks[0] && product.stocks[0].quantity < 10 && (
@@ -338,21 +462,21 @@ export default function POSPage() {
                   ))}
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {filtered.map((product) => (
                     <button
                       key={product.id}
                       onClick={() => addItem({ id: product.id, name: product.name, price: product.price, sku: product.sku })}
-                      className="w-full flex items-center justify-between rounded-lg border border-border bg-surface-elevated p-3 hover:border-gold/30 transition-all"
+                      className="w-full flex items-center justify-between rounded-lg border border-border bg-surface-elevated p-2.5 hover:border-gold/30 transition-all"
                     >
-                      <div className="flex items-center gap-3">
-                        <Package className="h-5 w-5 text-text-muted" />
-                        <div className="text-left">
-                          <p className="text-sm font-medium text-text-primary">{product.name}</p>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Package className="h-4 w-4 text-text-muted shrink-0" />
+                        <div className="text-left min-w-0">
+                          <p className="text-sm font-medium text-text-primary truncate">{product.name}</p>
                           <p className="text-xs text-text-muted">{product.sku}{product.unit ? ` · ${product.unit.abbreviation}` : ""}</p>
                         </div>
                       </div>
-                      <p className="text-sm font-bold text-gold">KSh {product.price.toLocaleString()}</p>
+                      <p className="text-sm font-bold text-gold shrink-0 ml-2">{formatCurrency(product.price)}</p>
                     </button>
                   ))}
                 </div>
@@ -361,7 +485,7 @@ export default function POSPage() {
           </>
         ) : (
           /* Open Tabs View */
-          <div className="flex-1 overflow-y-auto p-3 sm:p-4">
+          <div className="flex-1 overflow-y-auto p-3">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold text-text-primary">Open Tabs ({tabs.length})</h2>
             </div>
@@ -372,7 +496,7 @@ export default function POSPage() {
                 <p className="text-xs mt-1">Add items and open a tab from the cart</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
@@ -386,74 +510,49 @@ export default function POSPage() {
                       <h3 className="font-semibold text-text-primary">{tab.tabName}</h3>
                       <Badge variant="warning">Open</Badge>
                     </div>
-                    <p className="text-lg font-bold text-gold">KSh {tab.total.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-gold">{formatCurrency(tab.total)}</p>
                     <p className="text-xs text-text-muted mt-1">
-                      {tab.items.length} items · Opened {new Date(tab.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}
+                      {tab.items.length} items · {new Date(tab.createdAt).toLocaleTimeString("en-KE", { hour: "2-digit", minute: "2-digit" })}
                     </p>
-                    <div className="mt-2 space-y-0.5">
-                      {tab.items.slice(0, 3).map((item) => (
-                        <p key={item.id} className="text-xs text-text-secondary truncate">
-                          {item.quantity}x {item.product.name}
-                        </p>
-                      ))}
-                      {tab.items.length > 3 && (
-                        <p className="text-xs text-text-muted">+{tab.items.length - 3} more</p>
-                      )}
-                    </div>
                   </button>
                 ))}
               </div>
             )}
 
-            {/* Selected Tab Detail */}
             {activeTab && (
-              <div className="mt-6 rounded-xl border border-border bg-surface-elevated p-4 sm:p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-text-primary">{activeTab.tabName}</h3>
-                    <p className="text-xs text-text-muted">Tab #{activeTab.orderNo}</p>
-                  </div>
-                  <button onClick={() => setActiveTab(null)} className="p-1 text-text-muted hover:text-text-primary">
-                    <X className="h-4 w-4" />
-                  </button>
+              <div className="mt-4 rounded-xl border border-border bg-surface-elevated p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-text-primary">{activeTab.tabName}</h3>
+                  <button onClick={() => setActiveTab(null)} className="p-1 text-text-muted hover:text-text-primary"><X className="h-4 w-4" /></button>
                 </div>
-                <div className="divide-y divide-border">
+                <div className="divide-y divide-border mb-3">
                   {activeTab.items.map((item) => (
-                    <div key={item.id} className="flex justify-between py-2">
-                      <span className="text-sm text-text-primary">{item.quantity}x {item.product.name}</span>
-                      <span className="text-sm text-text-secondary">KSh {(item.unitPrice * item.quantity).toLocaleString()}</span>
+                    <div key={item.id} className="flex justify-between py-1.5 text-sm">
+                      <span className="text-text-primary">{item.quantity}x {item.product.name}</span>
+                      <span className="text-text-secondary">{formatCurrency(item.unitPrice * item.quantity)}</span>
                     </div>
                   ))}
                 </div>
-                <div className="border-t border-border mt-3 pt-3 flex justify-between">
+                <div className="border-t border-border pt-2 flex justify-between mb-3">
                   <span className="font-semibold text-text-primary">Total</span>
-                  <span className="font-bold text-gold text-lg">KSh {activeTab.total.toLocaleString()}</span>
+                  <span className="font-bold text-gold">{formatCurrency(activeTab.total)}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 mt-4">
+                <div className="grid grid-cols-3 gap-2 mb-3">
                   {[
                     { id: "CASH", icon: Banknote, label: "Cash" },
                     { id: "MPESA", icon: Smartphone, label: "M-Pesa" },
                     { id: "CARD", icon: CreditCard, label: "Card" },
                   ].map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => setPaymentMethod(m.id)}
-                      className={cn("flex flex-col items-center gap-1 rounded-lg border p-2 transition-all", paymentMethod === m.id ? "border-gold/50 bg-gold/10 text-gold" : "border-border text-text-secondary")}
-                    >
-                      <m.icon className="h-4 w-4" />
-                      <span className="text-[10px] font-medium">{m.label}</span>
+                    <button key={m.id} onClick={() => setPaymentMethod(m.id)} className={cn("flex flex-col items-center gap-1 rounded-lg border p-2 transition-all", paymentMethod === m.id ? "border-gold/50 bg-gold/10 text-gold" : "border-border text-text-secondary")}>
+                      <m.icon className="h-4 w-4" /><span className="text-[10px] font-medium">{m.label}</span>
                     </button>
                   ))}
                 </div>
-                <div className="flex gap-2 mt-4">
-                  <Button onClick={() => { setMode("sale"); }} variant="outline" className="flex-1">
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setMode("sale")}>
                     <Plus className="h-4 w-4 mr-1" /> Add Items
                   </Button>
-                  <Button
-                    onClick={() => handleCloseTab(activeTab)}
-                    disabled={processing}
-                    className="flex-1"
-                  >
+                  <Button className="flex-1" disabled={processing} onClick={() => handleCloseTab(activeTab)}>
                     {processing ? "Processing..." : "Settle Tab"}
                   </Button>
                 </div>
@@ -471,26 +570,23 @@ export default function POSPage() {
         >
           <ShoppingCart className="h-5 w-5" />
           {items.length > 0 && (
-            <span className="text-sm font-bold">{items.length} - KSh {getTotal(taxRate).toLocaleString()}</span>
+            <span className="text-sm font-bold">{items.length} · {formatCurrency(getTotal(taxRate))}</span>
           )}
           <ChevronUp className={cn("h-4 w-4 transition-transform", cartOpen && "rotate-180")} />
         </button>
       )}
 
-      {/* Mobile cart overlay */}
-      {cartOpen && (
-        <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setCartOpen(false)} />
-      )}
+      {cartOpen && <div className="lg:hidden fixed inset-0 z-40 bg-black/50" onClick={() => setCartOpen(false)} />}
 
       {/* Cart Panel */}
       {mode === "sale" && (
         <div className={cn(
           "fixed lg:relative z-50 lg:z-auto bg-surface border-l border-border flex flex-col transition-transform duration-300",
           "bottom-0 left-0 right-0 lg:bottom-auto lg:left-auto lg:right-auto lg:top-0",
-          "h-[85vh] lg:h-screen w-full lg:w-96 rounded-t-2xl lg:rounded-none",
+          "h-[85vh] lg:h-screen w-full lg:w-80 xl:lg:w-96 rounded-t-2xl lg:rounded-none",
           cartOpen ? "translate-y-0" : "translate-y-full lg:translate-y-0"
         )}>
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4 text-gold" />
               <h3 className="text-sm font-semibold text-text-primary">
@@ -499,7 +595,7 @@ export default function POSPage() {
             </div>
             <div className="flex items-center gap-2">
               {items.length > 0 && (
-                <Button variant="ghost" size="sm" onClick={clearCart} className="text-red-400 hover:text-red-300 text-xs">
+                <Button variant="ghost" size="sm" onClick={clearCart} className="text-red-400 hover:text-red-300 text-xs h-7 px-2">
                   Clear
                 </Button>
               )}
@@ -509,29 +605,30 @@ export default function POSPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-text-muted">
-                <ShoppingCart className="h-12 w-12 opacity-30 mb-3" />
+                <ShoppingCart className="h-10 w-10 opacity-30 mb-2" />
                 <p className="text-sm">No items yet</p>
+                <p className="text-xs mt-0.5">Tap products or scan barcodes</p>
               </div>
             ) : (
               items.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 sm:gap-3 rounded-lg border border-border bg-surface-elevated p-2.5 sm:p-3">
+                <div key={item.id} className="flex items-center gap-2 rounded-lg border border-border bg-surface-elevated p-2">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary truncate">{item.name}</p>
-                    <p className="text-xs text-text-muted">KSh {item.price.toLocaleString()}</p>
+                    <p className="text-xs font-medium text-text-primary truncate">{item.name}</p>
+                    <p className="text-[10px] text-text-muted">{formatCurrency(item.price)} ea</p>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-0.5">
                     <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="h-6 w-6 rounded bg-surface-hover flex items-center justify-center">
                       <Minus className="h-3 w-3 text-text-secondary" />
                     </button>
-                    <span className="w-7 text-center text-sm font-semibold text-text-primary">{item.quantity}</span>
+                    <span className="w-6 text-center text-xs font-semibold text-text-primary">{item.quantity}</span>
                     <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="h-6 w-6 rounded bg-surface-hover flex items-center justify-center">
                       <Plus className="h-3 w-3 text-text-secondary" />
                     </button>
                   </div>
-                  <p className="text-xs sm:text-sm font-semibold text-text-primary w-16 sm:w-20 text-right">KSh {(item.price * item.quantity).toLocaleString()}</p>
+                  <p className="text-xs font-semibold text-text-primary w-16 text-right">{formatCurrency(item.price * item.quantity)}</p>
                   <button onClick={() => removeItem(item.id)} className="h-6 w-6 rounded flex items-center justify-center hover:bg-red-500/10">
                     <Trash2 className="h-3 w-3 text-text-muted hover:text-red-400" />
                   </button>
@@ -541,35 +638,26 @@ export default function POSPage() {
           </div>
 
           {/* Totals & Actions */}
-          <div className="border-t border-border p-4 sm:p-5 space-y-3 bg-surface-elevated">
-            <div className="space-y-2">
+          <div className="border-t border-border p-4 space-y-3 bg-surface-elevated shrink-0">
+            <div className="space-y-1.5">
               <div className="flex justify-between text-sm">
                 <span className="text-text-secondary">Subtotal</span>
-                <span className="text-text-primary">KSh {getSubtotal().toLocaleString()}</span>
+                <span className="text-text-primary">{formatCurrency(getSubtotal())}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-text-secondary">VAT ({taxRate}%)</span>
-                <span className="text-text-primary">KSh {getTax(taxRate).toLocaleString()}</span>
+                <span className="text-text-primary">{formatCurrency(getTax(taxRate))}</span>
               </div>
               <div className="flex justify-between border-t border-border pt-2">
-                <span className="text-base font-semibold text-text-primary">Total</span>
-                <span className="text-xl font-bold text-gold">KSh {getTotal(taxRate).toLocaleString()}</span>
+                <span className="text-sm font-semibold text-text-primary">Total</span>
+                <span className="text-lg font-bold text-gold">{formatCurrency(getTotal(taxRate))}</span>
               </div>
             </div>
 
-            {/* New Tab Form */}
             {showNewTab ? (
               <div className="space-y-2 p-3 rounded-lg border border-gold/20 bg-gold/5">
-                <Input
-                  placeholder="Tab name (e.g. Table 5, John's group)"
-                  value={tabName}
-                  onChange={(e) => setTabName(e.target.value)}
-                />
-                <Input
-                  placeholder="Customer name (optional)"
-                  value={tabCustomer}
-                  onChange={(e) => setTabCustomer(e.target.value)}
-                />
+                <Input placeholder="Tab name (e.g. Table 5)" value={tabName} onChange={(e) => setTabName(e.target.value)} />
+                <Input placeholder="Customer (optional)" value={tabCustomer} onChange={(e) => setTabCustomer(e.target.value)} />
                 <div className="flex gap-2">
                   <Button size="sm" onClick={handleOpenTab} disabled={!tabName.trim() || items.length === 0 || processing} className="flex-1">
                     {processing ? "Opening..." : "Open Tab"}
@@ -577,42 +665,38 @@ export default function POSPage() {
                   <Button size="sm" variant="ghost" onClick={() => setShowNewTab(false)}>Cancel</Button>
                 </div>
               </div>
+            ) : activeTab ? (
+              <Button size="lg" className="w-full" disabled={items.length === 0 || processing} onClick={() => handleAddToTab(activeTab)}>
+                {processing ? "Adding..." : `Add to "${activeTab.tabName}"`}
+              </Button>
             ) : (
               <>
-                {/* If adding to existing tab */}
-                {activeTab ? (
-                  <Button size="lg" className="w-full" disabled={items.length === 0 || processing} onClick={() => handleAddToTab(activeTab)}>
-                    {processing ? "Adding..." : `Add to "${activeTab.tabName}"`}
-                  </Button>
-                ) : (
-                  <>
-                    {/* Payment method */}
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { id: "CASH", icon: Banknote, label: "Cash" },
-                        { id: "MPESA", icon: Smartphone, label: "M-Pesa" },
-                        { id: "CARD", icon: CreditCard, label: "Card" },
-                      ].map((m) => (
-                        <button
-                          key={m.id}
-                          onClick={() => setPaymentMethod(m.id)}
-                          className={cn("flex flex-col items-center gap-1 rounded-lg border p-2.5 transition-all", paymentMethod === m.id ? "border-gold/50 bg-gold/10 text-gold" : "border-border text-text-secondary")}
-                        >
-                          <m.icon className="h-4 w-4" />
-                          <span className="text-[10px] font-medium">{m.label}</span>
-                        </button>
-                      ))}
-                    </div>
+                {/* Payment methods */}
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { id: "CASH", icon: Banknote, label: "Cash" },
+                    { id: "MPESA", icon: Smartphone, label: "M-Pesa" },
+                    { id: "CARD", icon: CreditCard, label: "Card" },
+                    { id: "PDQ", icon: Wifi, label: "PDQ" },
+                  ].map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => setPaymentMethod(m.id)}
+                      className={cn("flex flex-col items-center gap-0.5 rounded-lg border p-2 transition-all", paymentMethod === m.id ? "border-gold/50 bg-gold/10 text-gold" : "border-border text-text-secondary")}
+                    >
+                      <m.icon className="h-3.5 w-3.5" />
+                      <span className="text-[9px] font-medium">{m.label}</span>
+                    </button>
+                  ))}
+                </div>
 
-                    <Button size="lg" className="w-full" disabled={items.length === 0 || processing} onClick={handleCheckout}>
-                      {processing ? "Processing..." : `Complete Sale`}
-                    </Button>
+                <Button size="lg" className="w-full" disabled={items.length === 0 || processing} onClick={handleCheckout}>
+                  {processing ? "Processing..." : `Complete Sale · ${formatCurrency(getTotal(taxRate))}`}
+                </Button>
 
-                    <Button size="sm" variant="outline" className="w-full" disabled={items.length === 0} onClick={() => setShowNewTab(true)}>
-                      <Clock className="h-3.5 w-3.5 mr-1" /> Open as Tab
-                    </Button>
-                  </>
-                )}
+                <Button size="sm" variant="outline" className="w-full" disabled={items.length === 0} onClick={() => setShowNewTab(true)}>
+                  <Clock className="h-3.5 w-3.5 mr-1" /> Open as Tab
+                </Button>
               </>
             )}
           </div>

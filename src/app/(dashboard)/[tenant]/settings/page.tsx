@@ -37,7 +37,13 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
+  const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
   const tierOrder = useMemo(() => ({ STARTER: 0, PROFESSIONAL: 1, ENTERPRISE: 2 }) as Record<string, number>, []);
+
+  const notify = (type: string, message: string) => {
+    setNotification({ type, message });
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   useEffect(() => {
     fetch("/api/settings")
@@ -61,7 +67,7 @@ export default function SettingsPage() {
         setTimeout(() => setSaved(false), 3000);
       }
     } catch {
-      alert("Failed to save settings");
+      notify("error", "Failed to save settings");
     } finally {
       setSaving(false);
     }
@@ -76,7 +82,13 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 pt-14 lg:pt-8 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 pt-14 lg:pt-8 max-w-4xl mx-auto space-y-6 relative">
+      {notification && (
+        <div className={`fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border backdrop-blur-sm ${notification.type === "success" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
+          <CheckCircle className="h-4 w-4 shrink-0" />
+          <span className="text-sm font-medium">{notification.message}</span>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
@@ -232,10 +244,10 @@ export default function SettingsPage() {
                             if (data.url) {
                               window.location.href = data.url;
                             } else {
-                              alert(data.error || "Failed to initiate upgrade");
+                              notify("error", data.error || "Failed to initiate upgrade");
                             }
                           } catch {
-                            alert("Network error");
+                            notify("error", "Network error");
                           }
                         }}
                       >
@@ -279,14 +291,31 @@ export default function SettingsPage() {
                   className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted resize-none"
                 />
               </div>
+              <div className="rounded-lg border border-border p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Show &quot;Served by&quot; on receipts</p>
+                    <p className="text-xs text-text-muted mt-0.5">Display the cashier/staff name who processed the sale</p>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer">
+                    <input type="checkbox" defaultChecked className="sr-only peer" />
+                    <div className="h-5 w-9 rounded-full bg-surface-hover peer-checked:bg-gold transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-4" />
+                  </label>
+                </div>
+              </div>
               {/* Receipt Preview */}
               <div className="rounded-lg border border-border bg-surface-elevated/50 p-6 font-mono text-xs text-text-secondary text-center space-y-1">
                 <p className="font-bold text-text-primary">{settings.receiptHeader || settings.name}</p>
                 <p>================================</p>
-                <p>Item 1 ............ KSh 500</p>
-                <p>Item 2 ............ KSh 300</p>
+                <p className="text-left">Served by: Cashier Name</p>
                 <p>================================</p>
-                <p className="font-bold text-text-primary">TOTAL: KSh 800</p>
+                <p className="text-left">Item 1 x2 ........ KSh 1,000</p>
+                <p className="text-left">Item 2 x1 .......... KSh 300</p>
+                <p>================================</p>
+                <p className="text-left">Subtotal .......... KSh 1,300</p>
+                <p className="text-left">VAT ({settings.taxRate}%) ........ KSh {Math.round(1300 * settings.taxRate / 100)}</p>
+                <p>================================</p>
+                <p className="font-bold text-text-primary">TOTAL: KSh {Math.round(1300 * (1 + settings.taxRate / 100)).toLocaleString()}</p>
                 <p className="mt-2 italic">{settings.receiptFooter}</p>
               </div>
             </CardContent>

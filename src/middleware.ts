@@ -4,7 +4,6 @@ import { jwtVerify } from "jose";
 
 const COOKIE_NAME = "lipapoint-session";
 
-// Marketing/public pages that do not require authentication
 const PUBLIC_PATHS = [
   "/",
   "/pricing",
@@ -16,41 +15,29 @@ const PUBLIC_PATHS = [
   "/onboard",
 ];
 
+const ROUTE_PERMISSIONS: Record<string, string[]> = {
+  pos: ["OWNER", "ADMIN", "MANAGER", "CASHIER"],
+  orders: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "KITCHEN"],
+  tabs: ["OWNER", "ADMIN", "MANAGER", "CASHIER"],
+  inventory: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"],
+  analytics: ["OWNER", "ADMIN", "MANAGER"],
+  users: ["OWNER", "ADMIN", "MANAGER"],
+  settings: ["OWNER", "ADMIN"],
+  expenses: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"],
+  kitchen: ["OWNER", "ADMIN", "MANAGER", "KITCHEN"],
+};
+
 function isPublicPath(pathname: string): boolean {
-  // Exact match for public paths
-  if (PUBLIC_PATHS.includes(pathname)) {
-    return true;
-  }
-
-  // Allow all API routes through (auth is handled per-route)
-  if (pathname.startsWith("/api")) {
-    return true;
-  }
-
-  // Allow Next.js internals and static files
-  if (
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.includes(".")
-  ) {
-    return true;
-  }
-
+  if (PUBLIC_PATHS.includes(pathname)) return true;
+  if (pathname.startsWith("/api")) return true;
+  if (pathname.startsWith("/_next") || pathname.startsWith("/favicon") || pathname.includes(".")) return true;
   return false;
 }
 
-/**
- * Check if the path matches a tenant route pattern.
- * Tenant routes are: /[slug]/dashboard, /[slug]/pos, etc.
- * A tenant slug is a lowercase alphanumeric string with hyphens.
- */
 function isTenantPath(pathname: string): boolean {
-  // Match pattern: /some-slug/... (at least two segments, first segment looks like a slug)
   const segments = pathname.split("/").filter(Boolean);
   if (segments.length < 1) return false;
-
   const slug = segments[0];
-  // Slug pattern: lowercase letters, numbers, hyphens (not a known public path)
   const slugPattern = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/;
   return slugPattern.test(slug) && !PUBLIC_PATHS.includes(`/${slug}`);
 }
@@ -58,12 +45,10 @@ function isTenantPath(pathname: string): boolean {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public paths through without authentication
   if (isPublicPath(pathname)) {
     return NextResponse.next();
   }
 
-  // Check if this is a tenant-protected route
   if (isTenantPath(pathname)) {
     const token = request.cookies.get(COOKIE_NAME)?.value;
 
@@ -73,13 +58,24 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(loginUrl);
     }
 
-    // Verify the JWT token
     try {
       const secret = new TextEncoder().encode(process.env.JWT_SECRET);
-      await jwtVerify(token, secret);
+      const { payload } = await jwtVerify(token, secret);
+
+      const segments = pathname.split("/").filter(Boolean);
+      const route = segments[1];
+
+      if (route && ROUTE_PERMISSIONS[route]) {
+        const userRole = (payload.role as string) || "CASHIER";
+        const allowedRoles = ROUTE_PERMISSIONS[route];
+        if (!allowedRoles.includes(userRole)) {
+          const dashUrl = new URL(`/${segments[0]}/pos`, request.url);
+          return NextResponse.redirect(dashUrl);
+        }
+      }
+
       return NextResponse.next();
     } catch {
-      // Invalid or expired token - redirect to login
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("callbackUrl", pathname);
       return NextResponse.redirect(loginUrl);
@@ -91,12 +87,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     "/((?!_next/static|_next/image|favicon.ico).*)",
   ],
 };

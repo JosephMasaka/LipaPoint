@@ -17,15 +17,15 @@ interface SidebarProps {
 }
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
-  { icon: ShoppingCart, label: "Point of Sale", href: "/pos" },
-  { icon: Clock, label: "Tabs", href: "/tabs" },
-  { icon: ClipboardList, label: "Orders", href: "/orders" },
-  { icon: Package, label: "Inventory", href: "/inventory" },
-  { icon: Receipt, label: "Transactions", href: "/transactions" },
-  { icon: TrendingUp, label: "Analytics", href: "/analytics" },
-  { icon: Users, label: "Staff", href: "/users" },
-  { icon: Settings, label: "Settings", href: "/settings" },
+  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "STOCK_KEEPER", "KITCHEN"] },
+  { icon: ShoppingCart, label: "Point of Sale", href: "/pos", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"] },
+  { icon: Clock, label: "Tabs", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"] },
+  { icon: ClipboardList, label: "Orders", href: "/orders", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "KITCHEN"] },
+  { icon: Package, label: "Inventory", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"] },
+  { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"] },
+  { icon: TrendingUp, label: "Analytics", href: "/analytics", roles: ["OWNER", "ADMIN", "MANAGER"] },
+  { icon: Users, label: "Staff", href: "/users", roles: ["OWNER", "ADMIN", "MANAGER"] },
+  { icon: Settings, label: "Settings", href: "/settings", roles: ["OWNER", "ADMIN"] },
 ];
 
 export function Sidebar({ tenantSlug, user }: SidebarProps) {
@@ -65,7 +65,7 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
       </div>
 
       <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
-        {navItems.map((item) => {
+        {navItems.filter((item) => item.roles.includes(user.role)).map((item) => {
           const fullHref = `/${tenantSlug}${item.href}`;
           const isActive = pathname === fullHref;
           return (

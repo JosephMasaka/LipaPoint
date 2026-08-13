@@ -29,18 +29,15 @@ export async function GET(request: NextRequest) {
     const orders = await db.order.findMany({
       where,
       include: {
-        items: { select: { id: true, quantity: true } },
+        items: {
+          select: { id: true, quantity: true, unitPrice: true, total: true, product: { select: { name: true, sku: true } } },
+        },
         user: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
     });
 
-    const ordersWithItemCount = orders.map((o) => ({
-      ...o,
-      itemsCount: o.items.reduce((sum, item) => sum + item.quantity, 0),
-    }));
-
-    return NextResponse.json(ordersWithItemCount);
+    return NextResponse.json(orders);
   } catch (error) {
     console.error("GET /api/orders error:", error);
     return NextResponse.json(
@@ -147,11 +144,13 @@ export async function POST(request: NextRequest) {
       const newOrder = await tx.order.create({
         data: {
           orderNo: generateOrderNo(),
+          status: "COMPLETED",
           subtotal,
           taxAmount,
           discount: discountAmount,
           total,
           paymentMethod: paymentMethod || "CASH",
+          paymentStatus: "COMPLETED",
           customerName: customerName || null,
           customerPhone: customerPhone || null,
           notes: notes || null,
@@ -164,7 +163,10 @@ export async function POST(request: NextRequest) {
           },
         },
         include: {
-          items: true,
+          items: {
+            include: { product: { select: { name: true, sku: true } } },
+          },
+          user: { select: { name: true } },
         },
       });
 
