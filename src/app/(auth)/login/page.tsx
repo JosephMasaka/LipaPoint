@@ -80,7 +80,7 @@ export default function LoginPage() {
           </Button>
         </form>
 
-        <p className="text-sm text-zinc-500 text-center mt-6">
+        <p className="text-sm text-text-muted text-center mt-6">
           Don&apos;t have an account?{" "}
           <Link href="/register" className="text-gold hover:underline">
             Create one

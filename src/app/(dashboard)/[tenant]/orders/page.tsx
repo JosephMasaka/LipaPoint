@@ -84,10 +84,10 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-surface">
       <Header title="Orders" subtitle="View and manage all customer orders" />
 
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Controls */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3 flex-1">
@@ -98,7 +98,7 @@ export default function OrdersPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <div className="flex gap-1 rounded-lg border border-zinc-800 p-1 bg-zinc-900/50">
+            <div className="flex gap-1 rounded-lg border border-border p-1 bg-surface-elevated">
               {statusFilters.map((status) => (
                 <button
                   key={status}
@@ -106,7 +106,7 @@ export default function OrdersPage() {
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
                     statusFilter === status
                       ? "bg-gold/10 text-gold border border-gold/20"
-                      : "text-zinc-400 hover:text-zinc-100"
+                      : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   {status}
@@ -124,40 +124,40 @@ export default function OrdersPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-zinc-800">
-                        <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                      <tr className="border-b border-border">
+                        <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                           Order No
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                           Date
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                           Customer
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                           Items
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                           Total
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                           Payment
                         </th>
-                        <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                        <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                           Status
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-zinc-800/50">
+                    <tbody className="divide-y divide-border">
                       {loading ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
+                          <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
                             Loading orders...
                           </td>
                         </tr>
                       ) : orders.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
+                          <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
                             No orders found.
                           </td>
                         </tr>
@@ -169,22 +169,22 @@ export default function OrdersPage() {
                             className={`cursor-pointer transition-colors ${
                               selectedOrder?.id === order.id
                                 ? "bg-gold/5 border-l-2 border-l-gold"
-                                : "hover:bg-zinc-800/30"
+                                : "hover:bg-surface-hover"
                             }`}
                           >
                             <td className="px-6 py-4 font-mono text-xs font-medium text-gold">
                               {order.orderNo}
                             </td>
-                            <td className="px-6 py-4 text-zinc-400">
+                            <td className="px-6 py-4 text-text-secondary">
                               {formatDate(order.createdAt)}
                             </td>
-                            <td className="px-6 py-4 text-zinc-100">
+                            <td className="px-6 py-4 text-text-primary">
                               {order.customerName || "Walk-in"}
                             </td>
-                            <td className="px-6 py-4 text-zinc-400">
+                            <td className="px-6 py-4 text-text-secondary">
                               {order.itemsCount}
                             </td>
-                            <td className="px-6 py-4 text-zinc-100 font-medium">
+                            <td className="px-6 py-4 text-text-primary font-medium">
                               {formatCurrency(order.total)}
                             </td>
                             <td className="px-6 py-4">
@@ -226,77 +226,77 @@ export default function OrdersPage() {
                 <CardContent className="space-y-4">
                   <div className="space-y-3">
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">Order No</span>
+                      <span className="text-text-secondary">Order No</span>
                       <span className="font-mono text-xs text-gold">
                         {selectedOrder.orderNo}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">Date</span>
-                      <span className="text-zinc-100">
+                      <span className="text-text-secondary">Date</span>
+                      <span className="text-text-primary">
                         {formatDate(selectedOrder.createdAt)}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">Customer</span>
-                      <span className="text-zinc-100">
+                      <span className="text-text-secondary">Customer</span>
+                      <span className="text-text-primary">
                         {selectedOrder.customerName || "Walk-in"}
                       </span>
                     </div>
                     {selectedOrder.customerPhone && (
                       <div className="flex justify-between">
-                        <span className="text-zinc-400">Phone</span>
-                        <span className="text-zinc-100">
+                        <span className="text-text-secondary">Phone</span>
+                        <span className="text-text-primary">
                           {selectedOrder.customerPhone}
                         </span>
                       </div>
                     )}
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">Served by</span>
-                      <span className="text-zinc-100">
+                      <span className="text-text-secondary">Served by</span>
+                      <span className="text-text-primary">
                         {selectedOrder.user.name}
                       </span>
                     </div>
                   </div>
 
-                  <div className="border-t border-zinc-800 pt-3 space-y-2">
+                  <div className="border-t border-border pt-3 space-y-2">
                     <div className="flex justify-between text-sm">
-                      <span className="text-zinc-400">Subtotal</span>
-                      <span className="text-zinc-100">
+                      <span className="text-text-secondary">Subtotal</span>
+                      <span className="text-text-primary">
                         {formatCurrency(selectedOrder.subtotal)}
                       </span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-zinc-400">Tax</span>
-                      <span className="text-zinc-100">
+                      <span className="text-text-secondary">Tax</span>
+                      <span className="text-text-primary">
                         {formatCurrency(selectedOrder.taxAmount)}
                       </span>
                     </div>
                     {selectedOrder.discount > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-zinc-400">Discount</span>
+                        <span className="text-text-secondary">Discount</span>
                         <span className="text-red-400">
                           -{formatCurrency(selectedOrder.discount)}
                         </span>
                       </div>
                     )}
-                    <div className="flex justify-between font-semibold border-t border-zinc-800 pt-2">
-                      <span className="text-zinc-100">Total</span>
+                    <div className="flex justify-between font-semibold border-t border-border pt-2">
+                      <span className="text-text-primary">Total</span>
                       <span className="text-gold">
                         {formatCurrency(selectedOrder.total)}
                       </span>
                     </div>
                   </div>
 
-                  <div className="border-t border-zinc-800 pt-3 space-y-2">
+                  <div className="border-t border-border pt-3 space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">Payment</span>
+                      <span className="text-text-secondary">Payment</span>
                       <Badge variant="secondary">
                         {selectedOrder.paymentMethod}
                       </Badge>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-zinc-400">Status</span>
+                      <span className="text-text-secondary">Status</span>
                       <Badge variant={getStatusVariant(selectedOrder.status)}>
                         {selectedOrder.status}
                       </Badge>
@@ -304,9 +304,9 @@ export default function OrdersPage() {
                   </div>
 
                   {selectedOrder.notes && (
-                    <div className="border-t border-zinc-800 pt-3">
-                      <p className="text-xs text-zinc-400">Notes</p>
-                      <p className="mt-1 text-sm text-zinc-300">
+                    <div className="border-t border-border pt-3">
+                      <p className="text-xs text-text-secondary">Notes</p>
+                      <p className="mt-1 text-sm text-text-secondary">
                         {selectedOrder.notes}
                       </p>
                     </div>

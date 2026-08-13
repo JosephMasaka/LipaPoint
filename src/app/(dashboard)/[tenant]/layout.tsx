@@ -21,9 +21,9 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex">
+    <div className="min-h-screen bg-surface flex">
       <Sidebar tenantSlug={tenantSlug} user={user} />
-      <main className="flex-1 ml-64 min-h-screen">{children}</main>
+      <main className="flex-1 lg:ml-64 min-h-screen">{children}</main>
     </div>
   );
 }

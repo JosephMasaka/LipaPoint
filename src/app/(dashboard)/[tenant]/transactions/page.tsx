@@ -84,18 +84,18 @@ export default function TransactionsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-surface">
       <Header
         title="Transactions"
         subtitle="Track all payment transactions"
       />
 
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Summary Stats */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2">
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-zinc-400">
+              <CardTitle className="text-sm font-medium text-text-secondary">
                 Total Received
               </CardTitle>
             </CardHeader>
@@ -103,14 +103,14 @@ export default function TransactionsPage() {
               <p className="text-3xl font-bold text-emerald-400">
                 {formatCurrency(totalReceived)}
               </p>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-text-muted">
                 {transactions.filter((t) => t.status === "COMPLETED").length} completed transactions
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-medium text-zinc-400">
+              <CardTitle className="text-sm font-medium text-text-secondary">
                 Total Pending
               </CardTitle>
             </CardHeader>
@@ -118,7 +118,7 @@ export default function TransactionsPage() {
               <p className="text-3xl font-bold text-amber-400">
                 {formatCurrency(totalPending)}
               </p>
-              <p className="mt-1 text-xs text-zinc-500">
+              <p className="mt-1 text-xs text-text-muted">
                 {transactions.filter((t) => t.status === "PENDING").length} pending transactions
               </p>
             </CardContent>
@@ -128,13 +128,13 @@ export default function TransactionsPage() {
         {/* Filters */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-zinc-300">
+            <label className="text-sm font-medium text-text-secondary">
               Payment Method
             </label>
             <select
               value={methodFilter}
               onChange={(e) => setMethodFilter(e.target.value)}
-              className="flex h-10 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-gold/50"
+              className="flex h-10 rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-gold/50"
             >
               <option value="">All Methods</option>
               {paymentMethods
@@ -170,40 +170,40 @@ export default function TransactionsPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                  <tr className="border-b border-border">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Reference
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Date
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Type
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Amount
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Method
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Order
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/50">
+                <tbody className="divide-y divide-border">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
                         Loading transactions...
                       </td>
                     </tr>
                   ) : transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
                         No transactions found.
                       </td>
                     </tr>
@@ -211,18 +211,18 @@ export default function TransactionsPage() {
                     transactions.map((tx) => (
                       <tr
                         key={tx.id}
-                        className="hover:bg-zinc-800/30 transition-colors"
+                        className="hover:bg-surface-hover transition-colors"
                       >
-                        <td className="px-6 py-4 font-mono text-xs text-zinc-100">
+                        <td className="px-6 py-4 font-mono text-xs text-text-primary">
                           {tx.reference || "-"}
                         </td>
-                        <td className="px-6 py-4 text-zinc-400">
+                        <td className="px-6 py-4 text-text-secondary">
                           {formatDate(tx.createdAt)}
                         </td>
-                        <td className="px-6 py-4 text-zinc-100 capitalize">
+                        <td className="px-6 py-4 text-text-primary capitalize">
                           {tx.type}
                         </td>
-                        <td className="px-6 py-4 font-medium text-zinc-100">
+                        <td className="px-6 py-4 font-medium text-text-primary">
                           {formatCurrency(tx.amount)}
                         </td>
                         <td className="px-6 py-4">

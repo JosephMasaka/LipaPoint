@@ -45,7 +45,7 @@ export default function HomePage() {
             </span>
           </div>
 
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-zinc-100 leading-[1.1] mb-6">
+          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-text-primary leading-[1.1] mb-6">
             Run Your Business
             <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-gold to-gold-light">
@@ -53,7 +53,7 @@ export default function HomePage() {
             </span>
           </h1>
 
-          <p className="text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed mb-10">
+          <p className="text-lg text-text-secondary max-w-2xl mx-auto leading-relaxed mb-10">
             The all-in-one POS system for Kenyan businesses. Track sales, manage
             inventory, monitor staff, and accept payments via M-Pesa and card —
             all from one dashboard.
@@ -76,12 +76,12 @@ export default function HomePage() {
       </section>
 
       {/* Stats */}
-      <section className="py-12 border-y border-zinc-800/50">
+      <section className="py-12 border-y border-border/50">
         <div className="max-w-6xl mx-auto px-6 grid grid-cols-2 md:grid-cols-4 gap-8">
           {stats.map((stat) => (
             <div key={stat.label} className="text-center">
               <p className="text-2xl md:text-3xl font-bold text-gold">{stat.value}</p>
-              <p className="text-sm text-zinc-500 mt-1">{stat.label}</p>
+              <p className="text-sm text-text-muted mt-1">{stat.label}</p>
             </div>
           ))}
         </div>
@@ -91,10 +91,10 @@ export default function HomePage() {
       <section className="py-20 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-zinc-100 mb-3">
+            <h2 className="text-3xl font-bold text-text-primary mb-3">
               Built for Every Industry
             </h2>
-            <p className="text-zinc-400 max-w-xl mx-auto">
+            <p className="text-text-secondary max-w-xl mx-auto">
               From mama mboga to supermarkets, LipaPoint adapts to your business type.
             </p>
           </div>
@@ -102,10 +102,10 @@ export default function HomePage() {
             {industries.map((ind) => (
               <div
                 key={ind.name}
-                className="flex flex-col items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/30 p-5 hover:border-gold/30 transition-colors"
+                className="flex flex-col items-center gap-3 rounded-xl border border-border bg-surface-elevated/50 p-5 hover:border-gold/30 transition-colors"
               >
                 <ind.icon className="h-6 w-6 text-gold" />
-                <span className="text-xs font-medium text-zinc-300 text-center">
+                <span className="text-xs font-medium text-text-secondary text-center">
                   {ind.name}
                 </span>
               </div>
@@ -115,13 +115,13 @@ export default function HomePage() {
       </section>
 
       {/* Features Preview */}
-      <section className="py-20 px-6 bg-zinc-900/30">
+      <section className="py-20 px-6 bg-surface-elevated/50">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-zinc-100 mb-3">
+            <h2 className="text-3xl font-bold text-text-primary mb-3">
               Everything You Need to Grow
             </h2>
-            <p className="text-zinc-400">
+            <p className="text-text-secondary">
               Powerful features designed for the Kenyan market.
             </p>
           </div>
@@ -139,15 +139,15 @@ export default function HomePage() {
             ].map((f) => (
               <div
                 key={f.title}
-                className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 hover:border-zinc-700 transition-colors"
+                className="rounded-xl border border-border bg-surface-elevated p-6 hover:border-gold/20 transition-colors"
               >
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
                   <f.icon className="h-5 w-5 text-gold" />
                 </div>
-                <h3 className="text-base font-semibold text-zinc-100 mb-2">
+                <h3 className="text-base font-semibold text-text-primary mb-2">
                   {f.title}
                 </h3>
-                <p className="text-sm text-zinc-400 leading-relaxed">{f.desc}</p>
+                <p className="text-sm text-text-secondary leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -157,10 +157,10 @@ export default function HomePage() {
       {/* CTA */}
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl font-bold text-zinc-100 mb-4">
+          <h2 className="text-3xl font-bold text-text-primary mb-4">
             Ready to Transform Your Business?
           </h2>
-          <p className="text-zinc-400 mb-8">
+          <p className="text-text-secondary mb-8">
             Join hundreds of Kenyan businesses already using LipaPoint.
             Start your 14-day free trial today — no credit card required.
           </p>

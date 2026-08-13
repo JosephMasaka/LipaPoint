@@ -52,8 +52,8 @@ export default function DemoRequestPage() {
           <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-gold/10 border border-gold/20 mx-auto mb-6">
             <Monitor className="h-7 w-7 text-gold" />
           </div>
-          <h1 className="text-3xl font-bold text-zinc-100 mb-4">Request a Demo</h1>
-          <p className="text-zinc-400 max-w-md mx-auto">
+          <h1 className="text-3xl font-bold text-text-primary mb-4">Request a Demo</h1>
+          <p className="text-text-secondary max-w-md mx-auto">
             See LipaPoint in action with a personalized demo tailored to your business type.
             Our team will walk you through every feature.
           </p>
@@ -72,10 +72,10 @@ export default function DemoRequestPage() {
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/10 mx-auto mb-4">
                   <CheckCircle className="h-8 w-8 text-emerald-400" />
                 </div>
-                <h3 className="text-xl font-semibold text-zinc-100 mb-2">
+                <h3 className="text-xl font-semibold text-text-primary mb-2">
                   Demo Request Received!
                 </h3>
-                <p className="text-zinc-400">
+                <p className="text-text-secondary">
                   Our team will reach out within 24 hours to schedule your personalized demo.
                 </p>
               </div>
@@ -90,11 +90,11 @@ export default function DemoRequestPage() {
                   <Input name="phone" label="Phone Number" type="tel" placeholder="+254 7XX XXX XXX" required />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-zinc-300">Business Type</label>
+                  <label className="text-sm font-medium text-text-secondary">Business Type</label>
                   <select
                     name="businessType"
                     required
-                    className="flex h-10 w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
+                    className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
                   >
                     <option value="">Select type...</option>
                     {businessTypes.map((t) => (
@@ -105,14 +105,14 @@ export default function DemoRequestPage() {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-zinc-300">
+                  <label className="text-sm font-medium text-text-secondary">
                     Anything specific you&apos;d like to see? (Optional)
                   </label>
                   <textarea
                     name="message"
                     rows={3}
                     placeholder="E.g., I want to see how inventory tracking works for my supermarket..."
-                    className="flex w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all resize-none"
+                    className="flex w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all resize-none"
                   />
                 </div>
                 <Button type="submit" size="lg" className="w-full" disabled={loading}>

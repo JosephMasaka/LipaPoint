@@ -74,10 +74,10 @@ export default function PricingPage() {
     <div className="py-20 px-6">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-zinc-100 mb-4">
+          <h1 className="text-4xl font-bold text-text-primary mb-4">
             Simple, Transparent Pricing
           </h1>
-          <p className="text-lg text-zinc-400 max-w-xl mx-auto">
+          <p className="text-lg text-text-secondary max-w-xl mx-auto">
             Choose the plan that fits your business. All plans include a 14-day
             free trial. No hidden fees.
           </p>
@@ -90,7 +90,7 @@ export default function PricingPage() {
               className={`relative rounded-2xl border p-8 flex flex-col ${
                 plan.popular
                   ? "border-gold/50 bg-gold/5 ring-1 ring-gold/20 scale-105"
-                  : "border-zinc-800 bg-zinc-900/50"
+                  : "border-border bg-surface-elevated"
               }`}
             >
               {plan.popular && (
@@ -105,21 +105,21 @@ export default function PricingPage() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
                   <plan.icon className="h-5 w-5 text-gold" />
                 </div>
-                <h3 className="text-xl font-bold text-zinc-100">{plan.name}</h3>
+                <h3 className="text-xl font-bold text-text-primary">{plan.name}</h3>
               </div>
 
-              <p className="text-sm text-zinc-400 mb-6">{plan.description}</p>
+              <p className="text-sm text-text-secondary mb-6">{plan.description}</p>
 
               <div className="mb-6">
-                <span className="text-4xl font-bold text-zinc-100">
+                <span className="text-4xl font-bold text-text-primary">
                   KSh {plan.price}
                 </span>
-                <span className="text-zinc-500">{plan.period}</span>
+                <span className="text-text-muted">{plan.period}</span>
               </div>
 
               <ul className="space-y-3 mb-8 flex-1">
                 {plan.features.map((feature) => (
-                  <li key={feature} className="flex items-start gap-2 text-sm text-zinc-300">
+                  <li key={feature} className="flex items-start gap-2 text-sm text-text-secondary">
                     <Check className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
                     {feature}
                   </li>
@@ -140,7 +140,7 @@ export default function PricingPage() {
         </div>
 
         <div className="mt-16 text-center">
-          <p className="text-zinc-500 text-sm">
+          <p className="text-text-muted text-sm">
             All prices in Kenyan Shillings (KSh). Payment via M-Pesa or card through Paystack.
             <br />
             Need a custom plan?{" "}

@@ -90,11 +90,11 @@ export default function RegisterPage() {
           <div className={step === 1 ? "space-y-4" : "hidden"}>
               <Input name="businessName" label="Business Name" placeholder="Kamau Enterprises" required />
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-zinc-300">Business Type</label>
+                <label className="text-sm font-medium text-text-secondary">Business Type</label>
                 <select
                   name="businessType"
                   required
-                  className="flex h-10 w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
+                  className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
                 >
                   <option value="">Select your business type...</option>
                   {businessTypes.map((t) => (
@@ -103,11 +103,11 @@ export default function RegisterPage() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-zinc-300">Choose a Plan</label>
+                <label className="text-sm font-medium text-text-secondary">Choose a Plan</label>
                 <select
                   name="plan"
                   required
-                  className="flex h-10 w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
+                  className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
                 >
                   {plans.map((p) => (
                     <option key={p.value} value={p.value}>{p.label}</option>
@@ -137,7 +137,7 @@ export default function RegisterPage() {
           </div>
         </form>
 
-        <p className="text-sm text-zinc-500 text-center mt-6">
+        <p className="text-sm text-text-muted text-center mt-6">
           Already have an account?{" "}
           <Link href="/login" className="text-gold hover:underline">
             Sign in

@@ -121,13 +121,13 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-surface">
       <Header title="Staff Management" subtitle="Manage your team members and their roles" />
 
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Controls */}
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-zinc-400">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <p className="text-sm text-text-secondary">
             {users.length} staff member{users.length !== 1 ? "s" : ""}
           </p>
           <Button
@@ -176,13 +176,13 @@ export default function UsersPage() {
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
                   />
                   <div className="space-y-1.5">
-                    <label className="text-sm font-medium text-zinc-300">
+                    <label className="text-sm font-medium text-text-secondary">
                       Role
                     </label>
                     <select
                       value={form.role}
                       onChange={(e) => setForm({ ...form, role: e.target.value })}
-                      className="flex h-10 w-full rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 py-2 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-gold/50"
+                      className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-gold/50"
                     >
                       {roles.map((role) => (
                         <option key={role} value={role}>
@@ -192,7 +192,7 @@ export default function UsersPage() {
                     </select>
                   </div>
                 </div>
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-text-muted">
                   Default password will be set to &quot;changeme123&quot;. Staff should change it on first login.
                 </p>
                 <div className="flex gap-3 pt-2">
@@ -216,40 +216,40 @@ export default function UsersPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                  <tr className="border-b border-border">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Name
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Email
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Phone
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Role
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Joined
                     </th>
-                    <th className="px-6 py-4 text-right text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/50">
+                <tbody className="divide-y divide-border">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
                         Loading staff...
                       </td>
                     </tr>
                   ) : users.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
                         No staff members found. Add your first team member.
                       </td>
                     </tr>
@@ -257,15 +257,15 @@ export default function UsersPage() {
                     users.map((staffUser) => (
                       <tr
                         key={staffUser.id}
-                        className="hover:bg-zinc-800/30 transition-colors"
+                        className="hover:bg-surface-hover transition-colors"
                       >
-                        <td className="px-6 py-4 font-medium text-zinc-100">
+                        <td className="px-6 py-4 font-medium text-text-primary">
                           {staffUser.name}
                         </td>
-                        <td className="px-6 py-4 text-zinc-400">
+                        <td className="px-6 py-4 text-text-secondary">
                           {staffUser.email}
                         </td>
-                        <td className="px-6 py-4 text-zinc-400">
+                        <td className="px-6 py-4 text-text-secondary">
                           {staffUser.phone || "-"}
                         </td>
                         <td className="px-6 py-4">
@@ -280,7 +280,7 @@ export default function UsersPage() {
                             {staffUser.isActive ? "Active" : "Inactive"}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4 text-zinc-400">
+                        <td className="px-6 py-4 text-text-secondary">
                           {formatDate(staffUser.createdAt)}
                         </td>
                         <td className="px-6 py-4 text-right">

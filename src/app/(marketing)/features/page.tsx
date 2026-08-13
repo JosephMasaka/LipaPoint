@@ -54,32 +54,32 @@ export default function FeaturesPage() {
     <div className="py-20 px-6">
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
-          <h1 className="text-4xl font-bold text-zinc-100 mb-4">
+          <h1 className="text-4xl font-bold text-text-primary mb-4">
             Powerful Features for Modern Businesses
           </h1>
-          <p className="text-lg text-zinc-400 max-w-xl mx-auto">
+          <p className="text-lg text-text-secondary max-w-xl mx-auto">
             Everything you need to run, manage, and grow your business — all in one platform.
           </p>
         </div>
 
         {featureGroups.map((group, i) => (
-          <div key={group.title} className={`py-16 ${i > 0 ? "border-t border-zinc-800" : ""}`}>
+          <div key={group.title} className={`py-16 ${i > 0 ? "border-t border-border" : ""}`}>
             <div className="mb-10">
-              <h2 className="text-2xl font-bold text-zinc-100 mb-2">{group.title}</h2>
-              <p className="text-zinc-400">{group.description}</p>
+              <h2 className="text-2xl font-bold text-text-primary mb-2">{group.title}</h2>
+              <p className="text-text-secondary">{group.description}</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {group.features.map((f) => (
                 <div
                   key={f.name}
-                  className="flex gap-4 rounded-xl border border-zinc-800 bg-zinc-900/30 p-6 hover:border-zinc-700 transition-colors"
+                  className="flex gap-4 rounded-xl border border-border bg-surface-elevated/50 p-6 hover:border-gold/20 transition-colors"
                 >
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 shrink-0">
                     <f.icon className="h-5 w-5 text-gold" />
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-zinc-100 mb-1">{f.name}</h3>
-                    <p className="text-sm text-zinc-400 leading-relaxed">{f.desc}</p>
+                    <h3 className="text-base font-semibold text-text-primary mb-1">{f.name}</h3>
+                    <p className="text-sm text-text-secondary leading-relaxed">{f.desc}</p>
                   </div>
                 </div>
               ))}
@@ -87,8 +87,8 @@ export default function FeaturesPage() {
           </div>
         ))}
 
-        <div className="text-center pt-12 border-t border-zinc-800">
-          <h2 className="text-2xl font-bold text-zinc-100 mb-4">
+        <div className="text-center pt-12 border-t border-border">
+          <h2 className="text-2xl font-bold text-text-primary mb-4">
             Ready to see it in action?
           </h2>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

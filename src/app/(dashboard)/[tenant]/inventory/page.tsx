@@ -140,10 +140,10 @@ export default function InventoryPage() {
   );
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-surface">
       <Header title="Inventory" subtitle="Manage your products and stock levels" />
 
-      <div className="p-8 space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Controls */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3 flex-1">
@@ -157,7 +157,7 @@ export default function InventoryPage() {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
-              className="h-10 rounded-lg border border-zinc-700 bg-zinc-800/50 px-3 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-gold/50"
+              className="h-10 rounded-lg border border-border bg-surface-elevated px-3 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-gold/50"
             >
               <option value="">All Categories</option>
               {categories.map((cat) => (
@@ -265,40 +265,40 @@ export default function InventoryPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800">
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                  <tr className="border-b border-border">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Product
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       SKU
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Category
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Price
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Stock
                     </th>
-                    <th className="px-6 py-4 text-left text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-left text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-4 text-right text-xs font-medium text-zinc-400 uppercase tracking-wider">
+                    <th className="px-6 py-4 text-right text-xs font-medium text-text-secondary uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-800/50">
+                <tbody className="divide-y divide-border">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
                         Loading products...
                       </td>
                     </tr>
                   ) : products.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-zinc-500">
+                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
                         No products found. Add your first product above.
                       </td>
                     </tr>
@@ -306,7 +306,7 @@ export default function InventoryPage() {
                     products.map((product) => (
                       <tr
                         key={product.id}
-                        className="hover:bg-zinc-800/30 transition-colors"
+                        className="hover:bg-surface-hover transition-colors"
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -314,25 +314,25 @@ export default function InventoryPage() {
                               <img
                                 src={product.image}
                                 alt={product.name}
-                                className="h-10 w-10 rounded-lg object-cover border border-zinc-700"
+                                className="h-10 w-10 rounded-lg object-cover border border-border"
                               />
                             ) : (
-                              <div className="h-10 w-10 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center">
-                                <span className="text-xs text-zinc-500">N/A</span>
+                              <div className="h-10 w-10 rounded-lg bg-surface-elevated border border-border flex items-center justify-center">
+                                <span className="text-xs text-text-muted">N/A</span>
                               </div>
                             )}
-                            <span className="font-medium text-zinc-100">
+                            <span className="font-medium text-text-primary">
                               {product.name}
                             </span>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-zinc-400 font-mono text-xs">
+                        <td className="px-6 py-4 text-text-secondary font-mono text-xs">
                           {product.sku}
                         </td>
-                        <td className="px-6 py-4 text-zinc-400">
+                        <td className="px-6 py-4 text-text-secondary">
                           {product.category?.name || "Uncategorized"}
                         </td>
-                        <td className="px-6 py-4 text-zinc-100">
+                        <td className="px-6 py-4 text-text-primary">
                           {formatCurrency(product.price)}
                         </td>
                         <td className="px-6 py-4">
