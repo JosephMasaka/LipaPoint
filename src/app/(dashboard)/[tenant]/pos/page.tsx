@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useCartStore } from "@/store/cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,13 +9,14 @@ import { cn } from "@/lib/utils";
 import {
   Search, Grid3X3, List, Minus, Plus, Trash2,
   CreditCard, Banknote, Smartphone, Package, ShoppingCart, ChevronUp,
-  Clock, Users, X,
+  Clock, Users, X, ScanBarcode,
 } from "lucide-react";
 
 interface Product {
   id: string;
   name: string;
   sku: string;
+  barcode: string | null;
   price: number;
   image: string | null;
   category: { id: string; name: string; color: string } | null;
@@ -49,6 +50,8 @@ export default function POSPage() {
   const [paymentMethod, setPaymentMethod] = useState("CASH");
   const [processing, setProcessing] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
+  const [taxRate, setTaxRate] = useState(16);
+  const [scannerActive, setScannerActive] = useState(false);
 
   // Tab management
   const [mode, setMode] = useState<"sale" | "tabs">("sale");
@@ -58,9 +61,47 @@ export default function POSPage() {
   const [tabName, setTabName] = useState("");
   const [tabCustomer, setTabCustomer] = useState("");
 
+  // Barcode scanner buffer
+  const barcodeBuffer = useRef("");
+  const barcodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const { items, addItem, removeItem, updateQuantity, clearCart, getSubtotal, getTax, getTotal } = useCartStore();
 
+  // Barcode scanner handler - scanners type rapidly then hit Enter
+  const handleBarcodeInput = useCallback((e: KeyboardEvent) => {
+    if (!scannerActive) return;
+    // Ignore if focused on an input field
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+
+    if (e.key === "Enter" && barcodeBuffer.current.length > 3) {
+      const barcode = barcodeBuffer.current.trim();
+      barcodeBuffer.current = "";
+      // Find product by barcode or SKU
+      const product = products.find(p => p.barcode === barcode || p.sku === barcode);
+      if (product) {
+        addItem({ id: product.id, name: product.name, price: product.price, sku: product.sku });
+      }
+    } else if (e.key === "Enter") {
+      barcodeBuffer.current = "";
+    } else if (e.key.length === 1) {
+      barcodeBuffer.current += e.key;
+      if (barcodeTimeout.current) clearTimeout(barcodeTimeout.current);
+      barcodeTimeout.current = setTimeout(() => { barcodeBuffer.current = ""; }, 100);
+    }
+  }, [scannerActive, products, addItem]);
+
   useEffect(() => {
+    document.addEventListener("keydown", handleBarcodeInput);
+    return () => document.removeEventListener("keydown", handleBarcodeInput);
+  }, [handleBarcodeInput]);
+
+  useEffect(() => {
+    fetch("/api/auth/me").then(r => r.json()).then(data => {
+      if (data.user?.tenant?.taxRate != null) {
+        setTaxRate(data.user.tenant.taxRate);
+      }
+    }).catch(() => {});
     fetch("/api/products").then(r => r.json()).then(data => {
       if (Array.isArray(data)) setProducts(data);
     }).catch(() => {});
@@ -93,8 +134,8 @@ export default function POSPage() {
           items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price })),
           paymentMethod,
           subtotal: getSubtotal(),
-          taxAmount: getTax(16),
-          total: getTotal(16),
+          taxAmount: getTax(taxRate),
+          total: getTotal(taxRate),
         }),
       });
       if (res.ok) {
@@ -224,6 +265,13 @@ export default function POSPage() {
               Tabs{tabs.length > 0 && <Badge variant="warning" className="text-[9px] px-1">{tabs.length}</Badge>}
             </button>
           </div>
+          <button
+            onClick={() => setScannerActive(!scannerActive)}
+            className={cn("p-2.5 rounded-lg border border-border transition-colors", scannerActive ? "bg-gold/10 text-gold border-gold/30" : "text-text-secondary")}
+            title={scannerActive ? "Scanner active" : "Enable barcode scanner"}
+          >
+            <ScanBarcode className="h-4 w-4" />
+          </button>
           <div className="hidden sm:flex rounded-lg border border-border overflow-hidden">
             <button onClick={() => setViewMode("grid")} className={cn("p-2.5", viewMode === "grid" && "bg-surface-hover text-gold")}>
               <Grid3X3 className="h-4 w-4" />
@@ -264,27 +312,27 @@ export default function POSPage() {
                   <p className="text-sm">No products found</p>
                 </div>
               ) : viewMode === "grid" ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2 sm:gap-3">
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                   {filtered.map((product) => (
                     <button
                       key={product.id}
                       onClick={() => addItem({ id: product.id, name: product.name, price: product.price, sku: product.sku })}
-                      className="relative flex flex-col items-center rounded-xl border border-border bg-surface-elevated p-3 sm:p-4 hover:border-gold/30 hover:shadow-lg transition-all group"
+                      className="relative flex flex-col items-center rounded-lg border border-border bg-surface-elevated p-2 sm:p-3 hover:border-gold/30 hover:shadow-lg transition-all group"
                     >
                       {product.image ? (
-                        <img src={product.image} alt={product.name} className="h-10 w-10 sm:h-12 sm:w-12 rounded-lg object-cover mb-2 sm:mb-3" />
+                        <img src={product.image} alt={product.name} className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg object-cover mb-1.5" />
                       ) : (
-                        <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-surface-hover group-hover:bg-gold/10 transition-colors mb-2 sm:mb-3">
-                          <Package className="h-5 w-5 sm:h-6 sm:w-6 text-text-muted group-hover:text-gold" />
+                        <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-surface-hover group-hover:bg-gold/10 transition-colors mb-1.5">
+                          <Package className="h-4 w-4 sm:h-5 sm:w-5 text-text-muted group-hover:text-gold" />
                         </div>
                       )}
-                      <p className="text-xs sm:text-sm font-medium text-text-primary text-center line-clamp-2">{product.name}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <p className="text-sm sm:text-base font-bold text-gold">KSh {product.price.toLocaleString()}</p>
-                        {product.unit && <span className="text-[9px] text-text-muted">/{product.unit.abbreviation}</span>}
+                      <p className="text-[10px] sm:text-xs font-medium text-text-primary text-center line-clamp-2 leading-tight">{product.name}</p>
+                      <div className="flex items-center gap-0.5 mt-0.5">
+                        <p className="text-xs sm:text-sm font-bold text-gold">KSh {product.price.toLocaleString()}</p>
+                        {product.unit && <span className="text-[8px] text-text-muted">/{product.unit.abbreviation}</span>}
                       </div>
                       {product.stocks[0] && product.stocks[0].quantity < 10 && (
-                        <Badge variant="destructive" className="absolute top-2 right-2 text-[9px]">Low</Badge>
+                        <Badge variant="destructive" className="absolute top-1 right-1 text-[8px] px-1 py-0">Low</Badge>
                       )}
                     </button>
                   ))}
@@ -423,7 +471,7 @@ export default function POSPage() {
         >
           <ShoppingCart className="h-5 w-5" />
           {items.length > 0 && (
-            <span className="text-sm font-bold">{items.length} - KSh {getTotal(16).toLocaleString()}</span>
+            <span className="text-sm font-bold">{items.length} - KSh {getTotal(taxRate).toLocaleString()}</span>
           )}
           <ChevronUp className={cn("h-4 w-4 transition-transform", cartOpen && "rotate-180")} />
         </button>
@@ -500,12 +548,12 @@ export default function POSPage() {
                 <span className="text-text-primary">KSh {getSubtotal().toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-text-secondary">VAT (16%)</span>
-                <span className="text-text-primary">KSh {getTax(16).toLocaleString()}</span>
+                <span className="text-text-secondary">VAT ({taxRate}%)</span>
+                <span className="text-text-primary">KSh {getTax(taxRate).toLocaleString()}</span>
               </div>
               <div className="flex justify-between border-t border-border pt-2">
                 <span className="text-base font-semibold text-text-primary">Total</span>
-                <span className="text-xl font-bold text-gold">KSh {getTotal(16).toLocaleString()}</span>
+                <span className="text-xl font-bold text-gold">KSh {getTotal(taxRate).toLocaleString()}</span>
               </div>
             </div>
 

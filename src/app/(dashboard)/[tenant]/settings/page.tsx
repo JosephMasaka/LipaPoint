@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Store, CreditCard, Bell, Shield,
-  Receipt, Save, CheckCircle,
+  Receipt, Save, CheckCircle, Check,
 } from "lucide-react";
 
 interface TenantSettings {
@@ -37,6 +37,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
+  const tierOrder = useMemo(() => ({ STARTER: 0, PROFESSIONAL: 1, ENTERPRISE: 2 }) as Record<string, number>, []);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -178,7 +179,7 @@ export default function SettingsPage() {
               <CardDescription>Your current plan and billing details</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-elevated/50 p-5">
+              <div className="flex items-center justify-between rounded-lg border border-border bg-surface-elevated/50 p-5 mb-6">
                 <div>
                   <div className="flex items-center gap-3 mb-2">
                     <h3 className="text-lg font-bold text-text-primary capitalize">{settings.tier.toLowerCase()} Plan</h3>
@@ -190,7 +191,59 @@ export default function SettingsPage() {
                     {settings.tier === "ENTERPRISE" && "KSh 19,999/month"}
                   </p>
                 </div>
-                <Button variant="outline">Upgrade Plan</Button>
+              </div>
+
+              <div className="grid md:grid-cols-3 gap-4">
+                {[
+                  { tier: "STARTER", price: "2,999", features: ["Up to 100 products", "1 location", "2 staff", "Basic reports"] },
+                  { tier: "PROFESSIONAL", price: "7,999", features: ["Unlimited products", "3 locations", "10 staff", "Advanced analytics", "Priority support"] },
+                  { tier: "ENTERPRISE", price: "19,999", features: ["Unlimited everything", "Unlimited locations", "Unlimited staff", "Custom reports", "Dedicated support", "API access"] },
+                ].map((plan) => (
+                  <div
+                    key={plan.tier}
+                    className={`rounded-lg border p-5 space-y-3 ${settings.tier === plan.tier ? "border-gold bg-gold/5" : "border-border"}`}
+                  >
+                    <div>
+                      <h4 className="font-bold text-text-primary capitalize">{plan.tier.toLowerCase()}</h4>
+                      <p className="text-lg font-bold text-gold">KSh {plan.price}<span className="text-xs text-text-muted font-normal">/mo</span></p>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {plan.features.map((f) => (
+                        <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
+                          <Check className="h-3 w-3 text-gold shrink-0" /> {f}
+                        </li>
+                      ))}
+                    </ul>
+                    {settings.tier === plan.tier ? (
+                      <Badge variant="success" className="w-full justify-center">Current Plan</Badge>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant={(tierOrder[plan.tier] || 0) > (tierOrder[settings.tier] || 0) ? "default" : "outline"}
+                        className="w-full"
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/paystack/subscribe", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ tier: plan.tier }),
+                            });
+                            const data = await res.json();
+                            if (data.url) {
+                              window.location.href = data.url;
+                            } else {
+                              alert(data.error || "Failed to initiate upgrade");
+                            }
+                          } catch {
+                            alert("Network error");
+                          }
+                        }}
+                      >
+                        {(tierOrder[plan.tier] || 0) > (tierOrder[settings.tier] || 0) ? "Upgrade" : "Switch"}
+                      </Button>
+                    )}
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>

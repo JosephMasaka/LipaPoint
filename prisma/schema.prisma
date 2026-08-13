@@ -91,6 +91,8 @@ model Tenant {
   transactions   Transaction[]
   activityLogs   ActivityLog[]
   unitsOfMeasure UnitOfMeasure[]
+  stockRecords   StockRecord[]
+  expenses       Expense[]
 
   @@index([slug])
   @@index([isActive])
@@ -113,6 +115,7 @@ model User {
   orders       Order[]
   activityLogs ActivityLog[]
   sessions     Session[]
+  expenses     Expense[]
 
   @@index([tenantId])
   @@index([email])
@@ -131,17 +134,18 @@ model Session {
 }
 
 model Location {
-  id        String     @id @default(cuid())
-  name      String
-  address   String?
-  phone     String?
-  isActive  Boolean    @default(true)
-  tenantId  String
-  tenant    Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  registers Register[]
-  stocks    Stock[]
-  orders    Order[]
-  createdAt DateTime   @default(now())
+  id           String        @id @default(cuid())
+  name         String
+  address      String?
+  phone        String?
+  isActive     Boolean       @default(true)
+  tenantId     String
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  registers    Register[]
+  stocks       Stock[]
+  orders       Order[]
+  stockRecords StockRecord[]
+  createdAt    DateTime      @default(now())
 
   @@index([tenantId])
 }
@@ -221,6 +225,7 @@ model Product {
   category      Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   stocks        Stock[]
   orderItems    OrderItem[]
+  stockRecords  StockRecord[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
@@ -330,6 +335,47 @@ model ActivityLog {
 
   @@index([tenantId])
   @@index([createdAt])
+}
+
+model StockRecord {
+  id           String   @id @default(cuid())
+  date         DateTime @db.Date
+  openingStock Int
+  addedStock   Int      @default(0)
+  soldStock    Int      @default(0)
+  closingStock Int
+  variance     Int      @default(0)
+  notes        String?
+  productId    String
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  locationId   String
+  location     Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([productId, locationId, date])
+  @@index([tenantId])
+  @@index([date])
+  @@index([productId])
+  @@index([locationId])
+}
+
+model Expense {
+  id          String   @id @default(cuid())
+  date        DateTime @db.Date
+  category    String
+  description String
+  amount      Float
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([date])
 }
 
 model DemoRequest {

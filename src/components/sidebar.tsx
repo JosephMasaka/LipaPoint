@@ -7,7 +7,7 @@ import { useTheme } from "@/components/theme-provider";
 import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
   Settings, Store, TrendingUp, Users, LogOut, Receipt,
-  Menu, X, Sun, Moon,
+  Menu, X, Sun, Moon, Clock,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -19,6 +19,7 @@ interface SidebarProps {
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
   { icon: ShoppingCart, label: "Point of Sale", href: "/pos" },
+  { icon: Clock, label: "Tabs", href: "/tabs" },
   { icon: ClipboardList, label: "Orders", href: "/orders" },
   { icon: Package, label: "Inventory", href: "/inventory" },
   { icon: Receipt, label: "Transactions", href: "/transactions" },

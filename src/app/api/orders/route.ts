@@ -84,30 +84,40 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate totals and perform atomic stock decrement
+    // Fetch products and validate stock outside the transaction
+    const productIds = items.map((i: { productId: string }) => i.productId);
+    const productsData = await db.product.findMany({
+      where: { id: { in: productIds }, tenantId: user.tenantId },
+    });
+
+    const productMap = new Map(productsData.map(p => [p.id, p]));
+    let subtotal = 0;
+    const orderItems: { productId: string; quantity: number; unitPrice: number; total: number }[] = [];
+
+    for (const item of items) {
+      const product = productMap.get(item.productId);
+      if (!product) {
+        return NextResponse.json({ error: `Product not found` }, { status: 400 });
+      }
+      const itemTotal = product.price * item.quantity;
+      subtotal += itemTotal;
+      orderItems.push({
+        productId: product.id,
+        quantity: item.quantity,
+        unitPrice: product.price,
+        total: itemTotal,
+      });
+    }
+
+    const taxRate = user.tenant.taxRate || 16;
+    const taxAmount = subtotal * (taxRate / 100);
+    const discountAmount = discount || 0;
+    const total = subtotal + taxAmount - discountAmount;
+
+    // Minimal transaction: stock decrement + order create
     const order = await db.$transaction(async (tx) => {
-      let subtotal = 0;
-      const orderItems: { productId: string; quantity: number; unitPrice: number; total: number }[] = [];
-
-      for (const item of items) {
-        const product = await tx.product.findFirst({
-          where: { id: item.productId, tenantId: user.tenantId },
-        });
-
-        if (!product) {
-          throw new Error(`Product ${item.productId} not found`);
-        }
-
-        const itemTotal = product.price * item.quantity;
-        subtotal += itemTotal;
-        orderItems.push({
-          productId: product.id,
-          quantity: item.quantity,
-          unitPrice: product.price,
-          total: itemTotal,
-        });
-
-        // Atomic stock decrement
+      for (const item of orderItems) {
+        const product = productMap.get(item.productId)!;
         if (product.trackStock) {
           const stock = await tx.stock.findUnique({
             where: {
@@ -134,11 +144,6 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      const taxRate = user.tenant.taxRate || 16;
-      const taxAmount = subtotal * (taxRate / 100);
-      const discountAmount = discount || 0;
-      const total = subtotal + taxAmount - discountAmount;
-
       const newOrder = await tx.order.create({
         data: {
           orderNo: generateOrderNo(),
@@ -164,7 +169,7 @@ export async function POST(request: NextRequest) {
       });
 
       return newOrder;
-    });
+    }, { timeout: 30000 });
 
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
