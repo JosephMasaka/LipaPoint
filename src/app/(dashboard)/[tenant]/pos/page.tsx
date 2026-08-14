@@ -9,7 +9,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 import {
   Search, Grid3X3, List, Minus, Plus, Trash2,
   CreditCard, Banknote, Smartphone, Package, ShoppingCart, ChevronUp,
-  Clock, Users, X, ScanBarcode, Printer, CheckCircle, Wifi, Scale,
+  Clock, Users, X, ScanBarcode, Printer, CheckCircle, Wifi, Ruler,
 } from "lucide-react";
 
 interface ProductUoM {
@@ -159,6 +159,7 @@ export default function POSPage() {
   };
 
   // Barcode scanner handler
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleBarcodeInput = useCallback((e: KeyboardEvent) => {
     if (!scannerActive) return;
     const target = e.target as HTMLElement;
@@ -393,7 +394,7 @@ export default function POSPage() {
                 <div>
                   <h3 className="font-semibold text-text-primary">{uomProduct.name}</h3>
                   <p className="text-xs text-text-muted flex items-center gap-1">
-                    <Scale className="h-3 w-3" /> Select unit of measure
+                    <Ruler className="h-3 w-3" /> Select unit of measure
                   </p>
                 </div>
               </div>
@@ -591,7 +592,7 @@ export default function POSPage() {
                       </div>
                       {product.productUoms.length > 0 && (
                         <Badge variant="secondary" className="absolute top-1 left-1 text-[7px] px-1 py-0 gap-0.5">
-                          <Scale className="h-2 w-2" />{product.productUoms.length + 1}
+                          <Ruler className="h-2 w-2" />{product.productUoms.length + 1}
                         </Badge>
                       )}
                       {product.stocks[0] && product.stocks[0].quantity < 10 && (
