@@ -74,7 +74,7 @@ export default function TabsPage() {
   const totalValue = tabs.reduce((s, t) => s + t.total, 0);
 
   return (
-    <div className="min-h-screen bg-surface relative">
+    <div className="min-h-screen bg-surface relative overflow-x-hidden">
       {/* Notification */}
       {notification && (
         <div className={cn(
@@ -87,7 +87,7 @@ export default function TabsPage() {
         </div>
       )}
 
-      <div className="p-4 sm:p-6 lg:p-8 pt-14 lg:pt-8 space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 pt-12 lg:pt-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">

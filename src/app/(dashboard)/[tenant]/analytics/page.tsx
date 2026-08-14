@@ -52,7 +52,7 @@ export default function AnalyticsPage() {
   const monthChange = pctChange(d.revenue.month, d.revenue.lastMonth);
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface overflow-x-hidden">
       <Header title="Analytics" subtitle="Comprehensive business performance insights" />
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">

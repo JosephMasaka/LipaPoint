@@ -37,7 +37,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface">
+      <div className="min-h-screen bg-surface overflow-x-hidden">
         <Header title="Dashboard" subtitle="Loading your business overview..." />
         <div className="p-4 sm:p-6 lg:p-8">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
@@ -57,7 +57,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface overflow-x-hidden">
       <Header title="Dashboard" subtitle="System overview and real-time status" />
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">

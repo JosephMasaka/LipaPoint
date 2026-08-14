@@ -292,7 +292,7 @@ export default function POSPage() {
   const parentCategories = categories.filter(c => !c.parentId);
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen relative overflow-x-hidden">
+    <div className="flex flex-col lg:flex-row h-screen relative overflow-hidden">
       {/* Notification Toast */}
       {notification && (
         <div className={cn(
@@ -364,7 +364,7 @@ export default function POSPage() {
       {/* Products Panel */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Search Bar + Mode Toggle */}
-        <div className="flex items-center gap-2 border-b border-border p-3 bg-surface pt-14 lg:pt-3 shrink-0">
+        <div className="flex items-center gap-2 border-b border-border p-3 bg-surface pt-12 lg:pt-3 shrink-0">
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
             <Input
@@ -429,7 +429,7 @@ export default function POSPage() {
             </div>
 
             {/* Product Grid - contained, no x overflow */}
-            <div className="flex-1 overflow-y-auto p-3 pb-20 lg:pb-3">
+            <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 pb-16 lg:pb-3">
               {filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 text-text-muted">
                   <Package className="h-12 w-12 mb-3 opacity-50" />
@@ -563,16 +563,23 @@ export default function POSPage() {
       </div>
 
       {/* Mobile Cart Toggle */}
-      {mode === "sale" && (
+      {mode === "sale" && !cartOpen && (
         <button
-          onClick={() => setCartOpen(!cartOpen)}
-          className="lg:hidden fixed bottom-4 right-4 z-30 flex items-center gap-2 rounded-full bg-gold text-black px-4 py-3 shadow-lg shadow-gold/30"
+          onClick={() => setCartOpen(true)}
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-30 flex items-center justify-between bg-gold text-black px-5 py-3.5 shadow-[0_-4px_20px_rgba(212,175,55,0.3)]"
         >
-          <ShoppingCart className="h-5 w-5" />
+          <div className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5" />
+            <span className="text-sm font-bold">
+              {items.length === 0 ? "Cart" : `${items.length} item${items.length > 1 ? "s" : ""}`}
+            </span>
+          </div>
           {items.length > 0 && (
-            <span className="text-sm font-bold">{items.length} · {formatCurrency(getTotal(taxRate))}</span>
+            <span className="text-base font-bold">{formatCurrency(getTotal(taxRate))}</span>
           )}
-          <ChevronUp className={cn("h-4 w-4 transition-transform", cartOpen && "rotate-180")} />
+          {items.length === 0 && (
+            <ChevronUp className="h-5 w-5" />
+          )}
         </button>
       )}
 
@@ -583,10 +590,15 @@ export default function POSPage() {
         <div className={cn(
           "fixed lg:relative z-50 lg:z-auto bg-surface border-l border-border flex flex-col transition-transform duration-300",
           "bottom-0 left-0 right-0 lg:bottom-auto lg:left-auto lg:right-auto lg:top-0",
-          "h-[85vh] lg:h-screen w-full lg:w-80 xl:lg:w-96 rounded-t-2xl lg:rounded-none",
+          "h-[90vh] lg:h-screen w-full lg:w-80 xl:w-96 rounded-t-2xl lg:rounded-none shadow-[0_-8px_30px_rgba(0,0,0,0.3)] lg:shadow-none",
           cartOpen ? "translate-y-0" : "translate-y-full lg:translate-y-0"
         )}>
-          <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
+          {/* Mobile drag handle */}
+          <div className="lg:hidden flex justify-center py-2 shrink-0" onClick={() => setCartOpen(false)}>
+            <div className="w-10 h-1 rounded-full bg-border" />
+          </div>
+
+          <div className="flex items-center justify-between border-b border-border px-4 py-2 lg:py-3 shrink-0">
             <div className="flex items-center gap-2">
               <ShoppingCart className="h-4 w-4 text-gold" />
               <h3 className="text-sm font-semibold text-text-primary">
@@ -599,8 +611,8 @@ export default function POSPage() {
                   Clear
                 </Button>
               )}
-              <button onClick={() => setCartOpen(false)} className="lg:hidden p-1 text-text-muted">
-                <ChevronUp className="h-5 w-5 rotate-180" />
+              <button onClick={() => setCartOpen(false)} className="lg:hidden p-1.5 rounded-lg bg-surface-hover text-text-muted">
+                <X className="h-4 w-4" />
               </button>
             </div>
           </div>

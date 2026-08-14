@@ -77,7 +77,7 @@ export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState("products");
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface overflow-x-hidden">
       <Header title="Inventory" subtitle="Manage products, stock, units of measure, and expenses" />
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -187,7 +187,7 @@ function ProductsTab() {
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[600px]">
               <thead>
                 <tr className="border-b border-border">
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">Product</th>

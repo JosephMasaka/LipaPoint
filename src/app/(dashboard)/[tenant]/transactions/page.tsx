@@ -84,7 +84,7 @@ export default function TransactionsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface overflow-x-hidden">
       <Header
         title="Transactions"
         subtitle="Track all payment transactions"

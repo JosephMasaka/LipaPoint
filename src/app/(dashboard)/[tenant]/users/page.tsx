@@ -117,7 +117,7 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface relative">
+    <div className="min-h-screen bg-surface relative overflow-x-hidden">
       {notification && (
         <div className={cn("fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border backdrop-blur-sm", notification.type === "success" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-400")}>
           <CheckCircle className="h-4 w-4 shrink-0" />
@@ -129,18 +129,18 @@ export default function UsersPage() {
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         {/* Tab switcher */}
-        <div className="flex items-center justify-between">
-          <div className="flex gap-1 rounded-lg border border-border p-1 bg-surface-elevated">
-            <button onClick={() => setActiveTab("staff")} className={cn("flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors", activeTab === "staff" ? "bg-gold/10 text-gold border border-gold/20" : "text-text-secondary")}>
-              <Users className="h-4 w-4" /> Staff
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex gap-1 rounded-lg border border-border p-1 bg-surface-elevated w-fit">
+            <button onClick={() => setActiveTab("staff")} className={cn("flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors", activeTab === "staff" ? "bg-gold/10 text-gold border border-gold/20" : "text-text-secondary")}>
+              <Users className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> Staff
             </button>
-            <button onClick={() => setActiveTab("roles")} className={cn("flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors", activeTab === "roles" ? "bg-gold/10 text-gold border border-gold/20" : "text-text-secondary")}>
-              <Shield className="h-4 w-4" /> Roles & Permissions
+            <button onClick={() => setActiveTab("roles")} className={cn("flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors", activeTab === "roles" ? "bg-gold/10 text-gold border border-gold/20" : "text-text-secondary")}>
+              <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> <span className="hidden sm:inline">Roles &</span> Permissions
             </button>
           </div>
           {activeTab === "staff" && (
-            <Button onClick={() => setShowForm(!showForm)} className="gap-2">
-              <UserPlus className="h-4 w-4" /> {showForm ? "Cancel" : "Add Staff"}
+            <Button onClick={() => setShowForm(!showForm)} className="gap-2 w-fit">
+              <UserPlus className="h-4 w-4" /> <span className="hidden sm:inline">{showForm ? "Cancel" : "Add Staff"}</span><span className="sm:hidden">{showForm ? "Cancel" : "Add"}</span>
             </Button>
           )}
         </div>
@@ -242,28 +242,30 @@ export default function UsersPage() {
 
         {/* Roles & Permissions Tab */}
         {activeTab === "roles" && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            {/* Role selector */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-text-secondary mb-3">Select Role</p>
-              {ROLES.map(role => (
-                <button
-                  key={role}
-                  onClick={() => setSelectedRole(role)}
-                  className={cn(
-                    "w-full flex items-center gap-3 rounded-lg border p-3 transition-all text-left",
-                    selectedRole === role ? "border-gold bg-gold/5" : "border-border hover:border-gold/30"
-                  )}
-                >
-                  <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", selectedRole === role ? "bg-gold/20" : "bg-surface-elevated")}>
-                    <Shield className={cn("h-4 w-4", selectedRole === role ? "text-gold" : "text-text-muted")} />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{role.replace("_", " ")}</p>
-                    <p className="text-[10px] text-text-muted">{users.filter(u => u.role === role).length} member{users.filter(u => u.role === role).length !== 1 ? "s" : ""}</p>
-                  </div>
-                </button>
-              ))}
+          <div className="space-y-4 lg:grid lg:grid-cols-4 lg:gap-6 lg:space-y-0">
+            {/* Role selector - horizontal scroll on mobile, vertical on desktop */}
+            <div>
+              <p className="text-sm font-medium text-text-secondary mb-2 lg:mb-3">Select Role</p>
+              <div className="flex gap-2 overflow-x-auto scrollbar-none pb-2 lg:pb-0 lg:flex-col lg:overflow-x-visible lg:space-y-2 lg:gap-0">
+                {ROLES.map(role => (
+                  <button
+                    key={role}
+                    onClick={() => setSelectedRole(role)}
+                    className={cn(
+                      "flex items-center gap-2.5 rounded-lg border p-2.5 lg:p-3 transition-all text-left shrink-0 lg:shrink lg:w-full",
+                      selectedRole === role ? "border-gold bg-gold/5" : "border-border hover:border-gold/30"
+                    )}
+                  >
+                    <div className={cn("h-7 w-7 lg:h-8 lg:w-8 rounded-lg flex items-center justify-center shrink-0", selectedRole === role ? "bg-gold/20" : "bg-surface-elevated")}>
+                      <Shield className={cn("h-3.5 w-3.5 lg:h-4 lg:w-4", selectedRole === role ? "text-gold" : "text-text-muted")} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs lg:text-sm font-medium text-text-primary whitespace-nowrap">{role.replace("_", " ")}</p>
+                      <p className="text-[10px] text-text-muted hidden lg:block">{users.filter(u => u.role === role).length} member{users.filter(u => u.role === role).length !== 1 ? "s" : ""}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Permissions grid */}

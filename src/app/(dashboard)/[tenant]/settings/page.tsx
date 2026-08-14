@@ -82,7 +82,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 pt-14 lg:pt-8 max-w-4xl mx-auto space-y-6 relative">
+    <div className="p-4 sm:p-6 lg:p-8 pt-12 lg:pt-6 max-w-4xl mx-auto space-y-6 relative overflow-x-hidden">
       {notification && (
         <div className={`fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border backdrop-blur-sm ${notification.type === "success" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
           <CheckCircle className="h-4 w-4 shrink-0" />

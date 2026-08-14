@@ -39,6 +39,11 @@ html.light {
   scrollbar-color: var(--border) transparent;
 }
 
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
 body {
   background: var(--surface);
   color: var(--text-primary);

@@ -7,9 +7,9 @@ import { useTheme } from "@/components/theme-provider";
 import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
   Settings, Store, TrendingUp, Users, LogOut, Receipt,
-  Menu, X, Sun, Moon, Clock,
+  Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface SidebarProps {
   tenantSlug: string;
@@ -33,6 +33,19 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("sidebar-collapsed");
+    if (stored === "true") setCollapsed(true);
+  }, []);
+
+  const toggleCollapsed = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem("sidebar-collapsed", String(next));
+    window.dispatchEvent(new CustomEvent("sidebar-toggle", { detail: { collapsed: next } }));
+  };
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -40,71 +53,98 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
     router.refresh();
   };
 
+  const filteredNav = navItems.filter((item) => item.roles.includes(user.role));
+
   const sidebarContent = (
     <>
-      <div className="flex h-16 items-center justify-between border-b border-border px-6">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10">
-            <Store className="h-5 w-5 text-gold" />
+      <div className={cn("flex h-14 items-center border-b border-border px-4 shrink-0", collapsed ? "justify-center" : "justify-between")}>
+        {!collapsed && (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/10">
+              <Store className="h-4 w-4 text-gold" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xs font-bold text-text-primary truncate">
+                {user.tenant.name}
+              </h1>
+              <p className="text-[9px] text-text-muted uppercase tracking-widest">
+                LipaPoint
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <h1 className="text-sm font-bold text-text-primary truncate">
-              {user.tenant.name}
-            </h1>
-            <p className="text-[10px] text-text-muted uppercase tracking-widest">
-              LipaPoint POS
-            </p>
+        )}
+        {collapsed && (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/10">
+            <Store className="h-4 w-4 text-gold" />
           </div>
-        </div>
+        )}
         <button
           onClick={() => setMobileOpen(false)}
-          className="lg:hidden p-1.5 rounded-lg text-text-secondary hover:bg-surface-hover"
+          className="lg:hidden p-1 rounded-lg text-text-secondary hover:bg-surface-hover"
         >
           <X className="h-5 w-5" />
         </button>
       </div>
 
-      <nav className="flex-1 space-y-1 p-4 overflow-y-auto">
-        {navItems.filter((item) => item.roles.includes(user.role)).map((item) => {
+      <nav className="flex-1 space-y-0.5 p-2 overflow-y-auto">
+        {filteredNav.map((item) => {
           const fullHref = `/${tenantSlug}${item.href}`;
-          const isActive = pathname === fullHref;
+          const isActive = pathname === fullHref || pathname.startsWith(fullHref + "/");
           return (
             <Link
               key={item.label}
               href={fullHref}
               onClick={() => setMobileOpen(false)}
+              title={collapsed ? item.label : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200",
+                "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+                collapsed && "justify-center px-2",
                 isActive
                   ? "bg-gold/10 text-gold border border-gold/20"
                   : "text-text-secondary hover:text-text-primary hover:bg-surface-hover"
               )}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span className="truncate">{item.label}</span>}
             </Link>
           );
         })}
       </nav>
 
-      <div className="border-t border-border p-4 space-y-3">
+      <div className="border-t border-border p-2 space-y-1 shrink-0">
+        {/* Desktop collapse toggle */}
+        <button
+          onClick={toggleCollapsed}
+          className="hidden lg:flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {collapsed ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
+          {!collapsed && <span>Collapse</span>}
+        </button>
+
         <button
           onClick={toggleTheme}
-          className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors"
+          className={cn("flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-surface-hover transition-colors", collapsed && "justify-center px-2")}
+          title={collapsed ? (theme === "dark" ? "Light Mode" : "Dark Mode") : undefined}
         >
-          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          {theme === "dark" ? "Light Mode" : "Dark Mode"}
+          {theme === "dark" ? <Sun className="h-4 w-4 shrink-0" /> : <Moon className="h-4 w-4 shrink-0" />}
+          {!collapsed && (theme === "dark" ? "Light Mode" : "Dark Mode")}
         </button>
-        <div className="rounded-lg bg-surface-elevated p-3 border border-border">
-          <p className="text-xs font-medium text-text-secondary truncate">{user.name}</p>
-          <p className="text-[10px] text-text-muted capitalize">{user.role.toLowerCase().replace("_", " ")}</p>
-        </div>
+
+        {!collapsed && (
+          <div className="rounded-lg bg-surface-elevated p-2.5 border border-border">
+            <p className="text-xs font-medium text-text-secondary truncate">{user.name}</p>
+            <p className="text-[10px] text-text-muted capitalize">{user.role.toLowerCase().replace("_", " ")}</p>
+          </div>
+        )}
+
         <button
           onClick={handleLogout}
-          className="flex items-center gap-2 w-full rounded-lg px-3 py-2 text-sm text-text-secondary hover:text-red-400 hover:bg-red-500/5 transition-colors"
+          className={cn("flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-sm text-text-secondary hover:text-red-400 hover:bg-red-500/5 transition-colors", collapsed && "justify-center px-2")}
+          title={collapsed ? "Sign Out" : undefined}
         >
-          <LogOut className="h-4 w-4" />
-          Sign Out
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && "Sign Out"}
         </button>
       </div>
     </>
@@ -115,7 +155,7 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
       {/* Mobile hamburger button */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-50 lg:hidden p-2 rounded-lg bg-surface-elevated border border-border text-text-primary shadow-lg"
+        className="fixed top-3 left-3 z-50 lg:hidden p-2 rounded-lg bg-surface-elevated border border-border text-text-primary shadow-lg"
       >
         <Menu className="h-5 w-5" />
       </button>
@@ -131,7 +171,7 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
       {/* Mobile sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-screen w-72 bg-surface border-r border-border flex flex-col transition-transform duration-300 lg:hidden",
+          "fixed left-0 top-0 z-50 h-screen w-64 bg-surface border-r border-border flex flex-col transition-transform duration-300 lg:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -139,7 +179,13 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
       </aside>
 
       {/* Desktop sidebar */}
-      <aside className="hidden lg:flex fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-surface flex-col">
+      <aside
+        className={cn(
+          "hidden lg:flex fixed left-0 top-0 z-40 h-screen border-r border-border bg-surface flex-col transition-all duration-200",
+          collapsed ? "w-16" : "w-64"
+        )}
+        data-collapsed={collapsed}
+      >
         {sidebarContent}
       </aside>
     </>

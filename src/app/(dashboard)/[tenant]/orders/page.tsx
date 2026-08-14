@@ -124,7 +124,7 @@ export default function OrdersPage() {
   const completedCount = orders.filter(o => o.status === "COMPLETED").length;
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-surface overflow-x-hidden">
       <Header title="Orders" subtitle="Track and manage all orders" />
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
