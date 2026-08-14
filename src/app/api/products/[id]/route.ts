@@ -14,7 +14,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, sku, price, cost, categoryId, image, lowStockAlert } = body;
+    const { name, sku, price, cost, categoryId, unitId, image, lowStockAlert } = body;
 
     const existing = await db.product.findFirst({
       where: { id, tenantId: user.tenantId },
@@ -32,11 +32,13 @@ export async function PUT(
         ...(price !== undefined && { price: parseFloat(price) }),
         ...(cost !== undefined && { cost: parseFloat(cost) }),
         ...(categoryId !== undefined && { categoryId: categoryId || null }),
+        ...(unitId && { baseUnitId: unitId }),
         ...(image !== undefined && { image: image || null }),
         ...(lowStockAlert !== undefined && { lowStockAlert: parseInt(lowStockAlert) }),
       },
       include: {
         category: { select: { id: true, name: true, color: true } },
+        baseUnit: { select: { id: true, name: true, abbreviation: true } },
         stocks: { select: { quantity: true } },
       },
     });

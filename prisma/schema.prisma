@@ -7,6 +7,8 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
 enum SubscriptionTier {
   STARTER
   PROFESSIONAL
@@ -62,6 +64,17 @@ enum DemoRequestStatus {
   DECLINED
 }
 
+enum StockMovementType {
+  GOODS_RECEIPT
+  GOODS_ISSUE
+  TRANSFER
+  ADJUSTMENT
+  SALE_RETURN
+  OPENING_BALANCE
+}
+
+// ─── MODELS ──────────────────────────────────────────────────────────────────
+
 model Tenant {
   id              String           @id @default(cuid())
   name            String
@@ -93,6 +106,7 @@ model Tenant {
   activityLogs   ActivityLog[]
   unitsOfMeasure UnitOfMeasure[]
   stockRecords   StockRecord[]
+  stockMovements StockMovement[]
   expenses       Expense[]
 
   @@index([slug])
@@ -113,10 +127,12 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders       Order[]
-  activityLogs ActivityLog[]
-  sessions     Session[]
-  expenses     Expense[]
+  orders         Order[]
+  activityLogs   ActivityLog[]
+  sessions       Session[]
+  expenses       Expense[]
+  transactions   Transaction[]
+  stockMovements StockMovement[]
 
   @@index([tenantId])
   @@index([email])
@@ -135,18 +151,20 @@ model Session {
 }
 
 model Location {
-  id           String        @id @default(cuid())
-  name         String
-  address      String?
-  phone        String?
-  isActive     Boolean       @default(true)
-  tenantId     String
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  registers    Register[]
-  stocks       Stock[]
-  orders       Order[]
-  stockRecords StockRecord[]
-  createdAt    DateTime      @default(now())
+  id             String          @id @default(cuid())
+  name           String
+  address        String?
+  phone          String?
+  isActive       Boolean         @default(true)
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  registers      Register[]
+  stocks         Stock[]
+  orders         Order[]
+  stockRecords   StockRecord[]
+  stockMovements StockMovement[]
+  expenses       Expense[]
+  createdAt      DateTime        @default(now())
 
   @@index([tenantId])
 }
@@ -180,12 +198,13 @@ model Category {
 }
 
 model UnitOfMeasure {
-  id           String           @id @default(cuid())
-  name         String
-  abbreviation String
-  tenantId     String
-  tenant       Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  products     Product[]
+  id              String           @id @default(cuid())
+  name            String
+  abbreviation    String
+  tenantId        String
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products        Product[]        @relation("ProductBaseUnit")
+  productUoms     ProductUoM[]
   conversionsFrom UnitConversion[] @relation("FromUnit")
   conversionsTo   UnitConversion[] @relation("ToUnit")
 
@@ -206,35 +225,62 @@ model UnitConversion {
   @@index([toUnitId])
 }
 
+// ─── SAP MATERIAL MASTER (MARA) ─────────────────────────────────────────────
+
 model Product {
-  id            String         @id @default(cuid())
-  name          String
-  sku           String
-  barcode       String?
-  description   String?
-  image         String?
-  price         Float
-  cost          Float          @default(0)
-  isActive      Boolean        @default(true)
-  trackStock    Boolean        @default(true)
-  lowStockAlert Int            @default(10)
-  unitId        String?
-  unit          UnitOfMeasure? @relation(fields: [unitId], references: [id])
-  tenantId      String
-  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  categoryId    String?
-  category      Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  stocks        Stock[]
-  orderItems    OrderItem[]
-  stockRecords  StockRecord[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id             String          @id @default(cuid())
+  name           String
+  sku            String
+  barcode        String?
+  description    String?
+  image          String?
+  price          Float // base UoM selling price
+  cost           Float           @default(0) // base UoM cost price
+  isActive       Boolean         @default(true)
+  trackStock     Boolean         @default(true)
+  lowStockAlert  Int             @default(10)
+  baseUnitId     String // SAP MEINS - base unit of measure for stock tracking
+  baseUnit       UnitOfMeasure   @relation("ProductBaseUnit", fields: [baseUnitId], references: [id])
+  tenantId       String
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId     String?
+  category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  stocks         Stock[]
+  orderItems     OrderItem[]
+  stockRecords   StockRecord[]
+  stockMovements StockMovement[]
+  productUoms    ProductUoM[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
 
   @@unique([tenantId, sku])
   @@index([tenantId])
   @@index([categoryId])
   @@index([barcode])
+  @@index([baseUnitId])
+}
+
+// ─── SAP MARM - Product Unit of Measure (Dimensions of Pay) ─────────────────
+
+model ProductUoM {
+  id               String        @id @default(cuid())
+  productId        String
+  product          Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  unitId           String
+  unit             UnitOfMeasure @relation(fields: [unitId], references: [id])
+  conversionFactor Float // how many base units in this UoM (e.g., crate=24, dozen=12)
+  price            Float // selling price in this UoM
+  cost             Float         @default(0) // cost price in this UoM
+  barcode          String? // barcode specific to this UoM packaging
+  isDefault        Boolean       @default(false) // default selling UoM in POS
+  isActive         Boolean       @default(true)
+
+  orderItems OrderItem[]
+
+  @@unique([productId, unitId])
+  @@index([productId])
   @@index([unitId])
+  @@index([barcode])
 }
 
 model Stock {
@@ -249,6 +295,31 @@ model Stock {
   @@unique([productId, locationId])
   @@index([productId])
   @@index([locationId])
+}
+
+// ─── SAP MSEG - Stock Movement Document ─────────────────────────────────────
+
+model StockMovement {
+  id         String            @id @default(cuid())
+  type       StockMovementType
+  quantity   Int
+  productId  String
+  product    Product           @relation(fields: [productId], references: [id])
+  locationId String
+  location   Location          @relation(fields: [locationId], references: [id])
+  reference  String? // order number, PO number, etc.
+  notes      String?
+  tenantId   String
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userId     String?
+  user       User?             @relation(fields: [userId], references: [id])
+  createdAt  DateTime          @default(now())
+
+  @@index([tenantId])
+  @@index([productId])
+  @@index([locationId])
+  @@index([createdAt])
+  @@index([type])
 }
 
 model Order {
@@ -288,38 +359,49 @@ model Order {
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  quantity  Int
-  unitPrice Float
-  total     Float
-  note      String?
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id           String      @id @default(cuid())
+  quantity     Int // quantity in selected UoM
+  unitPrice    Float // price per selected UoM
+  total        Float
+  baseQuantity Int // quantity converted to base UoM (for stock deduction)
+  note         String?
+  productId    String
+  product      Product     @relation(fields: [productId], references: [id])
+  productUomId String?
+  productUom   ProductUoM? @relation(fields: [productUomId], references: [id])
+  orderId      String
+  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
   @@index([productId])
+  @@index([productUomId])
 }
 
 model Transaction {
-  id          String        @id @default(cuid())
-  type        String
-  amount      Float
-  method      PaymentMethod
-  status      PaymentStatus @default(PENDING)
-  reference   String?       @unique
-  paystackRef String?
-  description String?
-  tenantId    String
-  tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  orderId     String?
-  order       Order?        @relation(fields: [orderId], references: [id])
-  createdAt   DateTime      @default(now())
+  id            String        @id @default(cuid())
+  type          String // SALE, REFUND, PAYMENT
+  amount        Float
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  reference     String?       @unique
+  gatewayRef    String? // Paystack/M-Pesa reference
+  gatewayStatus String? // gateway-specific status
+  mpesaPhone    String? // for M-Pesa STK push
+  cardLast4     String? // last 4 digits for card/PDQ
+  description   String?
+  tenantId      String
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orderId       String?
+  order         Order?        @relation(fields: [orderId], references: [id])
+  userId        String?
+  user          User?         @relation(fields: [userId], references: [id])
+  createdAt     DateTime      @default(now())
 
   @@index([tenantId])
   @@index([reference])
+  @@index([orderId])
   @@index([createdAt])
+  @@index([method])
 }
 
 model ActivityLog {
@@ -338,14 +420,19 @@ model ActivityLog {
   @@index([createdAt])
 }
 
+// ─── SAP Daily Stock Ledger ─────────────────────────────────────────────────
+// Closing stock = opening + added - sold + adjustment
+// Next day's opening = previous day's closing
+
 model StockRecord {
   id           String   @id @default(cuid())
   date         DateTime @db.Date
-  openingStock Int
-  addedStock   Int      @default(0)
-  soldStock    Int      @default(0)
-  closingStock Int
-  variance     Int      @default(0)
+  openingStock Int // carried from previous day's closingStock
+  addedStock   Int      @default(0) // goods received today
+  soldStock    Int      @default(0) // sold today (from completed orders)
+  closingStock Int // = openingStock + addedStock - soldStock + adjustment
+  adjustment   Int      @default(0) // manual adjustments (breakage, theft, etc.)
+  variance     Int      @default(0) // closingStock - (openingStock + addedStock - soldStock + adjustment)
   notes        String?
   productId    String
   product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
@@ -364,19 +451,26 @@ model StockRecord {
 }
 
 model Expense {
-  id          String   @id @default(cuid())
-  date        DateTime @db.Date
+  id          String    @id @default(cuid())
+  date        DateTime  @db.Date
   category    String
   description String
   amount      Float
+  receiptNo   String?
+  supplier    String?
+  isRecurring Boolean   @default(false)
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId  String?
+  location    Location? @relation(fields: [locationId], references: [id])
   userId      String?
-  user        User?    @relation(fields: [userId], references: [id])
-  createdAt   DateTime @default(now())
+  user        User?     @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
 
   @@index([tenantId])
   @@index([date])
+  @@index([category])
+  @@index([locationId])
 }
 
 model DemoRequest {

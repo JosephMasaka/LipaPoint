@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     if (from || to) {
       const createdAt: Record<string, Date> = {};
       if (from) createdAt.gte = new Date(from);
-      if (to) createdAt.lte = new Date(to);
+      if (to) createdAt.lte = new Date(to + "T23:59:59.999Z");
       where.createdAt = createdAt;
     }
 
@@ -33,8 +33,10 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         order: { select: { orderNo: true } },
+        user: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
+      take: 200,
     });
 
     return NextResponse.json(transactions);

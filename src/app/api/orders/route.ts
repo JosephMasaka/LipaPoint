@@ -30,9 +30,18 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         items: {
-          select: { id: true, quantity: true, unitPrice: true, total: true, product: { select: { name: true, sku: true } } },
+          select: {
+            id: true,
+            quantity: true,
+            unitPrice: true,
+            total: true,
+            baseQuantity: true,
+            product: { select: { name: true, sku: true } },
+            productUom: { select: { unit: { select: { abbreviation: true } } } },
+          },
         },
         user: { select: { name: true } },
+        transactions: { select: { id: true, method: true, status: true, amount: true } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -81,28 +90,58 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Fetch products and validate stock outside the transaction
     const productIds = items.map((i: { productId: string }) => i.productId);
     const productsData = await db.product.findMany({
       where: { id: { in: productIds }, tenantId: user.tenantId },
+      include: {
+        productUoms: { where: { isActive: true }, include: { unit: true } },
+      },
     });
 
     const productMap = new Map(productsData.map(p => [p.id, p]));
     let subtotal = 0;
-    const orderItems: { productId: string; quantity: number; unitPrice: number; total: number }[] = [];
+
+    interface OrderItemData {
+      productId: string;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+      baseQuantity: number;
+      productUomId: string | null;
+    }
+
+    const orderItems: OrderItemData[] = [];
 
     for (const item of items) {
       const product = productMap.get(item.productId);
       if (!product) {
         return NextResponse.json({ error: `Product not found` }, { status: 400 });
       }
-      const itemTotal = product.price * item.quantity;
+
+      let unitPrice = item.unitPrice || product.price;
+      let conversionFactor = 1;
+      let productUomId: string | null = null;
+
+      if (item.productUomId) {
+        const uom = product.productUoms.find((u: { id: string }) => u.id === item.productUomId);
+        if (uom) {
+          unitPrice = uom.price;
+          conversionFactor = uom.conversionFactor;
+          productUomId = uom.id;
+        }
+      }
+
+      const baseQuantity = item.quantity * conversionFactor;
+      const itemTotal = unitPrice * item.quantity;
       subtotal += itemTotal;
+
       orderItems.push({
         productId: product.id,
         quantity: item.quantity,
-        unitPrice: product.price,
+        unitPrice,
         total: itemTotal,
+        baseQuantity,
+        productUomId,
       });
     }
 
@@ -110,11 +149,14 @@ export async function POST(request: NextRequest) {
     const taxAmount = subtotal * (taxRate / 100);
     const discountAmount = discount || 0;
     const total = subtotal + taxAmount - discountAmount;
+    const orderNo = generateOrderNo();
+    const txRef = `TXN-${orderNo.replace("ORD-", "")}`;
 
-    // Minimal transaction: stock decrement + order create
     const order = await db.$transaction(async (tx) => {
-      for (const item of orderItems) {
+      for (let i = 0; i < orderItems.length; i++) {
+        const item = orderItems[i];
         const product = productMap.get(item.productId)!;
+
         if (product.trackStock) {
           const stock = await tx.stock.findUnique({
             where: {
@@ -125,7 +167,7 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          if (!stock || stock.quantity < item.quantity) {
+          if (!stock || stock.quantity < item.baseQuantity) {
             throw new Error(`Insufficient stock for ${product.name}`);
           }
 
@@ -136,14 +178,27 @@ export async function POST(request: NextRequest) {
                 locationId: resolvedLocationId,
               },
             },
-            data: { quantity: { decrement: item.quantity } },
+            data: { quantity: { decrement: item.baseQuantity } },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              type: "GOODS_ISSUE",
+              quantity: item.baseQuantity,
+              productId: product.id,
+              locationId: resolvedLocationId,
+              reference: orderNo,
+              notes: `Sale - ${item.quantity} units`,
+              tenantId: user.tenantId,
+              userId: user.id,
+            },
           });
         }
       }
 
       const newOrder = await tx.order.create({
         data: {
-          orderNo: generateOrderNo(),
+          orderNo,
           status: "COMPLETED",
           subtotal,
           taxAmount,
@@ -159,14 +214,38 @@ export async function POST(request: NextRequest) {
           registerId: registerId || null,
           userId: user.id,
           items: {
-            create: orderItems,
+            create: orderItems.map((item) => ({
+              productId: item.productId,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              total: item.total,
+              baseQuantity: item.baseQuantity,
+              productUomId: item.productUomId,
+            })),
           },
         },
         include: {
           items: {
-            include: { product: { select: { name: true, sku: true } } },
+            include: {
+              product: { select: { name: true, sku: true } },
+              productUom: { select: { unit: { select: { abbreviation: true, name: true } } } },
+            },
           },
           user: { select: { name: true } },
+        },
+      });
+
+      await tx.transaction.create({
+        data: {
+          type: "SALE",
+          amount: total,
+          method: paymentMethod || "CASH",
+          status: "COMPLETED",
+          reference: txRef,
+          description: `Sale ${orderNo}`,
+          tenantId: user.tenantId,
+          orderId: newOrder.id,
+          userId: user.id,
         },
       });
 

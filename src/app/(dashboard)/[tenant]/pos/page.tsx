@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useCartStore } from "@/store/cart";
+import { useCartStore, cartKey } from "@/store/cart";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +9,17 @@ import { cn, formatCurrency } from "@/lib/utils";
 import {
   Search, Grid3X3, List, Minus, Plus, Trash2,
   CreditCard, Banknote, Smartphone, Package, ShoppingCart, ChevronUp,
-  Clock, Users, X, ScanBarcode, Printer, CheckCircle, Wifi,
+  Clock, Users, X, ScanBarcode, Printer, CheckCircle, Wifi, Scale,
 } from "lucide-react";
+
+interface ProductUoM {
+  id: string;
+  unitId: string;
+  conversionFactor: number;
+  price: number;
+  isDefault: boolean;
+  unit: { id: string; name: string; abbreviation: string };
+}
 
 interface Product {
   id: string;
@@ -20,8 +29,9 @@ interface Product {
   price: number;
   image: string | null;
   category: { id: string; name: string; color: string } | null;
-  unit: { abbreviation: string } | null;
+  baseUnit: { id: string; name: string; abbreviation: string };
   stocks: { quantity: number }[];
+  productUoms: ProductUoM[];
 }
 
 interface Category {
@@ -49,7 +59,7 @@ interface CompletedOrder {
   discount: number;
   total: number;
   paymentMethod: string;
-  items: { quantity: number; unitPrice: number; total: number; product: { name: string; sku: string } }[];
+  items: { quantity: number; unitPrice: number; total: number; product: { name: string; sku: string }; productUom: { unit: { abbreviation: string; name: string } } | null }[];
   user: { name: string };
 }
 
@@ -66,6 +76,9 @@ export default function POSPage() {
   const [scannerActive, setScannerActive] = useState(true);
   const [tenantName, setTenantName] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("Thank you for shopping with us!");
+
+  // UoM selector
+  const [uomProduct, setUomProduct] = useState<Product | null>(null);
 
   // Tab management
   const [mode, setMode] = useState<"sale" | "tabs">("sale");
@@ -93,6 +106,58 @@ export default function POSPage() {
     setTimeout(() => setNotification(null), 4000);
   };
 
+  const handleProductClick = (product: Product) => {
+    if (product.productUoms.length > 0) {
+      setUomProduct(product);
+    } else {
+      addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        sku: product.sku,
+        image: product.image || undefined,
+        unitId: product.baseUnit.id,
+        unitName: product.baseUnit.name,
+        unitAbbreviation: product.baseUnit.abbreviation,
+        conversionFactor: 1,
+        productUomId: null,
+      });
+      notify("success", `Added: ${product.name}`);
+    }
+  };
+
+  const handleUomSelect = (product: Product, uom: ProductUoM | null) => {
+    if (uom) {
+      addItem({
+        id: product.id,
+        name: product.name,
+        price: uom.price,
+        sku: product.sku,
+        image: product.image || undefined,
+        unitId: uom.unit.id,
+        unitName: uom.unit.name,
+        unitAbbreviation: uom.unit.abbreviation,
+        conversionFactor: uom.conversionFactor,
+        productUomId: uom.id,
+      });
+    } else {
+      addItem({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        sku: product.sku,
+        image: product.image || undefined,
+        unitId: product.baseUnit.id,
+        unitName: product.baseUnit.name,
+        unitAbbreviation: product.baseUnit.abbreviation,
+        conversionFactor: 1,
+        productUomId: null,
+      });
+    }
+    setUomProduct(null);
+    notify("success", `Added: ${product.name}`);
+  };
+
   // Barcode scanner handler
   const handleBarcodeInput = useCallback((e: KeyboardEvent) => {
     if (!scannerActive) return;
@@ -104,8 +169,7 @@ export default function POSPage() {
       barcodeBuffer.current = "";
       const product = products.find(p => p.barcode === barcode || p.sku === barcode);
       if (product) {
-        addItem({ id: product.id, name: product.name, price: product.price, sku: product.sku });
-        notify("success", `Added: ${product.name}`);
+        handleProductClick(product);
       } else {
         notify("error", `Product not found: ${barcode}`);
       }
@@ -116,7 +180,7 @@ export default function POSPage() {
       if (barcodeTimeout.current) clearTimeout(barcodeTimeout.current);
       barcodeTimeout.current = setTimeout(() => { barcodeBuffer.current = ""; }, 100);
     }
-  }, [scannerActive, products, addItem]);
+  }, [scannerActive, products]);
 
   useEffect(() => {
     document.addEventListener("keydown", handleBarcodeInput);
@@ -162,7 +226,12 @@ export default function POSPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price })),
+          items: items.map(i => ({
+            productId: i.id,
+            quantity: i.quantity,
+            unitPrice: i.price,
+            productUomId: i.productUomId,
+          })),
           paymentMethod,
           subtotal: getSubtotal(),
           taxAmount: getTax(taxRate),
@@ -196,7 +265,7 @@ export default function POSPage() {
         body: JSON.stringify({
           tabName: tabName.trim(),
           customerName: tabCustomer.trim() || null,
-          items: items.map(i => ({ productId: i.id, quantity: i.quantity })),
+          items: items.map(i => ({ productId: i.id, quantity: i.quantity, productUomId: i.productUomId })),
         }),
       });
       if (res.ok) {
@@ -228,7 +297,7 @@ export default function POSPage() {
         body: JSON.stringify({
           orderId: tab.id,
           action: "add",
-          items: items.map(i => ({ productId: i.id, quantity: i.quantity })),
+          items: items.map(i => ({ productId: i.id, quantity: i.quantity, productUomId: i.productUomId })),
         }),
       });
       if (res.ok) {
@@ -307,12 +376,76 @@ export default function POSPage() {
         </div>
       )}
 
+      {/* UoM Selector Modal */}
+      {uomProduct && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setUomProduct(null)} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 fade-in duration-200">
+            <div className="border-b border-border p-4">
+              <div className="flex items-center gap-3">
+                {uomProduct.image ? (
+                  <img src={uomProduct.image} alt={uomProduct.name} className="h-10 w-10 rounded-lg object-cover" />
+                ) : (
+                  <div className="h-10 w-10 rounded-lg bg-surface-hover flex items-center justify-center">
+                    <Package className="h-5 w-5 text-text-muted" />
+                  </div>
+                )}
+                <div>
+                  <h3 className="font-semibold text-text-primary">{uomProduct.name}</h3>
+                  <p className="text-xs text-text-muted flex items-center gap-1">
+                    <Scale className="h-3 w-3" /> Select unit of measure
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 space-y-1.5 max-h-[60vh] overflow-y-auto">
+              {/* Base UoM option */}
+              <button
+                onClick={() => handleUomSelect(uomProduct, null)}
+                className="w-full flex items-center justify-between rounded-lg border border-border bg-surface-elevated p-3 hover:border-gold/30 transition-all"
+              >
+                <div className="text-left">
+                  <p className="text-sm font-medium text-text-primary">
+                    {uomProduct.baseUnit.name}
+                    <span className="text-text-muted ml-1">({uomProduct.baseUnit.abbreviation})</span>
+                  </p>
+                  <p className="text-[10px] text-text-muted">Base unit · 1x</p>
+                </div>
+                <span className="text-sm font-bold text-gold">{formatCurrency(uomProduct.price)}</span>
+              </button>
+
+              {/* Alternative UoMs */}
+              {uomProduct.productUoms.map((uom) => (
+                <button
+                  key={uom.id}
+                  onClick={() => handleUomSelect(uomProduct, uom)}
+                  className="w-full flex items-center justify-between rounded-lg border border-border bg-surface-elevated p-3 hover:border-gold/30 transition-all"
+                >
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-text-primary">
+                      {uom.unit.name}
+                      <span className="text-text-muted ml-1">({uom.unit.abbreviation})</span>
+                    </p>
+                    <p className="text-[10px] text-text-muted">
+                      1 {uom.unit.abbreviation} = {uom.conversionFactor} {uomProduct.baseUnit.abbreviation}
+                    </p>
+                  </div>
+                  <span className="text-sm font-bold text-gold">{formatCurrency(uom.price)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="border-t border-border p-3">
+              <Button variant="outline" className="w-full" onClick={() => setUomProduct(null)}>Cancel</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sale Success Modal */}
       {showSuccess && completedOrder && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowSuccess(false)} />
           <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 fade-in duration-200">
-            {/* Success header */}
             <div className="bg-emerald-500/10 border-b border-emerald-500/20 p-6 text-center">
               <div className="mx-auto h-16 w-16 rounded-full bg-emerald-500/20 flex items-center justify-center mb-3">
                 <CheckCircle className="h-8 w-8 text-emerald-400" />
@@ -321,7 +454,6 @@ export default function POSPage() {
               <p className="text-sm text-text-secondary mt-1">Order #{completedOrder.orderNo}</p>
             </div>
 
-            {/* Receipt Preview */}
             <div className="p-6 max-h-[50vh] overflow-y-auto">
               <div id="receipt-content" className="font-mono text-xs space-y-1">
                 <div className="center bold">{tenantName}</div>
@@ -333,7 +465,10 @@ export default function POSPage() {
                 <div className="divider"></div>
                 {completedOrder.items.map((item, i) => (
                   <div key={i}>
-                    <div className="item-name">{item.product.name}</div>
+                    <div className="item-name">
+                      {item.product.name}
+                      {item.productUom && <span className="text-text-muted"> ({item.productUom.unit.abbreviation})</span>}
+                    </div>
                     <div className="row"><span>{item.quantity} x {formatCurrency(item.unitPrice)}</span><span>{formatCurrency(item.total)}</span></div>
                   </div>
                 ))}
@@ -348,7 +483,6 @@ export default function POSPage() {
               </div>
             </div>
 
-            {/* Actions */}
             <div className="border-t border-border p-4 flex gap-3">
               <Button variant="outline" className="flex-1" onClick={handlePrintReceipt}>
                 <Printer className="h-4 w-4 mr-2" /> Print Receipt
@@ -408,7 +542,7 @@ export default function POSPage() {
 
         {mode === "sale" ? (
           <>
-            {/* Categories - horizontal scroll, no x-overflow leak */}
+            {/* Categories */}
             <div className="flex gap-2 border-b border-border bg-surface px-3 py-2 overflow-x-auto scrollbar-none shrink-0">
               <button
                 onClick={() => setActiveCategory("all")}
@@ -428,7 +562,7 @@ export default function POSPage() {
               ))}
             </div>
 
-            {/* Product Grid - contained, no x overflow */}
+            {/* Product Grid */}
             <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 pb-16 lg:pb-3">
               {filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 text-text-muted">
@@ -440,7 +574,7 @@ export default function POSPage() {
                   {filtered.map((product) => (
                     <button
                       key={product.id}
-                      onClick={() => addItem({ id: product.id, name: product.name, price: product.price, sku: product.sku })}
+                      onClick={() => handleProductClick(product)}
                       className="relative flex flex-col items-center rounded-lg border border-border bg-surface-elevated p-2 sm:p-3 hover:border-gold/30 hover:shadow-lg transition-all group"
                     >
                       {product.image ? (
@@ -453,8 +587,13 @@ export default function POSPage() {
                       <p className="text-[10px] sm:text-xs font-medium text-text-primary text-center line-clamp-2 leading-tight">{product.name}</p>
                       <div className="flex items-center gap-0.5 mt-0.5">
                         <p className="text-xs sm:text-sm font-bold text-gold">{formatCurrency(product.price)}</p>
-                        {product.unit && <span className="text-[8px] text-text-muted">/{product.unit.abbreviation}</span>}
+                        <span className="text-[8px] text-text-muted">/{product.baseUnit.abbreviation}</span>
                       </div>
+                      {product.productUoms.length > 0 && (
+                        <Badge variant="secondary" className="absolute top-1 left-1 text-[7px] px-1 py-0 gap-0.5">
+                          <Scale className="h-2 w-2" />{product.productUoms.length + 1}
+                        </Badge>
+                      )}
                       {product.stocks[0] && product.stocks[0].quantity < 10 && (
                         <Badge variant="destructive" className="absolute top-1 right-1 text-[8px] px-1 py-0">Low</Badge>
                       )}
@@ -466,14 +605,19 @@ export default function POSPage() {
                   {filtered.map((product) => (
                     <button
                       key={product.id}
-                      onClick={() => addItem({ id: product.id, name: product.name, price: product.price, sku: product.sku })}
+                      onClick={() => handleProductClick(product)}
                       className="w-full flex items-center justify-between rounded-lg border border-border bg-surface-elevated p-2.5 hover:border-gold/30 transition-all"
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <Package className="h-4 w-4 text-text-muted shrink-0" />
                         <div className="text-left min-w-0">
                           <p className="text-sm font-medium text-text-primary truncate">{product.name}</p>
-                          <p className="text-xs text-text-muted">{product.sku}{product.unit ? ` · ${product.unit.abbreviation}` : ""}</p>
+                          <p className="text-xs text-text-muted">
+                            {product.sku} · {product.baseUnit.abbreviation}
+                            {product.productUoms.length > 0 && (
+                              <span className="ml-1 text-gold">+{product.productUoms.length} UoMs</span>
+                            )}
+                          </p>
                         </div>
                       </div>
                       <p className="text-sm font-bold text-gold shrink-0 ml-2">{formatCurrency(product.price)}</p>
@@ -625,27 +769,35 @@ export default function POSPage() {
                 <p className="text-xs mt-0.5">Tap products or scan barcodes</p>
               </div>
             ) : (
-              items.map((item) => (
-                <div key={item.id} className="flex items-center gap-2 rounded-lg border border-border bg-surface-elevated p-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium text-text-primary truncate">{item.name}</p>
-                    <p className="text-[10px] text-text-muted">{formatCurrency(item.price)} ea</p>
-                  </div>
-                  <div className="flex items-center gap-0.5">
-                    <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="h-6 w-6 rounded bg-surface-hover flex items-center justify-center">
-                      <Minus className="h-3 w-3 text-text-secondary" />
+              items.map((item) => {
+                const key = cartKey(item);
+                return (
+                  <div key={key} className="flex items-center gap-2 rounded-lg border border-border bg-surface-elevated p-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-text-primary truncate">{item.name}</p>
+                      <p className="text-[10px] text-text-muted">
+                        {formatCurrency(item.price)}/{item.unitAbbreviation}
+                        {item.conversionFactor > 1 && (
+                          <span className="text-gold ml-1">×{item.conversionFactor}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      <button onClick={() => updateQuantity(key, item.quantity - 1)} className="h-6 w-6 rounded bg-surface-hover flex items-center justify-center">
+                        <Minus className="h-3 w-3 text-text-secondary" />
+                      </button>
+                      <span className="w-6 text-center text-xs font-semibold text-text-primary">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(key, item.quantity + 1)} className="h-6 w-6 rounded bg-surface-hover flex items-center justify-center">
+                        <Plus className="h-3 w-3 text-text-secondary" />
+                      </button>
+                    </div>
+                    <p className="text-xs font-semibold text-text-primary w-16 text-right">{formatCurrency(item.price * item.quantity)}</p>
+                    <button onClick={() => removeItem(key)} className="h-6 w-6 rounded flex items-center justify-center hover:bg-red-500/10">
+                      <Trash2 className="h-3 w-3 text-text-muted hover:text-red-400" />
                     </button>
-                    <span className="w-6 text-center text-xs font-semibold text-text-primary">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="h-6 w-6 rounded bg-surface-hover flex items-center justify-center">
-                      <Plus className="h-3 w-3 text-text-secondary" />
-                    </button>
                   </div>
-                  <p className="text-xs font-semibold text-text-primary w-16 text-right">{formatCurrency(item.price * item.quantity)}</p>
-                  <button onClick={() => removeItem(item.id)} className="h-6 w-6 rounded flex items-center justify-center hover:bg-red-500/10">
-                    <Trash2 className="h-3 w-3 text-text-muted hover:text-red-400" />
-                  </button>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
 

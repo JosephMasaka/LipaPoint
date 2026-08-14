@@ -42,8 +42,13 @@ export async function GET(request: NextRequest) {
       where,
       include: {
         category: { select: { id: true, name: true, color: true, parentId: true } },
-        unit: { select: { id: true, name: true, abbreviation: true } },
+        baseUnit: { select: { id: true, name: true, abbreviation: true } },
         stocks: { select: { quantity: true } },
+        productUoms: {
+          where: { isActive: true },
+          include: { unit: { select: { id: true, name: true, abbreviation: true } } },
+          orderBy: { isDefault: "desc" },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -72,13 +77,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, sku, price, cost, categoryId, image, lowStockAlert } = body;
+    const { name, sku, price, cost, categoryId, unitId, image, lowStockAlert } = body;
 
     if (!name || !sku || price === undefined) {
       return NextResponse.json(
         { error: "Name, SKU, and price are required" },
         { status: 400 }
       );
+    }
+
+    // Resolve base unit - use provided or get first unit for tenant
+    let baseUnitId = unitId;
+    if (!baseUnitId) {
+      const defaultUnit = await db.unitOfMeasure.findFirst({ where: { tenantId: user.tenantId } });
+      if (!defaultUnit) {
+        return NextResponse.json({ error: "No units of measure configured. Create one first." }, { status: 400 });
+      }
+      baseUnitId = defaultUnit.id;
     }
 
     // Check for duplicate SKU within tenant
@@ -100,12 +115,14 @@ export async function POST(request: NextRequest) {
         price: parseFloat(price),
         cost: cost ? parseFloat(cost) : 0,
         categoryId: categoryId || null,
+        baseUnitId,
         image: image || null,
         lowStockAlert: lowStockAlert ? parseInt(lowStockAlert) : 10,
         tenantId: user.tenantId,
       },
       include: {
         category: { select: { id: true, name: true, color: true } },
+        baseUnit: { select: { id: true, name: true, abbreviation: true } },
       },
     });
 

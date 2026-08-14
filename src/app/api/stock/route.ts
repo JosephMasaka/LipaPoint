@@ -134,6 +134,20 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Create stock movement record (SAP MSEG - Goods Receipt)
+      await db.stockMovement.create({
+        data: {
+          type: "GOODS_RECEIPT",
+          quantity,
+          productId,
+          locationId,
+          reference: `GR-${date}`,
+          notes: `Added ${quantity} units`,
+          tenantId: user.tenantId,
+          userId: user.id,
+        },
+      });
+
       return NextResponse.json({ message: "Stock added" });
     }
 

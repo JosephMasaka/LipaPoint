@@ -24,10 +24,10 @@ interface Product {
   isActive: boolean;
   lowStockAlert: number;
   trackStock: boolean;
-  unitId: string | null;
+  baseUnitId: string | null;
   categoryId: string | null;
   category: { id: string; name: string } | null;
-  unit: { id: string; name: string; abbreviation: string } | null;
+  baseUnit: { id: string; name: string; abbreviation: string } | null;
   stock: number;
 }
 
@@ -208,7 +208,7 @@ function ProductsTab() {
                   <tr key={p.id} className="hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-3 font-medium text-text-primary">{p.name}</td>
                     <td className="px-4 py-3 text-text-secondary font-mono text-xs">{p.sku}</td>
-                    <td className="px-4 py-3 text-text-secondary text-xs">{p.unit?.abbreviation || "-"}</td>
+                    <td className="px-4 py-3 text-text-secondary text-xs">{p.baseUnit?.abbreviation || "-"}</td>
                     <td className="px-4 py-3 text-text-primary">{formatCurrency(p.price)}</td>
                     <td className="px-4 py-3">
                       <span className={p.stock <= p.lowStockAlert ? "text-red-400 font-medium" : "text-emerald-400 font-medium"}>
@@ -218,7 +218,7 @@ function ProductsTab() {
                     <td className="px-4 py-3"><Badge variant={p.isActive ? "success" : "secondary"}>{p.isActive ? "Active" : "Off"}</Badge></td>
                     <td className="px-4 py-3 text-right">
                       <Button variant="ghost" size="sm" onClick={() => {
-                        setForm({ name: p.name, sku: p.sku, barcode: p.barcode || "", price: p.price.toString(), cost: p.cost.toString(), categoryId: p.categoryId || "", unitId: p.unitId || "", image: p.image || "", lowStockAlert: p.lowStockAlert.toString() });
+                        setForm({ name: p.name, sku: p.sku, barcode: p.barcode || "", price: p.price.toString(), cost: p.cost.toString(), categoryId: p.categoryId || "", unitId: p.baseUnitId || "", image: p.image || "", lowStockAlert: p.lowStockAlert.toString() });
                         setEditingId(p.id); setShowForm(true);
                       }}><Edit3 className="h-3 w-3" /></Button>
                     </td>

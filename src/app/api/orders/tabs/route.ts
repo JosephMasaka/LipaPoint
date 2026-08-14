@@ -41,15 +41,31 @@ export async function POST(request: NextRequest) {
   const productIds = items.map((i: { productId: string }) => i.productId);
   const products = await db.product.findMany({
     where: { id: { in: productIds }, tenantId: user.tenantId },
+    include: { productUoms: { where: { isActive: true } } },
   });
 
   let subtotal = 0;
-  const orderItems = items.map((item: { productId: string; quantity: number }) => {
+  const orderItems = items.map((item: { productId: string; quantity: number; productUomId?: string }) => {
     const product = products.find((p) => p.id === item.productId);
     if (!product) throw new Error(`Product not found: ${item.productId}`);
-    const total = product.price * item.quantity;
+
+    let unitPrice = product.price;
+    let conversionFactor = 1;
+    let productUomId: string | null = null;
+
+    if (item.productUomId) {
+      const uom = product.productUoms.find((u: { id: string }) => u.id === item.productUomId);
+      if (uom) {
+        unitPrice = uom.price;
+        conversionFactor = uom.conversionFactor;
+        productUomId = uom.id;
+      }
+    }
+
+    const total = unitPrice * item.quantity;
+    const baseQuantity = item.quantity * conversionFactor;
     subtotal += total;
-    return { productId: item.productId, quantity: item.quantity, unitPrice: product.price, total };
+    return { productId: item.productId, quantity: item.quantity, unitPrice, total, baseQuantity, productUomId };
   });
 
   const tenant = await db.tenant.findUnique({ where: { id: user.tenantId }, select: { taxRate: true } });
@@ -100,11 +116,31 @@ export async function PUT(request: NextRequest) {
   // Close tab (settle)
   if (action === "close") {
     const { paymentMethod } = body;
-    const updated = await db.order.update({
-      where: { id: orderId },
-      data: { status: "COMPLETED", paymentMethod: paymentMethod || "CASH", paymentStatus: "COMPLETED" },
-      include: { items: { include: { product: { select: { name: true } } } } },
+
+    const updated = await db.$transaction(async (tx) => {
+      const closedOrder = await tx.order.update({
+        where: { id: orderId },
+        data: { status: "COMPLETED", paymentMethod: paymentMethod || "CASH", paymentStatus: "COMPLETED" },
+        include: { items: { include: { product: { select: { name: true } } } } },
+      });
+
+      await tx.transaction.create({
+        data: {
+          type: "SALE",
+          amount: closedOrder.total,
+          method: paymentMethod || "CASH",
+          status: "COMPLETED",
+          reference: `TXN-${closedOrder.orderNo.replace("TAB-", "")}`,
+          description: `Tab settled: ${order.tabName}`,
+          tenantId: user.tenantId,
+          orderId: closedOrder.id,
+          userId: user.id,
+        },
+      });
+
+      return closedOrder;
     });
+
     return NextResponse.json(updated);
   }
 
@@ -113,15 +149,31 @@ export async function PUT(request: NextRequest) {
     const productIds = items.map((i: { productId: string }) => i.productId);
     const products = await db.product.findMany({
       where: { id: { in: productIds }, tenantId: user.tenantId },
+      include: { productUoms: { where: { isActive: true } } },
     });
 
     let addedSubtotal = 0;
-    const newItems = items.map((item: { productId: string; quantity: number }) => {
+    const newItems = items.map((item: { productId: string; quantity: number; productUomId?: string }) => {
       const product = products.find((p) => p.id === item.productId);
       if (!product) throw new Error(`Product not found`);
-      const total = product.price * item.quantity;
+
+      let unitPrice = product.price;
+      let conversionFactor = 1;
+      let productUomId: string | null = null;
+
+      if (item.productUomId) {
+        const uom = product.productUoms.find((u: { id: string }) => u.id === item.productUomId);
+        if (uom) {
+          unitPrice = uom.price;
+          conversionFactor = uom.conversionFactor;
+          productUomId = uom.id;
+        }
+      }
+
+      const total = unitPrice * item.quantity;
+      const baseQuantity = item.quantity * conversionFactor;
       addedSubtotal += total;
-      return { productId: item.productId, quantity: item.quantity, unitPrice: product.price, total, orderId };
+      return { productId: item.productId, quantity: item.quantity, unitPrice, total, baseQuantity, productUomId, orderId };
     });
 
     await db.orderItem.createMany({ data: newItems });
