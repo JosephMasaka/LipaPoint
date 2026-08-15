@@ -38,6 +38,7 @@ async function main() {
   await prisma.category.deleteMany();
   await prisma.expense.deleteMany();
   await prisma.rolePermission.deleteMany();
+  await prisma.passwordReset.deleteMany();
   await prisma.register.deleteMany();
   await prisma.location.deleteMany();
   await prisma.session.deleteMany();

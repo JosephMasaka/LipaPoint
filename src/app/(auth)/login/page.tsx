@@ -66,13 +66,20 @@ export default function LoginPage() {
             placeholder="you@business.co.ke"
             required
           />
-          <Input
-            name="password"
-            label="Password"
-            type="password"
-            placeholder="Enter your password"
-            required
-          />
+          <div>
+            <Input
+              name="password"
+              label="Password"
+              type="password"
+              placeholder="Enter your password"
+              required
+            />
+            <div className="flex justify-end mt-1.5">
+              <Link href="/forgot-password" className="text-xs text-gold hover:underline">
+                Forgot password?
+              </Link>
+            </div>
+          </div>
 
           <Button type="submit" size="lg" className="w-full" disabled={loading}>
             <LogIn className="h-4 w-4" />
