@@ -108,6 +108,7 @@ model Tenant {
   stockRecords   StockRecord[]
   stockMovements StockMovement[]
   expenses       Expense[]
+  dailySummaries DailySummary[]
 
   @@index([slug])
   @@index([isActive])
@@ -133,6 +134,7 @@ model User {
   expenses       Expense[]
   transactions   Transaction[]
   stockMovements StockMovement[]
+  dailySummaries DailySummary[]
 
   @@index([tenantId])
   @@index([email])
@@ -164,6 +166,7 @@ model Location {
   stockRecords   StockRecord[]
   stockMovements StockMovement[]
   expenses       Expense[]
+  dailySummaries DailySummary[]
   createdAt      DateTime        @default(now())
 
   @@index([tenantId])
@@ -470,6 +473,41 @@ model Expense {
   @@index([tenantId])
   @@index([date])
   @@index([category])
+  @@index([locationId])
+}
+
+// ─── Daily Cash Summary (Bar Stock Sheet Reconciliation) ────────────────────
+// Matches the physical "SUMMARY" section on Club Chairman-style stock sheets
+
+model DailySummary {
+  id                 String   @id @default(cuid())
+  date               DateTime @db.Date
+  cashBroughtForward Float    @default(0) // previous day's cashCarriedForward
+  totalSales         Float    @default(0) // sum of completed cash orders
+  debtsPaid          Float    @default(0) // tabs/debts collected today
+  otherIncome        Float    @default(0) // miscellaneous income
+  subtotal           Float    @default(0) // cashBroughtForward + totalSales + debtsPaid + otherIncome
+  mpesaReceived      Float    @default(0) // M-Pesa payments (non-cash, deducted)
+  purchases          Float    @default(0) // stock purchased today
+  expenses           Float    @default(0) // operational expenses today
+  unpaidBills        Float    @default(0) // credit given (tabs opened, not settled)
+  totalCash          Float    @default(0) // subtotal - (mpesa + purchases + expenses + unpaidBills)
+  cashSurrendered    Float    @default(0) // what cashier physically hands over
+  shortExcess        Float    @default(0) // totalCash - cashSurrendered (negative=short, positive=excess)
+  cashCarriedForward Float    @default(0) // carried to next day
+  notes              String?
+  tenantId           String
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationId         String
+  location           Location @relation(fields: [locationId], references: [id])
+  userId             String? // cashier who closed the day
+  user               User?    @relation(fields: [userId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([tenantId, locationId, date])
+  @@index([tenantId])
+  @@index([date])
   @@index([locationId])
 }
 

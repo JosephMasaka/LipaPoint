@@ -29,6 +29,7 @@ async function main() {
   await prisma.order.deleteMany();
   await prisma.stockMovement.deleteMany();
   await prisma.stockRecord.deleteMany();
+  await prisma.dailySummary.deleteMany();
   await prisma.stock.deleteMany();
   await prisma.productUoM.deleteMany();
   await prisma.product.deleteMany();
@@ -571,24 +572,430 @@ async function main() {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // TENANT 4: CLUB CHAIRMAN (Bar - Real Stock Sheet Data)
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log("  Creating Club Chairman...");
+
+  const chairman = await prisma.tenant.create({
+    data: {
+      name: "Club Chairman",
+      slug: "club-chairman",
+      type: "BAR",
+      tier: "PROFESSIONAL",
+      email: "jkmasaka@gmail.com",
+      phone: "+254 722 555 888",
+      address: "Kenyatta Avenue",
+      city: "Nairobi",
+      currency: "KES",
+      taxRate: 0,
+      receiptHeader: "CLUB CHAIRMAN",
+      receiptFooter: "Thank you! Karibu tena.",
+    },
+  });
+
+  const chairHash = await bcrypt.hash("Chairman@2024", 10);
+  const jackieHash = await bcrypt.hash("Jackie@2024", 10);
+
+  const johnMasaka = await prisma.user.create({
+    data: { email: "jkmasaka@gmail.com", name: "John Masaka", phone: "+254 722 555 888", password: chairHash, role: "OWNER", tenantId: chairman.id },
+  });
+  const jackie = await prisma.user.create({
+    data: { email: "jackie@clubchairman.co.ke", name: "Jackie", phone: "+254 733 666 999", password: jackieHash, role: "CASHIER", tenantId: chairman.id },
+  });
+
+  const chairLocation = await prisma.location.create({
+    data: { name: "Main Bar", address: "Kenyatta Avenue, Nairobi", tenantId: chairman.id },
+  });
+  await prisma.register.create({ data: { name: "Bar Counter", locationId: chairLocation.id } });
+
+  // Units of Measure for a bar
+  const chairUnits = await Promise.all([
+    prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: chairman.id } }),
+    prisma.unitOfMeasure.create({ data: { name: "Tot", abbreviation: "tot", tenantId: chairman.id } }),
+    prisma.unitOfMeasure.create({ data: { name: "Double", abbreviation: "dbl", tenantId: chairman.id } }),
+    prisma.unitOfMeasure.create({ data: { name: "Can", abbreviation: "can", tenantId: chairman.id } }),
+    prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: chairman.id } }),
+    prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: chairman.id } }),
+    prisma.unitOfMeasure.create({ data: { name: "Jug", abbreviation: "jug", tenantId: chairman.id } }),
+  ]);
+  const [cBtl, cTot, cDbl, cCan, cGls, cCrt, cJug] = chairUnits;
+
+  await prisma.unitConversion.createMany({
+    data: [
+      { fromUnitId: cBtl.id, toUnitId: cTot.id, factor: 15 },
+      { fromUnitId: cCrt.id, toUnitId: cBtl.id, factor: 24 },
+      { fromUnitId: cDbl.id, toUnitId: cTot.id, factor: 2 },
+    ],
+  });
+
+  // Categories
+  const chairCats = await Promise.all([
+    prisma.category.create({ data: { name: "Beers", color: "#f59e0b", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Ciders & RTD", color: "#84cc16", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Spirits - Vodka", color: "#6366f1", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Spirits - Whiskey", color: "#a855f7", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Spirits - Gin", color: "#06b6d4", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Spirits - Brandy", color: "#dc2626", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Spirits - Rum", color: "#ea580c", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Spirits - Cream & Liqueur", color: "#d946ef", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Wines", color: "#be123c", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Mixers & Energy", color: "#0ea5e9", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Soft Drinks & Water", color: "#14b8a6", tenantId: chairman.id } }),
+    prisma.category.create({ data: { name: "Keg", color: "#78716c", tenantId: chairman.id } }),
+  ]);
+  const [catBeers, catCiders, catVodka, catWhiskey, catGin, catBrandy, catRum, catCream, catWines, catMixers, catSoft, catKeg] = chairCats;
+
+  // ─── ALL 117 PRODUCTS FROM CLUB CHAIRMAN STOCK SHEET ──────────────────────
+  const chairProducts: Array<{
+    name: string; sku: string; price: number; cost: number; cat: string; image: string;
+    totPrice?: number; dblPrice?: number;
+  }> = [
+    // ═══ BEERS (items 1-18) ═══
+    { name: "Tusker Lager", sku: "CC-001", price: 250, cost: 180, cat: catBeers.id, image: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=200" },
+    { name: "Tusker Can", sku: "CC-002", price: 270, cost: 200, cat: catBeers.id, image: "https://images.unsplash.com/photo-1567696911980-2eed69a46042?w=200" },
+    { name: "Tusker Cider", sku: "CC-003", price: 280, cost: 200, cat: catCiders.id, image: "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=200" },
+    { name: "Tusker Cider Can", sku: "CC-004", price: 300, cost: 220, cat: catCiders.id, image: "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=200" },
+    { name: "Tusker Malt", sku: "CC-005", price: 300, cost: 220, cat: catBeers.id, image: "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=200" },
+    { name: "Tusker Malt Can", sku: "CC-006", price: 320, cost: 240, cat: catBeers.id, image: "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=200" },
+    { name: "Tusker Lite", sku: "CC-007", price: 280, cost: 200, cat: catBeers.id, image: "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=200" },
+    { name: "Tusker Lite Can", sku: "CC-008", price: 300, cost: 220, cat: catBeers.id, image: "https://images.unsplash.com/photo-1558642452-9d2a7deb7f62?w=200" },
+    { name: "Pilsner Lager", sku: "CC-009", price: 250, cost: 175, cat: catBeers.id, image: "https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=200" },
+    { name: "Pilsner Can", sku: "CC-010", price: 270, cost: 195, cat: catBeers.id, image: "https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=200" },
+    { name: "White Cap Lager", sku: "CC-011", price: 250, cost: 175, cat: catBeers.id, image: "https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=200" },
+    { name: "White Cap Can", sku: "CC-012", price: 270, cost: 195, cat: catBeers.id, image: "https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=200" },
+    { name: "White Cap Crisp", sku: "CC-013", price: 270, cost: 195, cat: catBeers.id, image: "https://images.unsplash.com/photo-1571613316887-6f8d5cbf7ef7?w=200" },
+    { name: "Guinness Kubwa", sku: "CC-014", price: 350, cost: 260, cat: catBeers.id, image: "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=200" },
+    { name: "Guinness Can", sku: "CC-015", price: 350, cost: 260, cat: catBeers.id, image: "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=200" },
+    { name: "Guinness Smooth", sku: "CC-016", price: 300, cost: 220, cat: catBeers.id, image: "https://images.unsplash.com/photo-1584225064785-c62a8b43d148?w=200" },
+    { name: "Balozi Lager", sku: "CC-017", price: 230, cost: 165, cat: catBeers.id, image: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=200" },
+    { name: "Balozi Can", sku: "CC-018", price: 250, cost: 185, cat: catBeers.id, image: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=200" },
+    // ═══ CIDERS & RTD (items 19-26) ═══
+    { name: "Smirnoff Ice Black", sku: "CC-019", price: 300, cost: 220, cat: catCiders.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "Snapp", sku: "CC-020", price: 250, cost: 175, cat: catCiders.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "Manyatta", sku: "CC-021", price: 200, cost: 140, cat: catCiders.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "Snapp Can", sku: "CC-022", price: 270, cost: 195, cat: catCiders.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "Pineapple Punch", sku: "CC-023", price: 250, cost: 175, cat: catCiders.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "Smirnoff Guarana", sku: "CC-024", price: 300, cost: 220, cat: catCiders.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "Heineken", sku: "CC-025", price: 350, cost: 270, cat: catBeers.id, image: "https://images.unsplash.com/photo-1572443490709-e57652b64499?w=200" },
+    { name: "Faxe", sku: "CC-026", price: 400, cost: 300, cat: catBeers.id, image: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=200" },
+    // ═══ ENERGY & MIXERS (items 27-33) ═══
+    { name: "O.J (Orange Juice)", sku: "CC-027", price: 150, cost: 80, cat: catMixers.id, image: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=200" },
+    { name: "Power Play", sku: "CC-028", price: 200, cost: 130, cat: catMixers.id, image: "https://images.unsplash.com/photo-1622543925917-763c34d1a86e?w=200" },
+    { name: "Predator", sku: "CC-029", price: 200, cost: 130, cat: catMixers.id, image: "https://images.unsplash.com/photo-1622543925917-763c34d1a86e?w=200" },
+    { name: "Savannah", sku: "CC-030", price: 350, cost: 260, cat: catCiders.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "Monster", sku: "CC-031", price: 250, cost: 170, cat: catMixers.id, image: "https://images.unsplash.com/photo-1622543925917-763c34d1a86e?w=200" },
+    { name: "Lemonade", sku: "CC-032", price: 150, cost: 70, cat: catMixers.id, image: "https://images.unsplash.com/photo-1621263764928-df1444c5e859?w=200" },
+    { name: "Red Bull", sku: "CC-033", price: 400, cost: 300, cat: catMixers.id, image: "https://images.unsplash.com/photo-1613225747130-5cb3e14b2e9c?w=200" },
+    // ═══ SPIRITS (items 34-104) ═══
+    { name: "White Pearl 250ml", sku: "CC-034", price: 400, cost: 280, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 100 },
+    { name: "White Pearl 750ml", sku: "CC-035", price: 1000, cost: 720, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 100 },
+    { name: "J. Walker Red 375ml", sku: "CC-036", price: 1800, cost: 1400, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1602081115068-5b2dae2e1dba?w=200", totPrice: 250 },
+    { name: "J. Walker Red 750ml", sku: "CC-037", price: 3500, cost: 2800, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1602081115068-5b2dae2e1dba?w=200", totPrice: 250 },
+    { name: "J. Walker Black 375ml", sku: "CC-038", price: 2800, cost: 2200, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1602081115068-5b2dae2e1dba?w=200", totPrice: 400 },
+    { name: "J. Walker Black 750ml", sku: "CC-039", price: 5500, cost: 4400, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1602081115068-5b2dae2e1dba?w=200", totPrice: 400 },
+    { name: "Chrome Vodka 250ml", sku: "CC-040", price: 500, cost: 350, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 120 },
+    { name: "Chrome Vodka 750ml", sku: "CC-041", price: 1300, cost: 950, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 120 },
+    { name: "Chrome Gin 250ml", sku: "CC-042", price: 500, cost: 350, cat: catGin.id, image: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=200", totPrice: 120 },
+    { name: "Chrome Gin 750ml", sku: "CC-043", price: 1300, cost: 950, cat: catGin.id, image: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=200", totPrice: 120 },
+    { name: "Viceroy 250ml", sku: "CC-044", price: 450, cost: 320, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200", totPrice: 100 },
+    { name: "Viceroy 350ml", sku: "CC-045", price: 600, cost: 440, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200", totPrice: 100 },
+    { name: "Viceroy 750ml", sku: "CC-046", price: 1200, cost: 900, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200", totPrice: 100 },
+    { name: "Smirnoff Vodka 250ml", sku: "CC-047", price: 600, cost: 430, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 150 },
+    { name: "Smirnoff Vodka 350ml", sku: "CC-048", price: 800, cost: 600, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 150 },
+    { name: "Smirnoff Vodka 750ml", sku: "CC-049", price: 1600, cost: 1200, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 150 },
+    { name: "Gilbeys Gin 250ml", sku: "CC-050", price: 500, cost: 360, cat: catGin.id, image: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=200", totPrice: 120 },
+    { name: "Gilbeys Gin 350ml", sku: "CC-051", price: 700, cost: 500, cat: catGin.id, image: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=200", totPrice: 120 },
+    { name: "Gilbeys Gin 750ml", sku: "CC-052", price: 1400, cost: 1000, cat: catGin.id, image: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=200", totPrice: 120 },
+    { name: "Richot 250ml", sku: "CC-053", price: 500, cost: 350, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200", totPrice: 120 },
+    { name: "Richot 350ml", sku: "CC-054", price: 700, cost: 490, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200", totPrice: 120 },
+    { name: "Richot 750ml", sku: "CC-055", price: 1400, cost: 1000, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200", totPrice: 120 },
+    { name: "Kenya Cane 250ml", sku: "CC-056", price: 450, cost: 320, cat: catRum.id, image: "https://images.unsplash.com/photo-1598018553943-4e8f4e28bb09?w=200", totPrice: 100 },
+    { name: "Kenya Cane 350ml", sku: "CC-057", price: 600, cost: 440, cat: catRum.id, image: "https://images.unsplash.com/photo-1598018553943-4e8f4e28bb09?w=200", totPrice: 100 },
+    { name: "Kenya Cane 750ml", sku: "CC-058", price: 1200, cost: 900, cat: catRum.id, image: "https://images.unsplash.com/photo-1598018553943-4e8f4e28bb09?w=200", totPrice: 100 },
+    { name: "Konyagi 250ml", sku: "CC-059", price: 350, cost: 240, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 80 },
+    { name: "Konyagi 500ml", sku: "CC-060", price: 650, cost: 460, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 80 },
+    { name: "Konyagi 750ml", sku: "CC-061", price: 900, cost: 650, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 80 },
+    { name: "Kibao Vodka 250ml", sku: "CC-062", price: 350, cost: 240, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 80 },
+    { name: "Kibao Vodka 350ml", sku: "CC-063", price: 480, cost: 340, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 80 },
+    { name: "Kibao Vodka 750ml", sku: "CC-064", price: 900, cost: 650, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 80 },
+    { name: "V & A 250ml", sku: "CC-065", price: 400, cost: 280, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200", totPrice: 100 },
+    { name: "V & A 750ml", sku: "CC-066", price: 1100, cost: 800, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200", totPrice: 100 },
+    { name: "VAT 69 350ml", sku: "CC-067", price: 1200, cost: 900, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 200 },
+    { name: "VAT 69 750ml", sku: "CC-068", price: 2400, cost: 1800, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 200 },
+    { name: "Hunters 250ml", sku: "CC-069", price: 400, cost: 280, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 100 },
+    { name: "Hunters 350ml", sku: "CC-070", price: 550, cost: 400, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 100 },
+    { name: "Hunters 750ml", sku: "CC-071", price: 1100, cost: 800, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 100 },
+    { name: "K.K", sku: "CC-072", price: 200, cost: 130, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200" },
+    { name: "Trace", sku: "CC-073", price: 200, cost: 130, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200" },
+    { name: "General Meakins", sku: "CC-074", price: 350, cost: 240, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200" },
+    { name: "Napoleon", sku: "CC-075", price: 400, cost: 280, cat: catBrandy.id, image: "https://images.unsplash.com/photo-1569529465841-dfecdab7503b?w=200" },
+    { name: "Origin", sku: "CC-076", price: 250, cost: 170, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200" },
+    { name: "Caribian", sku: "CC-077", price: 300, cost: 200, cat: catRum.id, image: "https://images.unsplash.com/photo-1598018553943-4e8f4e28bb09?w=200" },
+    { name: "Crazy Cock", sku: "CC-078", price: 250, cost: 170, cat: catCiders.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "Mr. Dowel", sku: "CC-079", price: 350, cost: 240, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200" },
+    { name: "Black & White 350ml", sku: "CC-080", price: 1200, cost: 900, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 200 },
+    { name: "Black & White 750ml", sku: "CC-081", price: 2400, cost: 1800, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 200 },
+    { name: "Capt. Morgan Gold 250ml", sku: "CC-082", price: 600, cost: 430, cat: catRum.id, image: "https://images.unsplash.com/photo-1598018553943-4e8f4e28bb09?w=200", totPrice: 150 },
+    { name: "Capt. Morgan Gold 750ml", sku: "CC-083", price: 1600, cost: 1200, cat: catRum.id, image: "https://images.unsplash.com/photo-1598018553943-4e8f4e28bb09?w=200", totPrice: 150 },
+    { name: "Triple Ace 250ml", sku: "CC-084", price: 350, cost: 240, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 80 },
+    { name: "Best Whiskey 250ml", sku: "CC-085", price: 350, cost: 240, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 80 },
+    { name: "Best Whiskey 750ml", sku: "CC-086", price: 900, cost: 650, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 80 },
+    { name: "Best Gin 250ml", sku: "CC-087", price: 350, cost: 240, cat: catGin.id, image: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=200", totPrice: 80 },
+    { name: "Best Gin 750ml", sku: "CC-088", price: 900, cost: 650, cat: catGin.id, image: "https://images.unsplash.com/photo-1514362545857-3bc16c4c7d1b?w=200", totPrice: 80 },
+    { name: "Best Cream 250ml", sku: "CC-089", price: 400, cost: 280, cat: catCream.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200", totPrice: 100 },
+    { name: "Best Cream 750ml", sku: "CC-090", price: 1000, cost: 720, cat: catCream.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200", totPrice: 100 },
+    { name: "Kane Extra 250ml", sku: "CC-091", price: 350, cost: 240, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200", totPrice: 80 },
+    { name: "Grants 750ml", sku: "CC-092", price: 2800, cost: 2100, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 250 },
+    { name: "William Lawson 375ml", sku: "CC-093", price: 1500, cost: 1100, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 200 },
+    { name: "William Lawson 750ml", sku: "CC-094", price: 2800, cost: 2100, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 200 },
+    { name: "Bond 7 250ml", sku: "CC-095", price: 450, cost: 320, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 100 },
+    { name: "Bond 7 350ml", sku: "CC-096", price: 600, cost: 440, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 100 },
+    { name: "Bond 7 750ml", sku: "CC-097", price: 1200, cost: 900, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 100 },
+    { name: "Blue Ice 250ml", sku: "CC-098", price: 300, cost: 200, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200" },
+    { name: "Sweet Berry 250ml", sku: "CC-099", price: 300, cost: 200, cat: catCream.id, image: "https://images.unsplash.com/photo-1551024709-8f23befc6f87?w=200" },
+    { name: "County 250ml", sku: "CC-100", price: 350, cost: 240, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 80 },
+    { name: "County 750ml", sku: "CC-101", price: 900, cost: 650, cat: catWhiskey.id, image: "https://images.unsplash.com/photo-1527281400683-1aae777175f8?w=200", totPrice: 80 },
+    { name: "All Season 250ml", sku: "CC-102", price: 300, cost: 200, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200" },
+    { name: "All Season 750ml", sku: "CC-103", price: 800, cost: 560, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200" },
+    { name: "People Vodka 250ml", sku: "CC-104", price: 300, cost: 200, cat: catVodka.id, image: "https://images.unsplash.com/photo-1550985543-49bee3167284?w=200" },
+    // ═══ WINES (items 105-110) ═══
+    { name: "King Fisher", sku: "CC-105", price: 500, cost: 350, cat: catWines.id, image: "https://images.unsplash.com/photo-1474722883778-792e7990302f?w=200" },
+    { name: "Caprice", sku: "CC-106", price: 600, cost: 420, cat: catWines.id, image: "https://images.unsplash.com/photo-1474722883778-792e7990302f?w=200" },
+    { name: "Penasol", sku: "CC-107", price: 700, cost: 500, cat: catWines.id, image: "https://images.unsplash.com/photo-1474722883778-792e7990302f?w=200" },
+    { name: "Fourth Street", sku: "CC-108", price: 800, cost: 580, cat: catWines.id, image: "https://images.unsplash.com/photo-1474722883778-792e7990302f?w=200" },
+    { name: "Four Cousins", sku: "CC-109", price: 900, cost: 650, cat: catWines.id, image: "https://images.unsplash.com/photo-1474722883778-792e7990302f?w=200" },
+    { name: "Cellar Cask (Glass)", sku: "CC-110", price: 250, cost: 150, cat: catWines.id, image: "https://images.unsplash.com/photo-1474722883778-792e7990302f?w=200" },
+    // ═══ SOFT DRINKS & WATER (items 111-116) ═══
+    { name: "Soda Big (500ml)", sku: "CC-111", price: 80, cost: 45, cat: catSoft.id, image: "https://images.unsplash.com/photo-1581636625402-29b2a704ef13?w=200" },
+    { name: "Soda Small (300ml)", sku: "CC-112", price: 60, cost: 35, cat: catSoft.id, image: "https://images.unsplash.com/photo-1581636625402-29b2a704ef13?w=200" },
+    { name: "Pet Soda (1.5L)", sku: "CC-113", price: 150, cost: 100, cat: catSoft.id, image: "https://images.unsplash.com/photo-1581636625402-29b2a704ef13?w=200" },
+    { name: "Delmonte Juice", sku: "CC-114", price: 150, cost: 90, cat: catSoft.id, image: "https://images.unsplash.com/photo-1621506289937-a8e4df240d0b?w=200" },
+    { name: "Mineral Water 500ml", sku: "CC-115", price: 60, cost: 30, cat: catSoft.id, image: "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=200" },
+    { name: "Mineral Water 1L", sku: "CC-116", price: 100, cost: 50, cat: catSoft.id, image: "https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=200" },
+    // ═══ KEG (item 117) ═══
+    { name: "Keg Regular", sku: "CC-117", price: 150, cost: 80, cat: catKeg.id, image: "https://images.unsplash.com/photo-1535958636474-b021ee887b13?w=200" },
+  ];
+
+  const createdChairProducts = [];
+  for (const p of chairProducts) {
+    const product = await prisma.product.create({
+      data: {
+        name: p.name, sku: p.sku, price: p.price, cost: p.cost,
+        image: p.image, baseUnitId: cBtl.id, tenantId: chairman.id, categoryId: p.cat,
+      },
+    });
+    createdChairProducts.push(product);
+    if (p.totPrice) {
+      await prisma.productUoM.create({
+        data: { productId: product.id, unitId: cTot.id, conversionFactor: 0.067, price: p.totPrice, cost: p.totPrice * 0.5, isDefault: false, isActive: true },
+      });
+      await prisma.productUoM.create({
+        data: { productId: product.id, unitId: cDbl.id, conversionFactor: 0.133, price: (p.dblPrice || p.totPrice * 1.8), cost: p.totPrice * 0.9, isDefault: false, isActive: true },
+      });
+    }
+  }
+
+  // ─── Stock quantities (realistic bar levels) ──────────────────────────────
+  const chairStockQty = [
+    // Beers (18)
+    3, 2, 2, 1, 2, 1, 3, 1, 4, 1, 2, 1, 1, 2, 1, 2, 3, 1,
+    // Ciders & RTD (8)
+    2, 3, 4, 1, 2, 1, 1, 1,
+    // Mixers & Energy (7)
+    6, 4, 4, 1, 3, 6, 2,
+    // Spirits 33-65 (33)
+    2, 1, 1, 1, 1, 1, 3, 1, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1, 3, 2, 1, 2, 1,
+    // Spirits 66-103 (38)
+    4, 5, 2, 1, 3, 2, 3, 2, 1, 1, 1, 1, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 3, 2, 2, 3, 2, 3, 2, 2, 3,
+    // Wines (6)
+    2, 2, 1, 2, 1, 6,
+    // Soft drinks (6)
+    24, 24, 6, 12, 24, 12,
+    // Keg (1)
+    1,
+  ];
+  for (let i = 0; i < createdChairProducts.length && i < chairStockQty.length; i++) {
+    await prisma.stock.create({
+      data: { productId: createdChairProducts[i].id, locationId: chairLocation.id, quantity: chairStockQty[i] },
+    });
+  }
+
+  // ─── Stock Records (3 days matching real stock sheet data from 8/12) ───────
+  const cDay0 = daysAgo(2);
+  const cDay1 = daysAgo(1);
+  const cDay2 = daysAgo(0);
+  const stockSheetData: number[][] = [
+    [0, 3, 0, 1, 2, 24, 3, 23, 0, 2],
+    [1, 2, 0, 1, 1, 0, 0, 1, 0, 0],
+    [8, 4, 0, 2, 2, 24, 6, 20, 0, 4],
+    [13, 2, 0, 1, 1, 12, 2, 11, 0, 1],
+    [16, 3, 0, 2, 1, 24, 5, 20, 0, 3],
+    [18, 2, 0, 1, 1, 12, 2, 11, 0, 1],
+    [24, 1, 0, 0, 1, 6, 1, 6, 0, 0],
+    [30, 3, 0, 1, 2, 0, 1, 1, 6, 1],
+    [32, 2, 0, 1, 1, 6, 2, 5, 0, 1],
+    [35, 1, 0, 0, 1, 0, 0, 1, 1, 0],
+    [36, 1, 0, 0, 1, 0, 0, 1, 0, 0],
+    [46, 3, 0, 1, 2, 6, 2, 6, 0, 1],
+    [49, 3, 0, 1, 2, 6, 2, 6, 0, 1],
+    [55, 3, 0, 2, 1, 6, 3, 4, 0, 2],
+    [58, 3, 0, 2, 1, 6, 3, 4, 0, 2],
+    [61, 3, 0, 2, 1, 6, 3, 4, 0, 2],
+    [94, 2, 0, 1, 1, 3, 2, 2, 0, 1],
+    [110, 24, 0, 8, 16, 24, 10, 30, 0, 6],
+    [111, 24, 0, 6, 18, 24, 8, 34, 0, 5],
+    [114, 24, 0, 4, 20, 24, 6, 38, 0, 3],
+    [116, 1, 0, 0, 1, 0, 0, 1, 1, 0],
+  ];
+  for (const [idx, d0Open, d0Add, d0Sold, d1Open, d1Add, d1Sold, d2Open, d2Add, d2Sold] of stockSheetData) {
+    const productId = createdChairProducts[idx].id;
+    await prisma.stockRecord.create({
+      data: { date: dateOnly(cDay0), openingStock: d0Open, addedStock: d0Add, soldStock: d0Sold, closingStock: d0Open + d0Add - d0Sold, productId, locationId: chairLocation.id, tenantId: chairman.id },
+    });
+    await prisma.stockRecord.create({
+      data: { date: dateOnly(cDay1), openingStock: d1Open, addedStock: d1Add, soldStock: d1Sold, closingStock: d1Open + d1Add - d1Sold, productId, locationId: chairLocation.id, tenantId: chairman.id },
+    });
+    await prisma.stockRecord.create({
+      data: { date: dateOnly(cDay2), openingStock: d2Open, addedStock: d2Add, soldStock: d2Sold, closingStock: d2Open + d2Add - d2Sold, productId, locationId: chairLocation.id, tenantId: chairman.id },
+    });
+  }
+
+  // ─── Orders & Transactions ────────────────────────────────────────────────
+  const chairOrders = [
+    { items: [[0, 1, 250], [8, 2, 250], [110, 2, 80]], method: "CASH" as const },
+    { items: [[13, 1, 350], [30, 1, 250], [114, 1, 60]], method: "MPESA" as const, customer: "Kevin" },
+    { items: [[16, 2, 230], [46, 1, 600], [55, 2, 450]], method: "CASH" as const },
+    { items: [[18, 1, 300], [24, 1, 350], [32, 1, 400]], method: "CASH" as const },
+    { items: [[36, 1, 3500], [110, 3, 80]], method: "MPESA" as const, customer: "Wanjiku" },
+    { items: [[49, 2, 500], [58, 1, 350], [111, 2, 60]], method: "CASH" as const },
+    { items: [[8, 3, 250], [16, 1, 230], [61, 1, 350]], method: "CASH" as const },
+    { items: [[46, 1, 600], [110, 2, 80], [114, 1, 60]], method: "MPESA" as const, customer: "Otieno" },
+  ];
+  for (let i = 0; i < chairOrders.length; i++) {
+    const o = chairOrders[i];
+    const orderItems = o.items.map(([idx, qty, price]) => ({
+      productId: createdChairProducts[idx].id, quantity: qty, unitPrice: price, total: qty * price, baseQuantity: qty,
+    }));
+    const subtotal = orderItems.reduce((s, it) => s + it.total, 0);
+    const order = await prisma.order.create({
+      data: {
+        orderNo: `CC-${String(i + 1).padStart(4, "0")}`, status: "COMPLETED",
+        subtotal, taxAmount: 0, total: subtotal,
+        paymentMethod: o.method, paymentStatus: "COMPLETED",
+        customerName: ("customer" in o) ? (o as { customer: string }).customer : null,
+        tenantId: chairman.id, locationId: chairLocation.id, userId: jackie.id,
+        items: { create: orderItems },
+        createdAt: new Date(cDay2.getTime() + (i + 1) * 3600000),
+      },
+    });
+    await prisma.transaction.create({
+      data: {
+        type: "SALE", amount: subtotal, method: o.method, status: "COMPLETED",
+        reference: `TXN-CC-${String(i + 1).padStart(4, "0")}`,
+        description: ("customer" in o) ? `Sale to ${(o as { customer: string }).customer}` : "Walk-in sale",
+        tenantId: chairman.id, orderId: order.id, userId: jackie.id,
+        createdAt: new Date(cDay2.getTime() + (i + 1) * 3600000),
+      },
+    });
+  }
+
+  // ─── Unpaid tabs (from "UN-PAID BILLS" section) ───────────────────────────
+  const chairTabs = [
+    { name: "Masaka", items: [[0, 1, 250], [46, 1, 600]] },
+    { name: "Soi", items: [[8, 2, 250], [110, 1, 80]] },
+  ];
+  for (let i = 0; i < chairTabs.length; i++) {
+    const t = chairTabs[i];
+    const orderItems = t.items.map(([idx, qty, price]) => ({
+      productId: createdChairProducts[idx].id, quantity: qty, unitPrice: price, total: qty * price, baseQuantity: qty,
+    }));
+    const total = orderItems.reduce((s, it) => s + it.total, 0);
+    await prisma.order.create({
+      data: {
+        orderNo: `TAB-CC-${String(i + 1).padStart(3, "0")}`, status: "TAB", tabName: t.name,
+        subtotal: total, taxAmount: 0, total,
+        paymentMethod: "CASH", paymentStatus: "PENDING", customerName: t.name,
+        tenantId: chairman.id, locationId: chairLocation.id, userId: jackie.id,
+        items: { create: orderItems },
+        createdAt: new Date(cDay2.getTime() + 5 * 3600000),
+      },
+    });
+  }
+
+  // ─── Expenses ─────────────────────────────────────────────────────────────
+  await prisma.expense.createMany({
+    data: [
+      { date: dateOnly(cDay2), category: "Purchases", description: "Beer restock - Tusker, Pilsner, Balozi crates", amount: 2160, supplier: "EABL Distributor", tenantId: chairman.id, locationId: chairLocation.id, userId: johnMasaka.id },
+      { date: dateOnly(cDay2), category: "Utilities", description: "Electricity bill", amount: 500, isRecurring: true, tenantId: chairman.id, locationId: chairLocation.id, userId: johnMasaka.id },
+      { date: dateOnly(cDay2), category: "Supplies", description: "Ice, serviettes, straws", amount: 320, tenantId: chairman.id, locationId: chairLocation.id, userId: johnMasaka.id },
+      { date: dateOnly(cDay2), category: "Staff", description: "Cleaner wages", amount: 400, isRecurring: true, tenantId: chairman.id, locationId: chairLocation.id, userId: johnMasaka.id },
+      { date: dateOnly(cDay1), category: "Purchases", description: "Spirit restock - Smirnoff, Gilbeys, Kenya Cane", amount: 3500, supplier: "KWAL Distributor", tenantId: chairman.id, locationId: chairLocation.id, userId: johnMasaka.id },
+      { date: dateOnly(cDay1), category: "Maintenance", description: "Sound system repair", amount: 1500, tenantId: chairman.id, locationId: chairLocation.id, userId: johnMasaka.id },
+    ],
+  });
+
+  // ─── Daily Summary (matching stock sheet cash reconciliation) ──────────────
+  await prisma.dailySummary.create({
+    data: {
+      date: dateOnly(cDay2), cashBroughtForward: 6060, totalSales: 8720, debtsPaid: 0, otherIncome: 0,
+      subtotal: 14780, mpesaReceived: 4670, purchases: 2160, expenses: 1220, unpaidBills: 1430,
+      totalCash: 5300, cashSurrendered: 5300, shortExcess: 0, cashCarriedForward: 5300,
+      tenantId: chairman.id, locationId: chairLocation.id, userId: jackie.id,
+    },
+  });
+  await prisma.dailySummary.create({
+    data: {
+      date: dateOnly(cDay1), cashBroughtForward: 4500, totalSales: 7200, debtsPaid: 500, otherIncome: 0,
+      subtotal: 12200, mpesaReceived: 2800, purchases: 3500, expenses: 1500, unpaidBills: 840,
+      totalCash: 3560, cashSurrendered: 3500, shortExcess: -60, cashCarriedForward: 6060,
+      notes: "Short 60 bob - Jackie says counting error",
+      tenantId: chairman.id, locationId: chairLocation.id, userId: jackie.id,
+    },
+  });
+
+  // ─── Stock Movements (goods receipts) ─────────────────────────────────────
+  const chairPurchases: [number, number, string][] = [
+    [0, 24, "GR-EABL-001"], [8, 24, "GR-EABL-001"], [16, 24, "GR-EABL-001"],
+    [13, 12, "GR-EABL-001"], [18, 12, "GR-EABL-001"],
+    [46, 6, "GR-KWAL-001"], [49, 6, "GR-KWAL-001"], [55, 6, "GR-KWAL-001"],
+  ];
+  for (const [idx, qty, ref] of chairPurchases) {
+    await prisma.stockMovement.create({
+      data: {
+        type: "GOODS_RECEIPT", quantity: qty,
+        productId: createdChairProducts[idx].id, locationId: chairLocation.id,
+        reference: ref, notes: "Restock delivery",
+        tenantId: chairman.id, userId: johnMasaka.id, createdAt: cDay1,
+      },
+    });
+  }
+
+  console.log("  ✓ Club Chairman: 117 products, 2 users, stock records, orders, daily summary\n");
+
+  // ═══════════════════════════════════════════════════════════════════════════
   console.log("\n✅ Seed complete!\n");
   console.log("═══════════════════════════════════════════════════");
-  console.log("  LOGIN CREDENTIALS (all passwords: password123)");
+  console.log("  LOGIN CREDENTIALS");
   console.log("═══════════════════════════════════════════════════");
   console.log("");
   console.log("  Duka Kuu Wholesale & Retail (/duka-kuu)");
-  console.log("    Owner:       admin@dukakuu.co.ke");
-  console.log("    Cashier:     cashier@dukakuu.co.ke");
-  console.log("    Stock Keeper: stock@dukakuu.co.ke");
+  console.log("    Owner:       admin@dukakuu.co.ke / password123");
+  console.log("    Cashier:     cashier@dukakuu.co.ke / password123");
+  console.log("    Stock Keeper: stock@dukakuu.co.ke / password123");
   console.log("");
   console.log("  Mzinga Sports Bar (/mzinga-bar)");
-  console.log("    Owner:   admin@mzingabar.co.ke");
-  console.log("    Cashier: cashier@mzingabar.co.ke");
+  console.log("    Owner:   admin@mzingabar.co.ke / password123");
+  console.log("    Cashier: cashier@mzingabar.co.ke / password123");
   console.log("");
   console.log("  Savanna Lounge (/savanna-lounge)");
-  console.log("    Owner:   admin@savannalounge.co.ke");
-  console.log("    Cashier: cashier@savannalounge.co.ke");
-  console.log("    Manager: manager@savannalounge.co.ke");
+  console.log("    Owner:   admin@savannalounge.co.ke / password123");
+  console.log("    Cashier: cashier@savannalounge.co.ke / password123");
+  console.log("    Manager: manager@savannalounge.co.ke / password123");
+  console.log("");
+  console.log("  Club Chairman (/club-chairman)");
+  console.log("    Owner:   jkmasaka@gmail.com / Chairman@2024");
+  console.log("    Cashier: jackie@clubchairman.co.ke / Jackie@2024");
   console.log("");
   console.log("═══════════════════════════════════════════════════\n");
 }
