@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,9 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
-  Plus, UserPlus, Shield, Trash2, Power,
-  Users, Lock, ShoppingCart, Package, BarChart3,
-  Settings, Receipt, CheckCircle,
+  Plus, UserPlus, Shield, Trash2, Power, Save, RotateCcw,
+  Users, Lock, ShoppingCart, Package, BarChart3, X,
+  Settings, Receipt, CheckCircle, AlertCircle,
 } from "lucide-react";
 
 interface StaffUser {
@@ -23,7 +23,13 @@ interface StaffUser {
   createdAt: string;
 }
 
-const ROLES = ["OWNER", "ADMIN", "MANAGER", "CASHIER", "STOCK_KEEPER", "KITCHEN"];
+interface RoleData {
+  role: string;
+  permissions: string[];
+  description: string | null;
+  isSystem: boolean;
+  id: string | null;
+}
 
 const PERMISSIONS = [
   { key: "pos", label: "Point of Sale", icon: ShoppingCart, description: "Access POS register and process sales" },
@@ -37,15 +43,6 @@ const PERMISSIONS = [
   { key: "expenses", label: "Expenses", icon: Receipt, description: "Record and view expenses" },
 ];
 
-const DEFAULT_ROLE_PERMISSIONS: Record<string, string[]> = {
-  OWNER: PERMISSIONS.map(p => p.key),
-  ADMIN: PERMISSIONS.map(p => p.key),
-  MANAGER: ["pos", "orders", "tabs", "inventory", "stock_management", "analytics", "expenses"],
-  CASHIER: ["pos", "orders", "tabs"],
-  STOCK_KEEPER: ["inventory", "stock_management", "expenses"],
-  KITCHEN: ["orders"],
-};
-
 export default function UsersPage() {
   const [users, setUsers] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,9 +51,16 @@ export default function UsersPage() {
   const [form, setForm] = useState({ name: "", email: "", phone: "", role: "CASHIER" });
   const [error, setError] = useState("");
   const [selectedRole, setSelectedRole] = useState<string | null>(null);
-  const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>(DEFAULT_ROLE_PERMISSIONS);
+  const [roles, setRoles] = useState<RoleData[]>([]);
+  const [rolePermissions, setRolePermissions] = useState<Record<string, string[]>>({});
+  const [originalPermissions, setOriginalPermissions] = useState<Record<string, string[]>>({});
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [showCreateRole, setShowCreateRole] = useState(false);
+  const [newRole, setNewRole] = useState({ name: "", description: "", permissions: [] as string[] });
+  const [confirmDeleteRole, setConfirmDeleteRole] = useState<string | null>(null);
 
   const notify = (type: string, message: string) => {
     setNotification({ type, message });
@@ -70,7 +74,23 @@ export default function UsersPage() {
     } catch { /* ignore */ } finally { setLoading(false); }
   };
 
+  const fetchRoles = useCallback(async () => {
+    try {
+      const res = await fetch("/api/roles");
+      if (res.ok) {
+        const data: RoleData[] = await res.json();
+        setRoles(data);
+        const perms: Record<string, string[]> = {};
+        data.forEach(r => { perms[r.role] = [...r.permissions]; });
+        setRolePermissions(perms);
+        setOriginalPermissions(JSON.parse(JSON.stringify(perms)));
+        setDirty(false);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { if (activeTab === "roles") fetchRoles(); }, [activeTab, fetchRoles]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,20 +127,114 @@ export default function UsersPage() {
   };
 
   const togglePermission = (role: string, permission: string) => {
+    if (role === "OWNER") return;
     setRolePermissions(prev => {
       const current = prev[role] || [];
       const updated = current.includes(permission)
         ? current.filter(p => p !== permission)
         : [...current, permission];
-      return { ...prev, [role]: updated };
+      const next = { ...prev, [role]: updated };
+      setDirty(JSON.stringify(next) !== JSON.stringify(originalPermissions));
+      return next;
     });
+  };
+
+  const savePermissions = async () => {
+    if (!selectedRole || selectedRole === "OWNER") return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/roles", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: selectedRole,
+          permissions: rolePermissions[selectedRole] || [],
+        }),
+      });
+      if (res.ok) {
+        setOriginalPermissions(JSON.parse(JSON.stringify(rolePermissions)));
+        setDirty(false);
+        notify("success", `${selectedRole.replace("_", " ")} permissions saved`);
+      } else {
+        const d = await res.json();
+        notify("error", d.error || "Failed to save");
+      }
+    } catch {
+      notify("error", "Network error");
+    } finally { setSaving(false); }
+  };
+
+  const saveAllPermissions = async () => {
+    setSaving(true);
+    try {
+      const changedRoles = Object.keys(rolePermissions).filter(
+        role => role !== "OWNER" && JSON.stringify(rolePermissions[role]) !== JSON.stringify(originalPermissions[role])
+      );
+      for (const role of changedRoles) {
+        await fetch("/api/roles", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ role, permissions: rolePermissions[role] }),
+        });
+      }
+      setOriginalPermissions(JSON.parse(JSON.stringify(rolePermissions)));
+      setDirty(false);
+      notify("success", `Permissions saved for ${changedRoles.length} role${changedRoles.length > 1 ? "s" : ""}`);
+    } catch {
+      notify("error", "Failed to save permissions");
+    } finally { setSaving(false); }
+  };
+
+  const resetPermissions = () => {
+    setRolePermissions(JSON.parse(JSON.stringify(originalPermissions)));
+    setDirty(false);
+  };
+
+  const createRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRole.name.trim()) return;
+    try {
+      const res = await fetch("/api/roles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newRole),
+      });
+      if (res.ok) {
+        setNewRole({ name: "", description: "", permissions: [] });
+        setShowCreateRole(false);
+        fetchRoles();
+        notify("success", `Role "${newRole.name}" created`);
+      } else {
+        const d = await res.json();
+        notify("error", d.error || "Failed to create role");
+      }
+    } catch {
+      notify("error", "Network error");
+    }
+  };
+
+  const deleteRole = async (role: string) => {
+    try {
+      const res = await fetch(`/api/roles?role=${encodeURIComponent(role)}`, { method: "DELETE" });
+      if (res.ok) {
+        if (selectedRole === role) setSelectedRole(null);
+        fetchRoles();
+        setConfirmDeleteRole(null);
+        notify("success", "Role deleted");
+      } else {
+        const d = await res.json();
+        notify("error", d.error || "Failed to delete role");
+      }
+    } catch {
+      notify("error", "Network error");
+    }
   };
 
   return (
     <div className="min-h-screen bg-surface relative overflow-x-hidden">
       {notification && (
         <div className={cn("fixed top-4 right-4 z-[100] flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border backdrop-blur-sm", notification.type === "success" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-400")}>
-          <CheckCircle className="h-4 w-4 shrink-0" />
+          {notification.type === "success" ? <CheckCircle className="h-4 w-4 shrink-0" /> : <AlertCircle className="h-4 w-4 shrink-0" />}
           <span className="text-sm font-medium">{notification.message}</span>
         </div>
       )}
@@ -143,6 +257,23 @@ export default function UsersPage() {
               <UserPlus className="h-4 w-4" /> <span className="hidden sm:inline">{showForm ? "Cancel" : "Add Staff"}</span><span className="sm:hidden">{showForm ? "Cancel" : "Add"}</span>
             </Button>
           )}
+          {activeTab === "roles" && (
+            <div className="flex items-center gap-2">
+              {dirty && (
+                <>
+                  <Button variant="outline" size="sm" onClick={resetPermissions} className="gap-1.5">
+                    <RotateCcw className="h-3.5 w-3.5" /> Reset
+                  </Button>
+                  <Button size="sm" onClick={saveAllPermissions} disabled={saving} className="gap-1.5">
+                    <Save className="h-3.5 w-3.5" /> {saving ? "Saving..." : "Save All Changes"}
+                  </Button>
+                </>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setShowCreateRole(true)} className="gap-1.5">
+                <Plus className="h-3.5 w-3.5" /> New Role
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Staff Tab */}
@@ -164,7 +295,7 @@ export default function UsersPage() {
                       <div>
                         <label className="block text-sm font-medium text-text-secondary mb-1.5">Role</label>
                         <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} className="w-full h-10 rounded-lg border border-border bg-surface-elevated px-3 text-sm text-text-primary">
-                          {ROLES.filter(r => r !== "OWNER").map(r => <option key={r} value={r}>{r.replace("_", " ")}</option>)}
+                          {roles.filter(r => r.role !== "OWNER").map(r => <option key={r.role} value={r.role}>{r.role.replace(/_/g, " ")}</option>)}
                         </select>
                       </div>
                     </div>
@@ -212,7 +343,7 @@ export default function UsersPage() {
                           <td className="px-4 py-3">
                             <Badge variant="secondary" className="gap-1">
                               <Shield className="h-3 w-3" />
-                              {u.role.replace("_", " ")}
+                              {u.role.replace(/_/g, " ")}
                             </Badge>
                           </td>
                           <td className="px-4 py-3">
@@ -243,26 +374,39 @@ export default function UsersPage() {
         {/* Roles & Permissions Tab */}
         {activeTab === "roles" && (
           <div className="space-y-4 lg:grid lg:grid-cols-4 lg:gap-6 lg:space-y-0">
-            {/* Role selector - horizontal scroll on mobile, vertical on desktop */}
+            {/* Role selector */}
             <div>
-              <p className="text-sm font-medium text-text-secondary mb-2 lg:mb-3">Select Role</p>
+              <p className="text-sm font-medium text-text-secondary mb-2 lg:mb-3">Roles</p>
               <div className="flex gap-2 overflow-x-auto scrollbar-none pb-2 lg:pb-0 lg:flex-col lg:overflow-x-visible lg:space-y-2 lg:gap-0">
-                {ROLES.map(role => (
+                {roles.map(r => (
                   <button
-                    key={role}
-                    onClick={() => setSelectedRole(role)}
+                    key={r.role}
+                    onClick={() => setSelectedRole(r.role)}
                     className={cn(
-                      "flex items-center gap-2.5 rounded-lg border p-2.5 lg:p-3 transition-all text-left shrink-0 lg:shrink lg:w-full",
-                      selectedRole === role ? "border-gold bg-gold/5" : "border-border hover:border-gold/30"
+                      "flex items-center gap-2.5 rounded-lg border p-2.5 lg:p-3 transition-all text-left shrink-0 lg:shrink lg:w-full group",
+                      selectedRole === r.role ? "border-gold bg-gold/5" : "border-border hover:border-gold/30"
                     )}
                   >
-                    <div className={cn("h-7 w-7 lg:h-8 lg:w-8 rounded-lg flex items-center justify-center shrink-0", selectedRole === role ? "bg-gold/20" : "bg-surface-elevated")}>
-                      <Shield className={cn("h-3.5 w-3.5 lg:h-4 lg:w-4", selectedRole === role ? "text-gold" : "text-text-muted")} />
+                    <div className={cn("h-7 w-7 lg:h-8 lg:w-8 rounded-lg flex items-center justify-center shrink-0", selectedRole === r.role ? "bg-gold/20" : "bg-surface-elevated")}>
+                      <Shield className={cn("h-3.5 w-3.5 lg:h-4 lg:w-4", selectedRole === r.role ? "text-gold" : "text-text-muted")} />
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-xs lg:text-sm font-medium text-text-primary whitespace-nowrap">{role.replace("_", " ")}</p>
-                      <p className="text-[10px] text-text-muted hidden lg:block">{users.filter(u => u.role === role).length} member{users.filter(u => u.role === role).length !== 1 ? "s" : ""}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs lg:text-sm font-medium text-text-primary whitespace-nowrap">{r.role.replace(/_/g, " ")}</p>
+                        {!r.isSystem && <Badge variant="secondary" className="text-[8px] px-1 py-0">Custom</Badge>}
+                      </div>
+                      <p className="text-[10px] text-text-muted hidden lg:block">
+                        {r.description || `${users.filter(u => u.role === r.role).length} member${users.filter(u => u.role === r.role).length !== 1 ? "s" : ""}`}
+                      </p>
                     </div>
+                    {!r.isSystem && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteRole(r.role); }}
+                        className="h-6 w-6 rounded flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-red-500/10 text-text-muted hover:text-red-400 transition-all"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    )}
                   </button>
                 ))}
               </div>
@@ -275,23 +419,38 @@ export default function UsersPage() {
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <div>
-                        <CardTitle className="text-base">{selectedRole.replace("_", " ")} Permissions</CardTitle>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          {selectedRole.replace(/_/g, " ")} Permissions
+                          {dirty && rolePermissions[selectedRole] && JSON.stringify(rolePermissions[selectedRole]) !== JSON.stringify(originalPermissions[selectedRole]) && (
+                            <Badge variant="warning" className="text-[10px]">Unsaved</Badge>
+                          )}
+                        </CardTitle>
                         <CardDescription>Configure what this role can access</CardDescription>
                       </div>
-                      {(selectedRole === "OWNER" || selectedRole === "ADMIN") && (
-                        <Badge variant="warning">Full Access</Badge>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {selectedRole === "OWNER" && <Badge variant="warning">Full Access (Locked)</Badge>}
+                        {selectedRole !== "OWNER" && dirty && rolePermissions[selectedRole] && JSON.stringify(rolePermissions[selectedRole]) !== JSON.stringify(originalPermissions[selectedRole]) && (
+                          <Button size="sm" onClick={savePermissions} disabled={saving} className="gap-1.5">
+                            <Save className="h-3.5 w-3.5" /> {saving ? "Saving..." : "Save"}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {PERMISSIONS.map(perm => {
                         const isEnabled = (rolePermissions[selectedRole] || []).includes(perm.key);
-                        const isLocked = selectedRole === "OWNER" || selectedRole === "ADMIN";
+                        const isLocked = selectedRole === "OWNER";
                         return (
                           <div
                             key={perm.key}
-                            className={cn("flex items-center gap-3 rounded-lg border p-3 transition-all", isEnabled ? "border-gold/30 bg-gold/5" : "border-border")}
+                            onClick={() => !isLocked && togglePermission(selectedRole, perm.key)}
+                            className={cn(
+                              "flex items-center gap-3 rounded-lg border p-3 transition-all",
+                              isLocked ? "cursor-not-allowed opacity-70" : "cursor-pointer hover:shadow-sm",
+                              isEnabled ? "border-gold/30 bg-gold/5" : "border-border"
+                            )}
                           >
                             <div className={cn("h-9 w-9 rounded-lg flex items-center justify-center shrink-0", isEnabled ? "bg-gold/20" : "bg-surface-elevated")}>
                               <perm.icon className={cn("h-4 w-4", isEnabled ? "text-gold" : "text-text-muted")} />
@@ -300,16 +459,15 @@ export default function UsersPage() {
                               <p className="text-sm font-medium text-text-primary">{perm.label}</p>
                               <p className="text-[10px] text-text-muted truncate">{perm.description}</p>
                             </div>
-                            <label className="relative inline-flex cursor-pointer shrink-0">
-                              <input
-                                type="checkbox"
-                                checked={isEnabled}
-                                disabled={isLocked}
-                                onChange={() => togglePermission(selectedRole, perm.key)}
-                                className="sr-only peer"
-                              />
-                              <div className={cn("h-5 w-9 rounded-full transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-4", isLocked ? "bg-gold/50 cursor-not-allowed" : "bg-surface-hover peer-checked:bg-gold")} />
-                            </label>
+                            <div className={cn(
+                              "h-5 w-9 rounded-full relative transition-colors shrink-0",
+                              isEnabled ? (isLocked ? "bg-gold/50" : "bg-gold") : "bg-surface-hover"
+                            )}>
+                              <div className={cn(
+                                "absolute top-[2px] left-[2px] h-4 w-4 rounded-full bg-white transition-transform",
+                                isEnabled ? "translate-x-4" : "translate-x-0"
+                              )} />
+                            </div>
                           </div>
                         );
                       })}
@@ -329,7 +487,78 @@ export default function UsersPage() {
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Create Role Modal */}
+      {showCreateRole && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateRole(false)} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border">
+              <h3 className="text-lg font-bold text-text-primary">Create New Role</h3>
+              <button onClick={() => setShowCreateRole(false)} className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-surface-hover text-text-muted">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={createRole} className="p-4 space-y-4">
+              <Input
+                label="Role Name"
+                placeholder="e.g. Bartender, Waiter, Supervisor"
+                value={newRole.name}
+                onChange={(e) => setNewRole({ ...newRole, name: e.target.value })}
+                required
+              />
+              <Input
+                label="Description (optional)"
+                placeholder="Brief description of this role"
+                value={newRole.description}
+                onChange={(e) => setNewRole({ ...newRole, description: e.target.value })}
+              />
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-2">Permissions</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                  {PERMISSIONS.map(perm => {
+                    const isEnabled = newRole.permissions.includes(perm.key);
+                    return (
+                      <label
+                        key={perm.key}
+                        className={cn(
+                          "flex items-center gap-2 rounded-lg border p-2.5 cursor-pointer transition-all",
+                          isEnabled ? "border-gold/30 bg-gold/5" : "border-border hover:border-gold/20"
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={() => setNewRole(prev => ({
+                            ...prev,
+                            permissions: isEnabled
+                              ? prev.permissions.filter(p => p !== perm.key)
+                              : [...prev.permissions, perm.key],
+                          }))}
+                          className="sr-only"
+                        />
+                        <div className={cn("h-4 w-4 rounded border flex items-center justify-center shrink-0", isEnabled ? "bg-gold border-gold" : "border-border")}>
+                          {isEnabled && <CheckCircle className="h-3 w-3 text-white" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-text-primary">{perm.label}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button type="button" variant="outline" className="flex-1" onClick={() => setShowCreateRole(false)}>Cancel</Button>
+                <Button type="submit" className="flex-1 gap-1.5">
+                  <Plus className="h-4 w-4" /> Create Role
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete User Confirmation */}
       {confirmDelete && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
@@ -344,6 +573,26 @@ export default function UsersPage() {
             <div className="border-t border-border p-4 flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => setConfirmDelete(null)}>Cancel</Button>
               <Button className="flex-1 bg-red-500 hover:bg-red-600 text-white border-0" onClick={() => handleDelete(confirmDelete)}>Remove</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Role Confirmation */}
+      {confirmDeleteRole && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setConfirmDeleteRole(null)} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
+            <div className="p-6 text-center">
+              <div className="mx-auto h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center mb-4">
+                <Shield className="h-6 w-6 text-red-400" />
+              </div>
+              <h3 className="text-lg font-bold text-text-primary mb-2">Delete Role</h3>
+              <p className="text-sm text-text-secondary">Delete &quot;{confirmDeleteRole.replace(/_/g, " ")}&quot;? Users with this role will need to be reassigned.</p>
+            </div>
+            <div className="border-t border-border p-4 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setConfirmDeleteRole(null)}>Cancel</Button>
+              <Button className="flex-1 bg-red-500 hover:bg-red-600 text-white border-0" onClick={() => deleteRole(confirmDeleteRole)}>Delete</Button>
             </div>
           </div>
         </div>

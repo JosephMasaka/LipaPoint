@@ -107,8 +107,9 @@ model Tenant {
   unitsOfMeasure UnitOfMeasure[]
   stockRecords   StockRecord[]
   stockMovements StockMovement[]
-  expenses       Expense[]
-  dailySummaries DailySummary[]
+  expenses        Expense[]
+  dailySummaries  DailySummary[]
+  rolePermissions RolePermission[]
 
   @@index([slug])
   @@index([isActive])
@@ -474,6 +475,23 @@ model Expense {
   @@index([date])
   @@index([category])
   @@index([locationId])
+}
+
+// ─── Role Permissions (Per-Tenant Customizable RBAC) ────────────────────────
+
+model RolePermission {
+  id          String   @id @default(cuid())
+  role        String // matches UserRole enum value or custom role name
+  permissions String[] // array of permission keys (e.g., ["pos", "orders", "tabs"])
+  description String?  // custom description for the role
+  isSystem    Boolean  @default(true) // system roles can't be deleted
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([tenantId, role])
+  @@index([tenantId])
 }
 
 // ─── Daily Cash Summary (Bar Stock Sheet Reconciliation) ────────────────────
