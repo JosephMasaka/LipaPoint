@@ -101,6 +101,9 @@ export default function POSPage() {
 
   const { items, addItem, removeItem, updateQuantity, clearCart, getSubtotal, getTax, getTotal } = useCartStore();
 
+  const [mpesaCodeModal, setMpesaCodeModal] = useState(false);
+  const [mpesaCode, setMpesaCode] = useState("");
+
   const notify = (type: "success" | "error" | "info", message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
@@ -227,13 +230,10 @@ export default function POSPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          items: items.map(i => ({
-            productId: i.id,
-            quantity: i.quantity,
-            unitPrice: i.price,
-            productUomId: i.productUomId,
-          })),
+          items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price, productUomId: i.productUomId })),
           paymentMethod,
+          gatewayRef: paymentMethod === "MPESA_MANUAL" ? mpesaCode.trim() : undefined,
+          enteredManually: paymentMethod === "MPESA_MANUAL",
           subtotal: getSubtotal(),
           taxAmount: getTax(taxRate),
           total: getTotal(taxRate),
@@ -253,6 +253,8 @@ export default function POSPage() {
       notify("error", "Network error. Please try again.");
     } finally {
       setProcessing(false);
+      setMpesaCodeModal(false);
+      setMpesaCode("");
     }
   };
 
@@ -864,6 +866,33 @@ export default function POSPage() {
                 </Button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {mpesaCodeModal && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMpesaCodeModal(false)} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold text-text-primary">Confirm M-Pesa Payment</h3>
+              <p className="text-xs text-text-muted mt-1">
+                Ask the customer to pay {formatCurrency(getTotal(taxRate))} to{" "}
+                {tenantMpesaTill ? `Till ${tenantMpesaTill}` : `Paybill ${tenantMpesaPaybill}`}, then enter the confirmation code from their SMS.
+              </p>
+            </div>
+            <Input
+              placeholder="e.g. QGH7XYZ123"
+              value={mpesaCode}
+              onChange={(e) => setMpesaCode(e.target.value.toUpperCase())}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setMpesaCodeModal(false)}>Cancel</Button>
+              <Button className="flex-1" disabled={mpesaCode.trim().length < 8} onClick={handleCheckout}>
+                Confirm & Complete
+              </Button>
+            </div>
           </div>
         </div>
       )}
