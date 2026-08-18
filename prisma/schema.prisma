@@ -35,10 +35,19 @@ enum OrderStatus {
 
 enum PaymentMethod {
   CASH
-  MPESA
+  MPESA_MANUAL   // was MPESA — till/paybill on the wall, code entered by cashier
+  MPESA_STK      // aggregator or Daraja push to customer's phone
   CARD
   PDQ
   PAYSTACK
+}
+
+enum PaymentProvider {
+  DARAJA
+  INTASEND
+  PESAPAL
+  KOPOKOPO
+  FLUTTERWAVE
 }
 
 enum PaymentStatus {
@@ -110,6 +119,12 @@ model Tenant {
   expenses        Expense[]
   dailySummaries  DailySummary[]
   rolePermissions RolePermission[]
+
+  mpesaPaybill     String?
+  mpesaTill        String?
+  mpesaAccountName String?
+
+  paymentGateways  TenantPaymentGateway[]
 
   @@index([slug])
   @@index([isActive])
@@ -382,6 +397,22 @@ model OrderItem {
   @@index([productUomId])
 }
 
+model TenantPaymentGateway {
+  id           String          @id @default(cuid())
+  tenantId     String
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  provider     PaymentProvider
+  isActive     Boolean         @default(false)
+  apiKeyEnc    String?         // AES-256-GCM encrypted, decrypted only server-side
+  apiSecretEnc String?
+  merchantRef  String?         // sub-merchant/shortcode at the aggregator
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@unique([tenantId, provider])
+  @@index([tenantId])
+}
+
 model Transaction {
   id            String        @id @default(cuid())
   type          String // SALE, REFUND, PAYMENT
@@ -391,6 +422,7 @@ model Transaction {
   reference     String?       @unique
   gatewayRef    String? // Paystack/M-Pesa reference
   gatewayStatus String? // gateway-specific status
+  enteredManually Boolean @default(false)
   mpesaPhone    String? // for M-Pesa STK push
   cardLast4     String? // last 4 digits for card/PDQ
   description   String?
