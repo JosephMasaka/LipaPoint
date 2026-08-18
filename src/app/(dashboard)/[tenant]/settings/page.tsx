@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import {
   Store, CreditCard, Bell, Shield,
-  Receipt, Save, CheckCircle, Check,
+  Receipt, Save, CheckCircle, Check, Smartphone
 } from "lucide-react";
 
 interface TenantSettings {
@@ -75,6 +75,7 @@ export default function SettingsPage() {
 
   const tabs = [
     { id: "general", label: "General", icon: Store },
+    { id: "payments", label: "Payments", icon: Smartphone },
     { id: "billing", label: "Billing", icon: CreditCard },
     { id: "receipts", label: "Receipts", icon: Receipt },
     { id: "notifications", label: "Notifications", icon: Bell },
@@ -177,6 +178,71 @@ export default function SettingsPage() {
                   onChange={(e) => setSettings({ ...settings, taxRate: parseFloat(e.target.value) || 0 })}
                 />
               </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Payments */}
+      {activeTab === "payments" && (
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>M-Pesa (Till / Paybill)</CardTitle>
+              <CardDescription>
+                Displayed at checkout so customers can pay directly — no Safaricom API setup required.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <Input
+                  label="Paybill Number"
+                  value={settings.mpesaPaybill ?? ""}
+                  onChange={(e) => setSettings({ ...settings, mpesaPaybill: e.target.value })}
+                  placeholder="e.g. 400200"
+                />
+                <Input
+                  label="Till Number"
+                  value={settings.mpesaTill ?? ""}
+                  onChange={(e) => setSettings({ ...settings, mpesaTill: e.target.value })}
+                  placeholder="e.g. 5123456"
+                />
+              </div>
+              <Input
+                label="Account / Business Name"
+                value={settings.mpesaAccountName ?? ""}
+                onChange={(e) => setSettings({ ...settings, mpesaAccountName: e.target.value })}
+                placeholder="Name shown to the customer for the paybill account"
+              />
+              <p className="text-xs text-text-muted">
+                At checkout, staff will select &quot;M-Pesa&quot; and enter the confirmation code
+                the customer reads from their SMS receipt.
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Automatic Prompt (STK Push)</CardTitle>
+              <CardDescription>
+                Connect a payment aggregator to push an M-Pesa prompt directly to the customer&apos;s phone.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+              {[
+                { id: "INTASEND", name: "IntaSend", desc: "Fast signup, no Safaricom paperwork" },
+                { id: "PESAPAL", name: "Pesapal", desc: "Popular with East African merchants" },
+                { id: "KOPOKOPO", name: "Kopo Kopo", desc: "M-Pesa-native, Kenya-focused" },
+                { id: "DARAJA", name: "Safaricom Daraja (Direct)", desc: "Requires full business registration with Safaricom" },
+              ].map((gw) => (
+                <div key={gw.id} className="flex items-center justify-between rounded-lg border border-border p-4">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">{gw.name}</p>
+                    <p className="text-xs text-text-muted mt-0.5">{gw.desc}</p>
+                  </div>
+                  <Button variant="outline" size="sm">Connect</Button>
+                </div>
+              ))}
             </CardContent>
           </Card>
         </div>
