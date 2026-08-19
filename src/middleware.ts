@@ -42,8 +42,27 @@ function isTenantPath(pathname: string): boolean {
   return slugPattern.test(slug) && !PUBLIC_PATHS.includes(`/${slug}`);
 }
 
+const AUTH_PAGES = ["/login", "/register"];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (AUTH_PAGES.includes(pathname)) {
+    const token = request.cookies.get(COOKIE_NAME)?.value;
+    if (token) {
+      try {
+        const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+        const { payload } = await jwtVerify(token, secret);
+        const slug = payload.tenantSlug as string;
+        if (slug) {
+          return NextResponse.redirect(new URL(`/${slug}/dashboard`, request.url));
+        }
+      } catch {
+        // invalid token — let them through to login
+      }
+    }
+    return NextResponse.next();
+  }
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();

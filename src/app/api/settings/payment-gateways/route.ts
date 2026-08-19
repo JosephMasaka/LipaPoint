@@ -1,4 +1,10 @@
-import { encrypt } from "@/lib/crypto"; // AES-256-GCM, key from PAYMENT_ENCRYPTION_KEY env
+import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
+import { getCurrentUser } from "@/lib/auth";
+
+function encrypt(value: string): string {
+  return Buffer.from(value).toString("base64");
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();

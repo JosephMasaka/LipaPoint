@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
         tenantId: user.tenantId,
         locationId,
         status: "COMPLETED",
-        paymentMethod: "MPESA",
+        paymentMethod: { in: ["MPESA_MANUAL", "MPESA_STK"] },
         createdAt: { gte: startOfDay, lte: endOfDay },
       },
       select: { total: true },
