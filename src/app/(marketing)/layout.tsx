@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +10,17 @@ export default function MarketingLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const [authSlug, setAuthSlug] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.user?.tenant?.slug) setAuthSlug(d.user.tenant.slug);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-surface flex flex-col">
       <header className="sticky top-0 z-50 border-b border-border/50 bg-surface/80 backdrop-blur-xl">
@@ -34,12 +48,20 @@ export default function MarketingLayout({
           </nav>
 
           <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">Sign In</Button>
-            </Link>
-            <Link href="/register">
-              <Button size="sm">Get Started</Button>
-            </Link>
+            {authSlug ? (
+              <Link href={`/${authSlug}/dashboard`}>
+                <Button size="sm">Go to Dashboard</Button>
+              </Link>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost" size="sm">Sign In</Button>
+                </Link>
+                <Link href="/register">
+                  <Button size="sm">Get Started</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>
