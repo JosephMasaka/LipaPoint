@@ -198,10 +198,10 @@ async function main() {
   // Sample orders with transactions
   const dukaOrders = [
     { items: [{ idx: 0, qty: 2 }, { idx: 7, qty: 1 }], method: "CASH" as const },
-    { items: [{ idx: 1, qty: 3 }, { idx: 5, qty: 2 }, { idx: 12, qty: 4 }], method: "MPESA" as const },
+    { items: [{ idx: 1, qty: 3 }, { idx: 5, qty: 2 }, { idx: 12, qty: 4 }], method: "MPESA_MANUAL" as const },
     { items: [{ idx: 3, qty: 1 }, { idx: 9, qty: 1 }], method: "CASH" as const },
     { items: [{ idx: 10, qty: 1 }, { idx: 11, qty: 2 }], method: "CARD" as const },
-    { items: [{ idx: 4, qty: 6 }, { idx: 13, qty: 2 }], method: "MPESA" as const },
+    { items: [{ idx: 4, qty: 6 }, { idx: 13, qty: 2 }], method: "MPESA_MANUAL" as const },
     { items: [{ idx: 14, qty: 1 }, { idx: 15, qty: 2 }, { idx: 16, qty: 3 }], method: "CASH" as const },
     { items: [{ idx: 17, qty: 2 }, { idx: 18, qty: 5 }], method: "PDQ" as const },
   ];
@@ -354,9 +354,9 @@ async function main() {
   // Mzinga orders
   const mzingaOrders = [
     { items: [{ idx: 0, qty: 3 }, { idx: 5, qty: 2 }, { idx: 9, qty: 2 }], method: "CASH" as const },
-    { items: [{ idx: 6, qty: 1 }, { idx: 3, qty: 2 }, { idx: 11, qty: 1 }], method: "MPESA" as const },
+    { items: [{ idx: 6, qty: 1 }, { idx: 3, qty: 2 }, { idx: 11, qty: 1 }], method: "MPESA_MANUAL" as const },
     { items: [{ idx: 1, qty: 4 }, { idx: 7, qty: 3 }, { idx: 13, qty: 1 }], method: "CASH" as const },
-    { items: [{ idx: 2, qty: 2 }, { idx: 8, qty: 2 }, { idx: 14, qty: 2 }], method: "MPESA" as const },
+    { items: [{ idx: 2, qty: 2 }, { idx: 8, qty: 2 }, { idx: 14, qty: 2 }], method: "MPESA_MANUAL" as const },
     { items: [{ idx: 4, qty: 5 }, { idx: 12, qty: 2 }], method: "CARD" as const },
   ];
 
@@ -508,12 +508,12 @@ async function main() {
   // Savanna orders (higher value)
   const savannaOrders = [
     { items: [{ idx: 0, qty: 2 }, { idx: 4, qty: 2 }, { idx: 7, qty: 1 }, { idx: 12, qty: 1 }], method: "CARD" as const },
-    { items: [{ idx: 1, qty: 1 }, { idx: 8, qty: 2 }, { idx: 15, qty: 1 }], method: "MPESA" as const },
+    { items: [{ idx: 1, qty: 1 }, { idx: 8, qty: 2 }, { idx: 15, qty: 1 }], method: "MPESA_MANUAL" as const },
     { items: [{ idx: 2, qty: 2 }, { idx: 5, qty: 3 }, { idx: 10, qty: 2 }], method: "CARD" as const },
     { items: [{ idx: 3, qty: 1 }, { idx: 9, qty: 1 }, { idx: 13, qty: 1 }, { idx: 16, qty: 2 }], method: "CASH" as const },
     { items: [{ idx: 6, qty: 2 }, { idx: 11, qty: 2 }, { idx: 14, qty: 1 }, { idx: 17, qty: 1 }], method: "PDQ" as const },
     { items: [{ idx: 0, qty: 4 }, { idx: 1, qty: 2 }, { idx: 7, qty: 2 }, { idx: 8, qty: 2 }], method: "CARD" as const },
-    { items: [{ idx: 4, qty: 6 }, { idx: 12, qty: 2 }, { idx: 15, qty: 2 }], method: "MPESA" as const },
+    { items: [{ idx: 4, qty: 6 }, { idx: 12, qty: 2 }, { idx: 15, qty: 2 }], method: "MPESA_MANUAL" as const },
     { items: [{ idx: 2, qty: 1 }, { idx: 3, qty: 1 }, { idx: 10, qty: 3 }, { idx: 13, qty: 1 }], method: "CARD" as const },
   ];
 
@@ -866,13 +866,13 @@ async function main() {
   // ─── Orders & Transactions ────────────────────────────────────────────────
   const chairOrders = [
     { items: [[0, 1, 250], [8, 2, 250], [110, 2, 80]], method: "CASH" as const },
-    { items: [[13, 1, 350], [30, 1, 250], [114, 1, 60]], method: "MPESA" as const, customer: "Kevin" },
+    { items: [[13, 1, 350], [30, 1, 250], [114, 1, 60]], method: "MPESA_MANUAL" as const, customer: "Kevin" },
     { items: [[16, 2, 230], [46, 1, 600], [55, 2, 450]], method: "CASH" as const },
     { items: [[18, 1, 300], [24, 1, 350], [32, 1, 400]], method: "CASH" as const },
-    { items: [[36, 1, 3500], [110, 3, 80]], method: "MPESA" as const, customer: "Wanjiku" },
+    { items: [[36, 1, 3500], [110, 3, 80]], method: "MPESA_MANUAL" as const, customer: "Wanjiku" },
     { items: [[49, 2, 500], [58, 1, 350], [111, 2, 60]], method: "CASH" as const },
     { items: [[8, 3, 250], [16, 1, 230], [61, 1, 350]], method: "CASH" as const },
-    { items: [[46, 1, 600], [110, 2, 80], [114, 1, 60]], method: "MPESA" as const, customer: "Otieno" },
+    { items: [[46, 1, 600], [110, 2, 80], [114, 1, 60]], method: "MPESA_MANUAL" as const, customer: "Otieno" },
   ];
   for (let i = 0; i < chairOrders.length; i++) {
     const o = chairOrders[i];
