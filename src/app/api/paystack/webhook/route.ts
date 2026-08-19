@@ -23,6 +23,7 @@ export async function POST(request: NextRequest) {
       case "charge.success": {
         const { reference, amount, metadata } = event.data;
         const tenantId = metadata?.tenantId;
+        const tier = metadata?.tier;
 
         if (tenantId) {
           await db.transaction.create({
@@ -32,15 +33,23 @@ export async function POST(request: NextRequest) {
               method: "PAYSTACK",
               status: "COMPLETED",
               reference,
-              paystackRef: reference,
+              gatewayRef: reference,
               tenantId,
-              description: `Subscription payment - ${metadata.plan || "plan"}`,
+              description: `Subscription payment - ${tier || "plan"}`,
             },
           });
 
+          const updateData: Record<string, unknown> = {
+            isActive: true,
+            paystackSubCode: reference,
+          };
+          if (tier && ["STARTER", "PROFESSIONAL", "ENTERPRISE"].includes(tier)) {
+            updateData.tier = tier;
+          }
+
           await db.tenant.update({
             where: { id: tenantId },
-            data: { isActive: true, paystackSubCode: reference },
+            data: updateData,
           });
         }
         break;
