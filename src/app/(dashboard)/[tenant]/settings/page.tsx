@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Loader } from "@/components/ui/loader";
 import {
   Store, CreditCard, Bell, Shield,
   Receipt, Save, CheckCircle, Check, Smartphone
@@ -20,9 +22,13 @@ interface TenantSettings {
   receiptHeader: string;
   receiptFooter: string;
   isActive: boolean;
+  mpesaPaybill?: string;
+  mpesaTill?: string;
+  mpesaAccountName?: string;
 }
 
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
   const [settings, setSettings] = useState<TenantSettings>({
     name: "",
     slug: "",
@@ -34,9 +40,11 @@ export default function SettingsPage() {
     receiptFooter: "Thank you for shopping with us!",
     isActive: true,
   });
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
+  const [upgradingTier, setUpgradingTier] = useState<string | null>(null);
   const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
   const tierOrder = useMemo(() => ({ STARTER: 0, PROFESSIONAL: 1, ENTERPRISE: 2 }) as Record<string, number>, []);
 
@@ -51,8 +59,19 @@ export default function SettingsPage() {
       .then((data) => {
         if (data && !data.error) setSettings(data);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const upgraded = searchParams.get("upgraded");
+    if (upgraded) {
+      setActiveTab("billing");
+      setSettings((s) => ({ ...s, tier: upgraded }));
+      notify("success", `Successfully upgraded to ${upgraded.toLowerCase()} plan!`);
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [searchParams]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -81,6 +100,14 @@ export default function SettingsPage() {
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "security", label: "Security", icon: Shield },
   ];
+
+  if (loading) {
+    return (
+      <div className="p-4 sm:p-6 lg:p-8 pt-12 lg:pt-6 max-w-4xl mx-auto">
+        <Loader size="lg" label="Loading settings..." className="min-h-[60vh]" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 pt-12 lg:pt-6 max-w-4xl mx-auto space-y-6 relative overflow-x-hidden">
@@ -299,7 +326,9 @@ export default function SettingsPage() {
                         size="sm"
                         variant={(tierOrder[plan.tier] || 0) > (tierOrder[settings.tier] || 0) ? "default" : "outline"}
                         className="w-full"
+                        disabled={upgradingTier === plan.tier}
                         onClick={async () => {
+                          setUpgradingTier(plan.tier);
                           try {
                             const res = await fetch("/api/paystack/subscribe", {
                               method: "POST",
@@ -311,13 +340,17 @@ export default function SettingsPage() {
                               window.location.href = data.url;
                             } else {
                               notify("error", data.error || "Failed to initiate upgrade");
+                              setUpgradingTier(null);
                             }
                           } catch {
                             notify("error", "Network error");
+                            setUpgradingTier(null);
                           }
                         }}
                       >
-                        {(tierOrder[plan.tier] || 0) > (tierOrder[settings.tier] || 0) ? "Upgrade" : "Switch"}
+                        {upgradingTier === plan.tier ? (
+                          <Loader size="sm" />
+                        ) : (tierOrder[plan.tier] || 0) > (tierOrder[settings.tier] || 0) ? "Upgrade" : "Switch"}
                       </Button>
                     )}
                   </div>
@@ -382,6 +415,13 @@ export default function SettingsPage() {
                 <p className="text-left">VAT ({settings.taxRate}%) ........ KSh {Math.round(1300 * settings.taxRate / 100)}</p>
                 <p>================================</p>
                 <p className="font-bold text-text-primary">TOTAL: KSh {Math.round(1300 * (1 + settings.taxRate / 100)).toLocaleString()}</p>
+                {(settings.mpesaPaybill || settings.mpesaTill) && (
+                  <>
+                    <p>--------------------------------</p>
+                    {settings.mpesaPaybill && <p>Paybill: {settings.mpesaPaybill}</p>}
+                    {settings.mpesaTill && <p>Till No: {settings.mpesaTill}</p>}
+                  </>
+                )}
                 <p className="mt-2 italic">{settings.receiptFooter}</p>
               </div>
             </CardContent>

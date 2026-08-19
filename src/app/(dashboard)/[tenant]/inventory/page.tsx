@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Loader } from "@/components/ui/loader";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   Package, Ruler, BarChart3, DollarSign, Plus, Edit3,
@@ -201,7 +202,7 @@ function ProductsTab() {
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">Loading...</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
                 ) : products.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">No products found.</td></tr>
                 ) : products.map((p) => (
@@ -367,7 +368,7 @@ function StockSheetTab() {
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">Loading...</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
                 ) : records.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">
                     No stock records for this date. Click &quot;Initialize Day&quot; to start.
@@ -550,7 +551,7 @@ function UnitsTab() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
-          <p className="col-span-full text-center text-text-muted py-12">Loading...</p>
+          <div className="col-span-full py-12"><Loader label="Loading..." className="py-4" /></div>
         ) : units.length === 0 ? (
           <p className="col-span-full text-center text-text-muted py-12">No units defined yet. Create your first unit above.</p>
         ) : units.map((unit) => (
@@ -664,7 +665,7 @@ function ExpensesTab() {
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={5} className="px-4 py-12 text-center text-text-muted">Loading...</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
                 ) : expenses.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-12 text-center text-text-muted">No expenses recorded.</td></tr>
                 ) : expenses.map((exp) => (

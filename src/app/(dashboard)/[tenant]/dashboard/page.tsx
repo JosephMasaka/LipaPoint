@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageLoader } from "@/components/ui/loader";
 import { formatCurrency } from "@/lib/utils";
 import {
   ShoppingCart, Package, TrendingUp, Users, AlertTriangle,
@@ -39,13 +40,7 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen bg-surface overflow-x-hidden">
         <Header title="Dashboard" subtitle="Loading your business overview..." />
-        <div className="p-4 sm:p-6 lg:p-8">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 sm:gap-6">
-            {[...Array(4)].map((_, i) => (
-              <Card key={i}><CardContent className="h-24 animate-pulse bg-surface-hover rounded-lg" /></Card>
-            ))}
-          </div>
-        </div>
+        <PageLoader label="Loading dashboard..." />
       </div>
     );
   }

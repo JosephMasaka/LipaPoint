@@ -76,6 +76,8 @@ export default function POSPage() {
   const [scannerActive, setScannerActive] = useState(true);
   const [tenantName, setTenantName] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("Thank you for shopping with us!");
+  const [mpesaPaybill, setMpesaPaybill] = useState("");
+  const [mpesaTill, setMpesaTill] = useState("");
 
   // UoM selector
   const [uomProduct, setUomProduct] = useState<Product | null>(null);
@@ -200,6 +202,8 @@ export default function POSPage() {
     }).catch(() => {});
     fetch("/api/settings").then(r => r.json()).then(data => {
       if (data?.receiptFooter) setReceiptFooter(data.receiptFooter);
+      if (data?.mpesaPaybill) setMpesaPaybill(data.mpesaPaybill);
+      if (data?.mpesaTill) setMpesaTill(data.mpesaTill);
     }).catch(() => {});
     fetch("/api/products").then(r => r.json()).then(data => {
       if (Array.isArray(data)) setProducts(data);
@@ -482,7 +486,17 @@ export default function POSPage() {
                 <div className="divider"></div>
                 <div className="row bold"><span>TOTAL</span><span>{formatCurrency(completedOrder.total)}</span></div>
                 <div className="divider"></div>
+                {(mpesaPaybill || mpesaTill) && (
+                  <>
+                    {mpesaPaybill && <div className="center">Paybill: {mpesaPaybill}</div>}
+                    {mpesaTill && <div className="center">Till No: {mpesaTill}</div>}
+                    <div className="divider"></div>
+                  </>
+                )}
                 <div className="center">{receiptFooter}</div>
+                <div className="divider"></div>
+                <div className="center" style={{fontSize: "9px", marginTop: "4px", color: "#888"}}>Powered by LipaPoint POS</div>
+                <div className="center" style={{fontSize: "9px", color: "#888"}}>Dev: Joseph Masaka | 0791298382</div>
               </div>
             </div>
 
@@ -687,7 +701,7 @@ export default function POSPage() {
                 <div className="grid grid-cols-3 gap-2 mb-3">
                   {[
                     { id: "CASH", icon: Banknote, label: "Cash" },
-                    { id: "MPESA", icon: Smartphone, label: "M-Pesa" },
+                    { id: "MPESA_MANUAL", icon: Smartphone, label: "M-Pesa" },
                     { id: "CARD", icon: CreditCard, label: "Card" },
                   ].map((m) => (
                     <button key={m.id} onClick={() => setPaymentMethod(m.id)} className={cn("flex flex-col items-center gap-1 rounded-lg border p-2 transition-all", paymentMethod === m.id ? "border-gold/50 bg-gold/10 text-gold" : "border-border text-text-secondary")}>
@@ -842,7 +856,7 @@ export default function POSPage() {
                 <div className="grid grid-cols-4 gap-1.5">
                   {[
                     { id: "CASH", icon: Banknote, label: "Cash" },
-                    { id: "MPESA", icon: Smartphone, label: "M-Pesa" },
+                    { id: "MPESA_MANUAL", icon: Smartphone, label: "M-Pesa" },
                     { id: "CARD", icon: CreditCard, label: "Card" },
                     { id: "PDQ", icon: Wifi, label: "PDQ" },
                   ].map((m) => (
@@ -857,7 +871,13 @@ export default function POSPage() {
                   ))}
                 </div>
 
-                <Button size="lg" className="w-full" disabled={items.length === 0 || processing} onClick={handleCheckout}>
+                <Button size="lg" className="w-full" disabled={items.length === 0 || processing} onClick={() => {
+                  if (paymentMethod === "MPESA_MANUAL") {
+                    setMpesaCodeModal(true);
+                  } else {
+                    handleCheckout();
+                  }
+                }}>
                   {processing ? "Processing..." : `Complete Sale · ${formatCurrency(getTotal(taxRate))}`}
                 </Button>
 
@@ -878,7 +898,7 @@ export default function POSPage() {
               <h3 className="font-semibold text-text-primary">Confirm M-Pesa Payment</h3>
               <p className="text-xs text-text-muted mt-1">
                 Ask the customer to pay {formatCurrency(getTotal(taxRate))} to{" "}
-                {tenantMpesaTill ? `Till ${tenantMpesaTill}` : `Paybill ${tenantMpesaPaybill}`}, then enter the confirmation code from their SMS.
+                {mpesaTill ? `Till ${mpesaTill}` : `Paybill ${mpesaPaybill}`}, then enter the confirmation code from their SMS.
               </p>
             </div>
             <Input

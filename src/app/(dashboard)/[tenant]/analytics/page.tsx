@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { PageLoader } from "@/components/ui/loader";
 import { formatCurrency } from "@/lib/utils";
 import {
   TrendingUp, TrendingDown, BarChart3, PieChart,
@@ -50,6 +51,15 @@ export default function AnalyticsPage() {
 
   const revenueChange = pctChange(d.revenue.today, d.revenue.yesterday);
   const monthChange = pctChange(d.revenue.month, d.revenue.lastMonth);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface overflow-x-hidden">
+        <Header title="Analytics" subtitle="Comprehensive business performance insights" />
+        <PageLoader label="Loading analytics..." />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-surface overflow-x-hidden">

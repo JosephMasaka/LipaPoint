@@ -5,6 +5,7 @@ import { Header } from "@/components/header";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader } from "@/components/ui/loader";
 import { formatCurrency } from "@/lib/utils";
 
 interface Transaction {
@@ -19,7 +20,7 @@ interface Transaction {
   createdAt: string;
 }
 
-const paymentMethods = ["", "CASH", "MPESA", "CARD", "PAYSTACK"];
+const paymentMethods = ["", "CASH", "MPESA_MANUAL", "MPESA_STK", "CARD", "PAYSTACK"];
 
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -197,8 +198,8 @@ export default function TransactionsPage() {
                 <tbody className="divide-y divide-border">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-12 text-center text-text-muted">
-                        Loading transactions...
+                      <td colSpan={7} className="px-6 py-12">
+                        <Loader label="Loading transactions..." className="py-4" />
                       </td>
                     </tr>
                   ) : transactions.length === 0 ? (

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Loader } from "@/components/ui/loader";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   Search, Eye, Printer, XCircle, CheckCircle, Clock,
@@ -49,6 +50,8 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [tenantName, setTenantName] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("Thank you for shopping with us!");
+  const [mpesaPaybill, setMpesaPaybill] = useState("");
+  const [mpesaTill, setMpesaTill] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => {
@@ -56,6 +59,8 @@ export default function OrdersPage() {
     }).catch(() => {});
     fetch("/api/settings").then(r => r.json()).then(d => {
       if (d?.receiptFooter) setReceiptFooter(d.receiptFooter);
+      if (d?.mpesaPaybill) setMpesaPaybill(d.mpesaPaybill);
+      if (d?.mpesaTill) setMpesaTill(d.mpesaTill);
     }).catch(() => {});
   }, []);
 
@@ -113,7 +118,13 @@ export default function OrdersPage() {
       <div class="divider"></div>
       <div class="row bold"><span>TOTAL</span><span>KSh ${order.total.toLocaleString()}</span></div>
       <div class="divider"></div>
+      ${mpesaPaybill ? `<div class="center">Paybill: ${mpesaPaybill}</div>` : ""}
+      ${mpesaTill ? `<div class="center">Till No: ${mpesaTill}</div>` : ""}
+      ${(mpesaPaybill || mpesaTill) ? `<div class="divider"></div>` : ""}
       <div class="center">${receiptFooter}</div>
+      <div class="divider"></div>
+      <div class="center" style="font-size:9px;margin-top:4px;color:#888">Powered by LipaPoint POS</div>
+      <div class="center" style="font-size:9px;color:#888">Dev: Joseph Masaka | 0791298382</div>
       <script>window.print(); window.close();</script>
       </body></html>
     `);
@@ -181,7 +192,7 @@ export default function OrdersPage() {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {loading ? (
-                    <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">Loading orders...</td></tr>
+                    <tr><td colSpan={7} className="px-4 py-12"><Loader label="Loading orders..." className="py-4" /></td></tr>
                   ) : orders.length === 0 ? (
                     <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">No orders found.</td></tr>
                   ) : orders.map((order) => {

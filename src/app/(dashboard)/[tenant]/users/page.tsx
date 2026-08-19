@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Loader } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
 import {
   Plus, UserPlus, Shield, Trash2, Power, Save, RotateCcw,
@@ -320,7 +321,7 @@ export default function UsersPage() {
                     </thead>
                     <tbody className="divide-y divide-border">
                       {loading ? (
-                        <tr><td colSpan={5} className="px-4 py-12 text-center text-text-muted">Loading...</td></tr>
+                        <tr><td colSpan={5} className="px-4 py-12"><Loader label="Loading users..." className="py-4" /></td></tr>
                       ) : users.length === 0 ? (
                         <tr><td colSpan={5} className="px-4 py-12 text-center text-text-muted">No staff members.</td></tr>
                       ) : users.map((u) => (

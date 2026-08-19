@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Loader } from "@/components/ui/loader";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   ArrowLeft, Clock, Users, X, Banknote, Smartphone, CreditCard,
@@ -143,7 +144,7 @@ export default function TabsPage() {
 
         {/* Tabs Grid */}
         {loading ? (
-          <div className="flex items-center justify-center h-40 text-text-muted">Loading...</div>
+          <Loader label="Loading tabs..." className="h-40" />
         ) : tabs.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center justify-center py-16 text-text-muted">
@@ -251,7 +252,7 @@ export default function TabsPage() {
                 <div className="grid grid-cols-4 gap-2">
                   {[
                     { id: "CASH", icon: Banknote, label: "Cash" },
-                    { id: "MPESA", icon: Smartphone, label: "M-Pesa" },
+                    { id: "MPESA_MANUAL", icon: Smartphone, label: "M-Pesa" },
                     { id: "CARD", icon: CreditCard, label: "Card" },
                     { id: "PDQ", icon: Wifi, label: "PDQ" },
                   ].map((m) => (
