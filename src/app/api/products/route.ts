@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getPlanLimits } from "@/lib/plans";
 
 export async function GET(request: NextRequest) {
   try {
@@ -74,6 +75,12 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const limits = getPlanLimits(user.tenant.tier);
+    const productCount = await db.product.count({ where: { tenantId: user.tenantId, isActive: true } });
+    if (productCount >= limits.products) {
+      return NextResponse.json({ error: `Product limit reached (${limits.products}). Upgrade your plan to add more.` }, { status: 403 });
     }
 
     const body = await request.json();

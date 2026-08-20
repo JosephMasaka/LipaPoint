@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, hashPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getPlanLimits } from "@/lib/plans";
 
 export async function GET() {
   try {
@@ -42,9 +43,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Only OWNER, ADMIN, or MANAGER can create users
     if (!["OWNER", "ADMIN", "MANAGER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const limits = getPlanLimits(user.tenant.tier);
+    const staffCount = await db.user.count({ where: { tenantId: user.tenantId, isActive: true } });
+    if (staffCount >= limits.staff) {
+      return NextResponse.json({ error: `Staff limit reached (${limits.staff}). Upgrade your plan to add more team members.` }, { status: 403 });
     }
 
     const body = await request.json();
