@@ -27,11 +27,21 @@ export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<"today" | "week" | "month">("today");
+  const [accessError, setAccessError] = useState("");
 
   useEffect(() => {
+    setLoading(true);
     fetch(`/api/analytics?period=${period}`)
-      .then((r) => r.json())
-      .then(setData)
+      .then(async (r) => {
+        if (r.status === 403) {
+          const d = await r.json();
+          setAccessError(d.error || "Access denied");
+          return;
+        }
+        const d = await r.json();
+        setData(d);
+        setAccessError("");
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [period]);
@@ -57,6 +67,19 @@ export default function AnalyticsPage() {
       <div className="min-h-screen bg-surface overflow-x-hidden">
         <Header title="Analytics" subtitle="Comprehensive business performance insights" />
         <PageLoader label="Loading analytics..." />
+      </div>
+    );
+  }
+
+  if (accessError) {
+    return (
+      <div className="min-h-screen bg-surface overflow-x-hidden">
+        <Header title="Analytics" subtitle="Comprehensive business performance insights" />
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+          <TrendingUp className="h-16 w-16 text-text-muted mb-4" />
+          <h2 className="text-xl font-bold text-text-primary mb-2">Upgrade Required</h2>
+          <p className="text-text-secondary max-w-md mb-6">{accessError}</p>
+        </div>
       </div>
     );
   }
