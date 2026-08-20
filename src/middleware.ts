@@ -23,6 +23,7 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   analytics: ["OWNER", "ADMIN", "MANAGER"],
   users: ["OWNER", "ADMIN", "MANAGER"],
   settings: ["OWNER", "ADMIN"],
+  locations: ["OWNER", "ADMIN"],
   expenses: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"],
   kitchen: ["OWNER", "ADMIN", "MANAGER", "KITCHEN"],
 };
