@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { randomBytes } from "crypto";
+import { sendEmail, passwordResetEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,20 +39,8 @@ export async function POST(request: NextRequest) {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin;
     const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
-    // Log for development (replace with actual email sending in production)
-    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`  PASSWORD RESET REQUEST`);
-    console.log(`  User: ${user.name} (${user.email})`);
-    console.log(`  Reset URL: ${resetUrl}`);
-    console.log(`  Expires: ${expiresAt.toLocaleString()}`);
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
-
-    // TODO: Send actual email using your preferred provider (e.g., Resend, SendGrid, Nodemailer)
-    // await sendEmail({
-    //   to: user.email,
-    //   subject: "Reset your LipaPoint password",
-    //   html: `<p>Hi ${user.name},</p><p>Click <a href="${resetUrl}">here</a> to reset your password. This link expires in 1 hour.</p>`,
-    // });
+    const emailContent = passwordResetEmail(user.name, resetUrl);
+    await sendEmail({ to: user.email, ...emailContent });
 
     return NextResponse.json({ message: "If that email exists, a reset link has been sent." });
   } catch (error) {

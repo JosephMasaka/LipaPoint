@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hashPassword, createSession } from "@/lib/auth";
 import { initializeTransaction } from "@/lib/paystack";
+import { sendEmail, welcomeEmail } from "@/lib/email";
 
 function generateSlug(name: string): string {
   return name
@@ -85,6 +86,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const emailContent = welcomeEmail(ownerName, businessName, tier, slug);
+    sendEmail({ to: email.toLowerCase().trim(), ...emailContent }).catch(() => {});
+
     const amount = PLAN_AMOUNTS[tier] || 2999;
     let paymentUrl: string | null = null;
 
@@ -93,8 +97,8 @@ export async function POST(request: NextRequest) {
         const txn = await initializeTransaction({
           email: email.toLowerCase().trim(),
           amount,
-          metadata: { tenantId: tenant.id, plan: tier },
-          callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/${slug}/dashboard?payment=success`,
+          metadata: { tenantId: tenant.id, tier, type: "subscription_upgrade" },
+          callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/${slug}/settings?upgraded=${tier}`,
         });
         paymentUrl = txn.data.authorization_url;
       } catch {
