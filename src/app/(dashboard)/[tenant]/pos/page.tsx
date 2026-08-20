@@ -500,11 +500,28 @@ export default function POSPage() {
               </div>
             </div>
 
-            <div className="border-t border-border p-4 flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={handlePrintReceipt}>
-                <Printer className="h-4 w-4 mr-2" /> Print Receipt
-              </Button>
-              <Button className="flex-1" onClick={() => setShowSuccess(false)}>
+            <div className="border-t border-border p-4 space-y-2">
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={handlePrintReceipt}>
+                  <Printer className="h-4 w-4 mr-2" /> Print
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => {
+                  const email = prompt("Enter customer email to send receipt:");
+                  if (email && completedOrder) {
+                    fetch(`/api/orders/${completedOrder.id}/email`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ email }),
+                    }).then(r => {
+                      if (r.ok) notify("success", "Receipt sent to " + email);
+                      else notify("error", "Failed to send receipt");
+                    }).catch(() => notify("error", "Network error"));
+                  }
+                }}>
+                  <Smartphone className="h-4 w-4 mr-2" /> Email
+                </Button>
+              </div>
+              <Button className="w-full" onClick={() => setShowSuccess(false)}>
                 New Sale
               </Button>
             </div>

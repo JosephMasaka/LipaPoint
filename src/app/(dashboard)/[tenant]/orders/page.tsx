@@ -10,7 +10,7 @@ import { Loader } from "@/components/ui/loader";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   Search, Eye, Printer, XCircle, CheckCircle, Clock,
-  Receipt, Package, User, CreditCard, X,
+  Receipt, Package, User, CreditCard, X, Mail, Loader2,
 } from "lucide-react";
 
 interface OrderItem {
@@ -52,6 +52,8 @@ export default function OrdersPage() {
   const [receiptFooter, setReceiptFooter] = useState("Thank you for shopping with us!");
   const [mpesaPaybill, setMpesaPaybill] = useState("");
   const [mpesaTill, setMpesaTill] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState("");
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => {
@@ -129,6 +131,26 @@ export default function OrdersPage() {
       </body></html>
     `);
     printWindow.document.close();
+  };
+
+  const handleEmailReceipt = async (order: Order) => {
+    const email = prompt("Enter customer email to send receipt:");
+    if (!email) return;
+    setEmailSending(true);
+    try {
+      const res = await fetch(`/api/orders/${order.id}/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        setEmailSent(order.id);
+      } else {
+        const d = await res.json();
+        alert(d.error || "Failed to send email");
+      }
+    } catch { alert("Failed to send email"); }
+    finally { setEmailSending(false); }
   };
 
   const totalRevenue = orders.filter(o => o.status === "COMPLETED").reduce((s, o) => s + o.total, 0);
@@ -334,7 +356,16 @@ export default function OrdersPage() {
 
             <div className="border-t border-border p-4 flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => handlePrint(selectedOrder)}>
-                <Printer className="h-4 w-4 mr-2" /> Print Receipt
+                <Printer className="h-4 w-4 mr-2" /> Print
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => handleEmailReceipt(selectedOrder)}
+                disabled={emailSending}
+              >
+                {emailSending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
+                {emailSent === selectedOrder.id ? "Sent!" : "Email"}
               </Button>
               <Button className="flex-1" onClick={() => setSelectedOrder(null)}>
                 Close
