@@ -65,10 +65,23 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const upgraded = searchParams.get("upgraded");
-    if (upgraded) {
+    const reference = searchParams.get("reference") || searchParams.get("trxref");
+    if (upgraded && reference) {
       setActiveTab("billing");
-      setSettings((s) => ({ ...s, tier: upgraded }));
-      notify("success", `Successfully upgraded to ${upgraded.toLowerCase()} plan!`);
+      fetch(`/api/paystack/verify?reference=${encodeURIComponent(reference)}`)
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.success) {
+            setSettings((s) => ({ ...s, tier: data.tier }));
+            notify("success", `Successfully upgraded to ${data.tier.toLowerCase()} plan!`);
+          } else {
+            notify("error", data.error || "Payment verification failed");
+          }
+        })
+        .catch(() => notify("error", "Failed to verify payment"))
+        .finally(() => window.history.replaceState({}, "", window.location.pathname));
+    } else if (upgraded) {
+      setActiveTab("billing");
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, [searchParams]);
@@ -431,33 +444,7 @@ export default function SettingsPage() {
 
       {/* Notifications */}
       {activeTab === "notifications" && (
-        <div className="grid gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Notification Preferences</CardTitle>
-              <CardDescription>Choose what alerts you receive</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {[
-                { label: "Low stock alerts", desc: "Get notified when product stock falls below threshold" },
-                { label: "Daily sales summary", desc: "Receive end-of-day sales report via email" },
-                { label: "New order notifications", desc: "Alert when a new order is placed" },
-                { label: "Payment failures", desc: "Get notified about failed subscription payments" },
-              ].map((n) => (
-                <div key={n.label} className="flex items-center justify-between rounded-lg border border-border p-4">
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{n.label}</p>
-                    <p className="text-xs text-text-muted mt-0.5">{n.desc}</p>
-                  </div>
-                  <label className="relative inline-flex cursor-pointer">
-                    <input type="checkbox" defaultChecked className="sr-only peer" />
-                    <div className="h-5 w-9 rounded-full bg-surface-hover peer-checked:bg-gold transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-4" />
-                  </label>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+        <NotificationsTab notify={notify} />
       )}
 
       {/* Security */}
@@ -505,6 +492,104 @@ export default function SettingsPage() {
           </Card>
         </div>
       )}
+    </div>
+  );
+}
+
+const NOTIF_PREFS_KEY = "lipapoint-notification-prefs";
+const NOTIF_OPTIONS = [
+  { key: "lowStock", label: "Low stock alerts", desc: "Get notified when product stock falls below threshold" },
+  { key: "dailySummary", label: "Daily sales summary", desc: "Receive end-of-day sales report via email" },
+  { key: "newOrder", label: "New order notifications", desc: "Alert when a new order is placed" },
+  { key: "paymentFailure", label: "Payment failures", desc: "Get notified about failed subscription payments" },
+];
+
+function NotificationsTab({ notify }: { notify: (type: string, msg: string) => void }) {
+  const [prefs, setPrefs] = useState<Record<string, boolean>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      const saved = localStorage.getItem(NOTIF_PREFS_KEY);
+      return saved ? JSON.parse(saved) : { lowStock: true, dailySummary: true, newOrder: true, paymentFailure: true };
+    } catch { return { lowStock: true, dailySummary: true, newOrder: true, paymentFailure: true }; }
+  });
+  const [browserEnabled, setBrowserEnabled] = useState(false);
+
+  useEffect(() => {
+    if ("Notification" in window) {
+      setBrowserEnabled(Notification.permission === "granted");
+    }
+  }, []);
+
+  const togglePref = (key: string) => {
+    const updated = { ...prefs, [key]: !prefs[key] };
+    setPrefs(updated);
+    localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(updated));
+    notify("success", "Preference saved");
+  };
+
+  const enableBrowserNotifications = async () => {
+    if (!("Notification" in window)) {
+      notify("error", "Browser notifications not supported");
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      setBrowserEnabled(true);
+      notify("success", "Browser notifications enabled");
+      new Notification("LipaPoint", { body: "Notifications are now active!", icon: "/icons/icon-192.svg" });
+    } else {
+      notify("error", "Notification permission denied");
+    }
+  };
+
+  return (
+    <div className="grid gap-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Browser Notifications</CardTitle>
+          <CardDescription>Enable system notifications for real-time alerts</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between rounded-lg border border-border p-4">
+            <div>
+              <p className="text-sm font-medium text-text-primary">Push notifications</p>
+              <p className="text-xs text-text-muted mt-0.5">
+                {browserEnabled ? "Enabled - you will receive desktop alerts" : "Enable to get real-time alerts on this device"}
+              </p>
+            </div>
+            {browserEnabled ? (
+              <Badge variant="success">Active</Badge>
+            ) : (
+              <Button size="sm" onClick={enableBrowserNotifications}>Enable</Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Email Notification Preferences</CardTitle>
+          <CardDescription>Choose what email alerts you receive</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {NOTIF_OPTIONS.map((n) => (
+            <div key={n.key} className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div>
+                <p className="text-sm font-medium text-text-primary">{n.label}</p>
+                <p className="text-xs text-text-muted mt-0.5">{n.desc}</p>
+              </div>
+              <label className="relative inline-flex cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={prefs[n.key] !== false}
+                  onChange={() => togglePref(n.key)}
+                  className="sr-only peer"
+                />
+                <div className="h-5 w-9 rounded-full bg-surface-hover peer-checked:bg-gold transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-4" />
+              </label>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
   );
 }
