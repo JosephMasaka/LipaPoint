@@ -7,7 +7,7 @@ import { useTheme } from "@/components/theme-provider";
 import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
   Settings, Store, TrendingUp, Users, LogOut, Receipt,
-  Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen,
+  Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -25,6 +25,7 @@ const navItems = [
   { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { icon: TrendingUp, label: "Analytics", href: "/analytics", roles: ["OWNER", "ADMIN", "MANAGER"] },
   { icon: Users, label: "Staff", href: "/users", roles: ["OWNER", "ADMIN", "MANAGER"] },
+  { icon: MapPin, label: "Locations", href: "/locations", roles: ["OWNER", "ADMIN"] },
   { icon: Settings, label: "Settings", href: "/settings", roles: ["OWNER", "ADMIN"] },
 ];
 
