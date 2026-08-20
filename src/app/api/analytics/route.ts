@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { canAccessFeature } from "@/lib/plans";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!canAccessFeature(user.tenant.tier, "analytics")) {
+    return NextResponse.json({ error: "Analytics is available on Professional and Enterprise plans. Upgrade to access." }, { status: 403 });
+  }
 
   const tenantId = user.tenantId;
   const period = request.nextUrl.searchParams.get("period") || "today";
