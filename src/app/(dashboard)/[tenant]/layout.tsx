@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { Sidebar } from "@/components/sidebar";
 import { DashboardMain } from "@/components/dashboard-main";
+import { Tour } from "@/components/tour";
+import { PlanProvider } from "@/components/plan-guard";
 
 export default async function DashboardLayout({
   children,
@@ -22,9 +24,12 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-surface">
-      <Sidebar tenantSlug={tenantSlug} user={user} />
-      <DashboardMain>{children}</DashboardMain>
-    </div>
+    <PlanProvider tenantSlug={tenantSlug}>
+      <div className="min-h-screen bg-surface">
+        <Sidebar tenantSlug={tenantSlug} user={user} />
+        <DashboardMain>{children}</DashboardMain>
+        <Tour />
+      </div>
+    </PlanProvider>
   );
 }
