@@ -63,6 +63,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const tenant = await db.tenant.findUnique({ where: { id: user.tenantId }, select: { trialEndsAt: true, isActive: true } });
+    if (tenant?.trialEndsAt && new Date() > tenant.trialEndsAt && !tenant.isActive) {
+      return NextResponse.json({ error: "Your plan has expired. Please renew to continue processing sales." }, { status: 403 });
+    }
+
     const body = await request.json();
     const {
       items,
