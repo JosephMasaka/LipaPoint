@@ -8,10 +8,37 @@ import { Mail, Phone, MapPin, MessageCircle } from "lucide-react";
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setSubmitted(true);
+    setLoading(true);
+    setError("");
+    const form = new FormData(e.currentTarget);
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.get("name"),
+          email: form.get("email"),
+          phone: form.get("phone"),
+          subject: form.get("subject"),
+          message: form.get("message"),
+        }),
+      });
+      if (res.ok) {
+        setSubmitted(true);
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to send message");
+      }
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -96,22 +123,24 @@ export default function ContactPage() {
                 </div>
               ) : (
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {error && <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-400">{error}</div>}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Input label="Full Name" placeholder="John Kamau" required />
-                    <Input label="Email" type="email" placeholder="john@company.com" required />
+                    <Input name="name" label="Full Name" placeholder="John Kamau" required />
+                    <Input name="email" label="Email" type="email" placeholder="john@company.com" required />
                   </div>
-                  <Input label="Phone" type="tel" placeholder="+254 7XX XXX XXX" />
-                  <Input label="Subject" placeholder="I'd like to learn more about..." required />
+                  <Input name="phone" label="Phone" type="tel" placeholder="+254 7XX XXX XXX" />
+                  <Input name="subject" label="Subject" placeholder="I'd like to learn more about..." required />
                   <div className="space-y-1.5">
                     <label className="text-sm font-medium text-text-secondary">Message</label>
                     <textarea
+                      name="message"
                       rows={5}
                       required
                       placeholder="Tell us about your business and how we can help..."
                       className="flex w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all resize-none"
                     />
                   </div>
-                  <Button type="submit" size="lg">Send Message</Button>
+                  <Button type="submit" size="lg" disabled={loading}>{loading ? "Sending..." : "Send Message"}</Button>
                 </form>
               )}
             </CardContent>
