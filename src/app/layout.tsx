@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PWAProvider } from "@/components/pwa-provider";
 import { LoadingBar } from "@/components/loading-bar";
+import { OfflineIndicator } from "@/components/offline-indicator";
 import { Toaster } from "@/components/ui/toast";
 import "./globals.css";
 
@@ -127,6 +128,7 @@ export default function RootLayout({
           <PWAProvider>
             <LoadingBar />
             {children}
+            <OfflineIndicator />
           </PWAProvider>
         </ThemeProvider>
         <Toaster />

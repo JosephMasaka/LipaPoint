@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
-import { saveOfflineOrder, requestBackgroundSync, cacheProducts } from "@/lib/offline-db";
+import { saveOfflineOrder, saveOfflineAction, requestBackgroundSync, cacheProducts } from "@/lib/offline-db";
 import { notifyOrderComplete, notifyOfflineOrder, notifyLowStock } from "@/lib/notifications";
 import { NetworkStatus } from "@/components/pwa-provider";
 import {
@@ -236,6 +236,28 @@ export default function POSPage() {
     return matchesCat && matchesSearch;
   });
 
+  const saveOrderOffline = async (orderData: Record<string, unknown>) => {
+    const offlineOrderNo = `OFF-${Date.now().toString(36).toUpperCase()}`;
+    await saveOfflineOrder({ ...orderData, orderNo: offlineOrderNo });
+    requestBackgroundSync();
+    setCompletedOrder({
+      id: `offline-${Date.now()}`,
+      orderNo: offlineOrderNo,
+      subtotal: orderData.subtotal as number,
+      taxAmount: orderData.taxAmount as number,
+      discount: 0,
+      total: orderData.total as number,
+      paymentMethod,
+      items: items.map(i => ({ quantity: i.quantity, unitPrice: i.price, total: i.price * i.quantity, product: { name: i.name, sku: i.sku }, productUom: null })),
+      user: { name: "You" },
+    });
+    setShowSuccess(true);
+    clearCart();
+    setCartOpen(false);
+    notifyOfflineOrder(offlineOrderNo);
+    notify("info", "Saved offline — will sync when back online");
+  };
+
   const handleCheckout = async () => {
     if (items.length === 0) return;
     setProcessing(true);
@@ -250,59 +272,53 @@ export default function POSPage() {
       total: getTotal(taxRate),
     };
 
+    // If offline and payment is Cash or Mpesa Manual, save directly
+    if (!navigator.onLine && (paymentMethod === "CASH" || paymentMethod === "MPESA_MANUAL")) {
+      await saveOrderOffline(orderData);
+      setProcessing(false);
+      setMpesaCodeModal(false);
+      setMpesaCode("");
+      return;
+    }
+
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(orderData),
       });
-      if (res.ok) {
-        const order = await res.json();
-        setCompletedOrder(order);
+
+      const data = await res.json();
+
+      if (res.ok && !data.offline) {
+        setCompletedOrder(data);
         setShowSuccess(true);
         clearCart();
         setCartOpen(false);
-        notifyOrderComplete(order.orderNo, formatCurrency(order.total));
-        // Low stock browser notifications
-        if (order.stockLevels?.length > 0) {
+        notifyOrderComplete(data.orderNo, formatCurrency(data.total));
+        if (data.stockLevels?.length > 0) {
           const prefs = JSON.parse(localStorage.getItem("lipapoint-notification-prefs") || "{}");
           if (prefs.lowStock !== false) {
             const threshold = parseInt(localStorage.getItem("lipapoint-low-stock-threshold") || "20") || 20;
-            for (const s of order.stockLevels) {
+            for (const s of data.stockLevels) {
               if (s.remaining <= threshold) {
                 notifyLowStock(s.productName, s.remaining);
               }
             }
           }
         }
+      } else if (data.offline || data.queued) {
+        // SW returned offline response
+        await saveOrderOffline(orderData);
       } else {
-        const data = await res.json();
         notify("error", data.error || "Failed to process sale");
       }
     } catch {
-      // Offline: save to IndexedDB
-      if (!navigator.onLine) {
-        const offlineOrderNo = `OFF-${Date.now().toString(36).toUpperCase()}`;
-        await saveOfflineOrder({ ...orderData, orderNo: offlineOrderNo });
-        requestBackgroundSync();
-        setCompletedOrder({
-          id: `offline-${Date.now()}`,
-          orderNo: offlineOrderNo,
-          subtotal: orderData.subtotal,
-          taxAmount: orderData.taxAmount,
-          discount: 0,
-          total: orderData.total,
-          paymentMethod,
-          items: items.map(i => ({ quantity: i.quantity, unitPrice: i.price, total: i.price * i.quantity, product: { name: i.name, sku: i.sku }, productUom: null })),
-          user: { name: "You" },
-        });
-        setShowSuccess(true);
-        clearCart();
-        setCartOpen(false);
-        notifyOfflineOrder(offlineOrderNo);
-        notify("info", "Saved offline — will sync when back online");
+      // Network failure — save offline if cash/mpesa manual
+      if (paymentMethod === "CASH" || paymentMethod === "MPESA_MANUAL") {
+        await saveOrderOffline(orderData);
       } else {
-        notify("error", "Network error. Please try again.");
+        notify("error", "This payment method requires an internet connection.");
       }
     } finally {
       setProcessing(false);
@@ -314,15 +330,30 @@ export default function POSPage() {
   const handleOpenTab = async () => {
     if (items.length === 0 || !tabName.trim()) return;
     setProcessing(true);
+    const tabData = {
+      tabName: tabName.trim(),
+      customerName: tabCustomer.trim() || null,
+      items: items.map(i => ({ productId: i.id, quantity: i.quantity, productUomId: i.productUomId })),
+    };
+
+    if (!navigator.onLine) {
+      await saveOfflineAction("tab_open", tabData);
+      requestBackgroundSync();
+      clearCart();
+      setCartOpen(false);
+      setShowNewTab(false);
+      setTabName("");
+      setTabCustomer("");
+      notify("info", `Tab "${tabData.tabName}" saved offline — will sync when online`);
+      setProcessing(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/orders/tabs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tabName: tabName.trim(),
-          customerName: tabCustomer.trim() || null,
-          items: items.map(i => ({ productId: i.id, quantity: i.quantity, productUomId: i.productUomId })),
-        }),
+        body: JSON.stringify(tabData),
       });
       if (res.ok) {
         clearCart();
@@ -331,13 +362,20 @@ export default function POSPage() {
         setTabName("");
         setTabCustomer("");
         loadTabs();
-        notify("success", `Tab "${tabName}" opened`);
+        notify("success", `Tab "${tabData.tabName}" opened`);
       } else {
         const data = await res.json();
         notify("error", data.error || "Failed to open tab");
       }
     } catch {
-      notify("error", "Network error");
+      await saveOfflineAction("tab_open", tabData);
+      requestBackgroundSync();
+      clearCart();
+      setCartOpen(false);
+      setShowNewTab(false);
+      setTabName("");
+      setTabCustomer("");
+      notify("info", `Tab "${tabData.tabName}" saved offline — will sync when online`);
     } finally {
       setProcessing(false);
     }
@@ -346,15 +384,26 @@ export default function POSPage() {
   const handleAddToTab = async (tab: Tab) => {
     if (items.length === 0) return;
     setProcessing(true);
+    const addData = {
+      orderId: tab.id,
+      items: items.map(i => ({ productId: i.id, quantity: i.quantity, productUomId: i.productUomId })),
+    };
+
+    if (!navigator.onLine) {
+      await saveOfflineAction("tab_add", addData);
+      requestBackgroundSync();
+      clearCart();
+      setActiveTab(null);
+      notify("info", `Items queued for "${tab.tabName}" — will sync when online`);
+      setProcessing(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/orders/tabs", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          orderId: tab.id,
-          action: "add",
-          items: items.map(i => ({ productId: i.id, quantity: i.quantity, productUomId: i.productUomId })),
-        }),
+        body: JSON.stringify({ ...addData, action: "add" }),
       });
       if (res.ok) {
         clearCart();
@@ -363,7 +412,11 @@ export default function POSPage() {
         notify("success", `Added to "${tab.tabName}"`);
       }
     } catch {
-      notify("error", "Network error");
+      await saveOfflineAction("tab_add", addData);
+      requestBackgroundSync();
+      clearCart();
+      setActiveTab(null);
+      notify("info", `Items queued for "${tab.tabName}" — will sync when online`);
     } finally {
       setProcessing(false);
     }

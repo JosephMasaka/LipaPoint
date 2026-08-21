@@ -1,8 +1,16 @@
 const DB_NAME = "lipapoint-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 interface OfflineOrder {
   id?: number;
+  data: Record<string, unknown>;
+  createdAt: string;
+  synced: boolean;
+}
+
+interface OfflineAction {
+  id?: number;
+  type: "stock_add" | "stock_initialize" | "tab_open" | "tab_add";
   data: Record<string, unknown>;
   createdAt: string;
   synced: boolean;
@@ -21,6 +29,9 @@ function openDB(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains("cached-settings")) {
         db.createObjectStore("cached-settings", { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains("offline-actions")) {
+        db.createObjectStore("offline-actions", { keyPath: "id", autoIncrement: true });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -103,6 +114,41 @@ export async function getCachedSetting(key: string): Promise<unknown | null> {
   });
 }
 
+// Offline actions (inventory, tabs)
+export async function saveOfflineAction(type: OfflineAction["type"], data: Record<string, unknown>): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("offline-actions", "readwrite");
+    const store = tx.objectStore("offline-actions");
+    const action: OfflineAction = { type, data, createdAt: new Date().toISOString(), synced: false };
+    const request = store.add(action);
+    request.onsuccess = () => resolve(request.result as number);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function getOfflineActions(): Promise<OfflineAction[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("offline-actions", "readonly");
+    const store = tx.objectStore("offline-actions");
+    const request = store.getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function removeOfflineAction(id: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("offline-actions", "readwrite");
+    const store = tx.objectStore("offline-actions");
+    const request = store.delete(id);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export async function syncOfflineOrders(): Promise<{ synced: number; failed: number }> {
   const orders = await getOfflineOrders();
   let synced = 0;
@@ -129,11 +175,69 @@ export async function syncOfflineOrders(): Promise<{ synced: number; failed: num
   return { synced, failed };
 }
 
+export async function syncOfflineActions(): Promise<{ synced: number; failed: number }> {
+  const actions = await getOfflineActions();
+  let synced = 0;
+  let failed = 0;
+
+  for (const action of actions) {
+    try {
+      let url = "";
+      let method = "POST";
+      let body: Record<string, unknown> = {};
+
+      switch (action.type) {
+        case "stock_add":
+          url = "/api/stock";
+          body = { action: "addStock", ...action.data };
+          break;
+        case "stock_initialize":
+          url = "/api/stock";
+          body = { action: "initialize", ...action.data };
+          break;
+        case "tab_open":
+          url = "/api/orders/tabs";
+          body = action.data;
+          break;
+        case "tab_add":
+          url = "/api/orders/tabs";
+          method = "PUT";
+          body = { action: "add", ...action.data };
+          break;
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        await removeOfflineAction(action.id!);
+        synced++;
+      } else {
+        failed++;
+      }
+    } catch {
+      failed++;
+    }
+  }
+
+  return { synced, failed };
+}
+
 export async function requestBackgroundSync(): Promise<void> {
   if ("serviceWorker" in navigator && "sync" in (await navigator.serviceWorker.ready)) {
     const reg = await navigator.serviceWorker.ready;
     await (reg as ServiceWorkerRegistration & { sync: { register: (tag: string) => Promise<void> } }).sync.register("sync-orders");
   } else {
     await syncOfflineOrders();
+    await syncOfflineActions();
   }
+}
+
+export async function getPendingCount(): Promise<number> {
+  const orders = await getOfflineOrders();
+  const actions = await getOfflineActions();
+  return orders.length + actions.length;
 }

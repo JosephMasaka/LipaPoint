@@ -10,7 +10,7 @@ import { Loader } from "@/components/ui/loader";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   Package, Ruler, BarChart3, DollarSign, Plus, Edit3,
-  ArrowUpDown, Save, Upload,
+  ArrowUpDown, Save, Upload, WifiOff,
 } from "lucide-react";
 
 // Types
@@ -287,12 +287,24 @@ function StockSheetTab() {
   const handleInitialize = async () => {
     if (!locationId) return;
     setSaving(true);
-    await fetch("/api/stock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "initialize", date, locationId }),
-    });
-    await fetchRecords();
+    try {
+      const res = await fetch("/api/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "initialize", date, locationId }),
+      });
+      if (res.ok) {
+        await fetchRecords();
+      } else {
+        throw new Error("offline");
+      }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("stock_initialize", { date, locationId });
+        requestBackgroundSync();
+      }
+    }
     setSaving(false);
   };
 
@@ -300,27 +312,57 @@ function StockSheetTab() {
     const updates = Object.entries(editing).map(([productId, vals]) => ({ productId, ...vals }));
     if (updates.length === 0) return;
     setSaving(true);
-    await fetch("/api/stock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "update", date, locationId, records: updates }),
-    });
-    setEditing({});
-    await fetchRecords();
+    try {
+      const res = await fetch("/api/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", date, locationId, records: updates }),
+      });
+      if (res.ok) {
+        setEditing({});
+        await fetchRecords();
+      } else {
+        throw new Error("offline");
+      }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        for (const update of updates) {
+          await saveOfflineAction("stock_add", { date, locationId, productId: update.productId, quantity: update.addedStock || 0 });
+        }
+        requestBackgroundSync();
+        setEditing({});
+      }
+    }
     setSaving(false);
   };
 
   const handleAddStock = async () => {
     if (!addStockModal || !addStockQty || isNaN(Number(addStockQty))) return;
     setSaving(true);
-    await fetch("/api/stock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "addStock", date, locationId, productId: addStockModal.productId, quantity: parseInt(addStockQty) }),
-    });
-    setAddStockModal(null);
-    setAddStockQty("");
-    await fetchRecords();
+    const quantity = parseInt(addStockQty);
+    try {
+      const res = await fetch("/api/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "addStock", date, locationId, productId: addStockModal.productId, quantity }),
+      });
+      if (res.ok) {
+        setAddStockModal(null);
+        setAddStockQty("");
+        await fetchRecords();
+      } else {
+        throw new Error("offline");
+      }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("stock_add", { date, locationId, productId: addStockModal.productId, quantity });
+        requestBackgroundSync();
+        setAddStockModal(null);
+        setAddStockQty("");
+      }
+    }
     setSaving(false);
   };
 
