@@ -1,16 +1,18 @@
 import nodemailer from "nodemailer";
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.mailbux.com",
-  port: parseInt(process.env.SMTP_PORT || "587"),
+  host: process.env.MAIL_HOST || "my.mailbux.com",
+  port: parseInt(process.env.MAIL_PORT || "587"),
   secure: false,
   auth: {
-    user: process.env.SMTP_USER || "lipapoint@tunzaassets.co.ke",
-    pass: process.env.SMTP_PASS || "",
+    user: process.env.MAIL_USERNAME || "lipapoint@tunzaassets.co.ke",
+    pass: process.env.MAIL_PASSWORD || "",
   },
 });
 
-const FROM = process.env.SMTP_FROM || "LipaPoint <lipapoint@tunzaassets.co.ke>";
+const FROM = process.env.MAIL_FROM_NAME
+  ? `${process.env.MAIL_FROM_NAME} <${process.env.MAIL_FROM_ADDRESS}>`
+  : "LipaPoint <lipapoint@tunzaassets.co.ke>";
 
 interface EmailOptions {
   to: string;
