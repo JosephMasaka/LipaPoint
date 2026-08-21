@@ -2,17 +2,21 @@
   "name": "LipaPoint POS",
   "short_name": "LipaPoint",
   "description": "Kenya's #1 POS system. M-Pesa payments, inventory management, real-time analytics, staff tracking & multi-location support for restaurants, bars, retail shops, supermarkets and pharmacies.",
-  "id": "/",
-  "start_url": "/login",
+  "id": "lipapoint-pos",
+  "start_url": "/login?source=pwa",
   "scope": "/",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
-  "background_color": "#0a0a0f",
-  "theme_color": "#d4a843",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
   "orientation": "any",
   "categories": ["business", "finance", "productivity"],
   "launch_handler": {
     "client_mode": "navigate-existing"
+  },
+  "handle_links": "preferred",
+  "edge_side_panel": {
+    "preferred_width": 480
   },
   "icons": [
     {
@@ -40,6 +44,35 @@
       "purpose": "maskable"
     }
   ],
-  "screenshots": [],
-  "prefer_related_applications": false
+  "screenshots": [
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "form_factor": "wide",
+      "label": "LipaPoint POS Dashboard"
+    },
+    {
+      "src": "/icons/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "form_factor": "narrow",
+      "label": "LipaPoint POS Mobile"
+    }
+  ],
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Point of Sale",
+      "short_name": "POS",
+      "url": "/login?redirect=pos",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Orders",
+      "short_name": "Orders",
+      "url": "/login?redirect=orders",
+      "icons": [{ "src": "/icons/icon-192.svg", "sizes": "192x192" }]
+    }
+  ]
 }
