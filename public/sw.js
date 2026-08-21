@@ -52,7 +52,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") {
     // For non-GET requests, try network; if it fails, return offline signal
-    if (url.pathname.startsWith("/api/orders")) {
+    if (url.pathname.startsWith("/api/orders") || url.pathname.startsWith("/api/stock")) {
       event.respondWith(
         fetch(request).catch(() =>
           new Response(JSON.stringify({ queued: true, offline: true }), {
@@ -239,10 +239,12 @@ async function staleWhileRevalidate(request) {
   return new Response("Offline", { status: 503 });
 }
 
-// Background Sync: retry failed orders
+// Background Sync: retry failed orders and actions
 self.addEventListener("sync", (event) => {
   if (event.tag === "sync-orders") {
-    event.waitUntil(syncOfflineOrders());
+    event.waitUntil(
+      Promise.all([syncOfflineOrders(), syncOfflineActions()])
+    );
   }
 });
 
@@ -301,7 +303,7 @@ async function syncOfflineOrders() {
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("lipapoint-offline", 1);
+    const request = indexedDB.open("lipapoint-offline", 2);
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains("offline-orders")) {
@@ -310,10 +312,81 @@ function openDB() {
       if (!db.objectStoreNames.contains("cached-products")) {
         db.createObjectStore("cached-products", { keyPath: "id" });
       }
+      if (!db.objectStoreNames.contains("offline-actions")) {
+        db.createObjectStore("offline-actions", { keyPath: "id", autoIncrement: true });
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
   });
+}
+
+async function syncOfflineActions() {
+  try {
+    const db = await openDB();
+    const tx = db.transaction("offline-actions", "readonly");
+    const store = tx.objectStore("offline-actions");
+    const request = store.getAll();
+
+    return new Promise((resolve, reject) => {
+      request.onsuccess = async () => {
+        const actions = request.result;
+        const synced = [];
+
+        for (const action of actions) {
+          try {
+            let url = "";
+            let method = "POST";
+            let body = {};
+
+            switch (action.type) {
+              case "stock_add":
+                url = "/api/stock";
+                body = { action: "addStock", ...action.data };
+                break;
+              case "stock_initialize":
+                url = "/api/stock";
+                body = { action: "initialize", ...action.data };
+                break;
+              case "tab_open":
+                url = "/api/orders/tabs";
+                body = action.data;
+                break;
+              case "tab_add":
+                url = "/api/orders/tabs";
+                method = "PUT";
+                body = { action: "add", ...action.data };
+                break;
+              default:
+                continue;
+            }
+
+            const res = await fetch(url, {
+              method,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            if (res.ok) {
+              synced.push(action.id);
+            }
+          } catch {
+            // Will retry on next sync
+          }
+        }
+
+        if (synced.length > 0) {
+          const deleteTx = db.transaction("offline-actions", "readwrite");
+          const deleteStore = deleteTx.objectStore("offline-actions");
+          synced.forEach((id) => deleteStore.delete(id));
+        }
+
+        resolve();
+      };
+      request.onerror = reject;
+    });
+  } catch (e) {
+    console.error("Action sync failed:", e);
+  }
 }
 
 // Push Notifications

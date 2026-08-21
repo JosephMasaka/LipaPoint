@@ -35,7 +35,6 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   const [pendingOfflineOrders, setPendingOfflineOrders] = useState(0);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
-  const [showOfflineBanner, setShowOfflineBanner] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -49,15 +48,18 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
 
     const goOnline = async () => {
       setIsOnline(true);
-      setShowOfflineBanner(false);
       try {
-        const { syncOfflineOrders, getOfflineOrders } = await import("@/lib/offline-db");
+        const { syncOfflineOrders, syncOfflineActions, getOfflineOrders, getOfflineActions } = await import("@/lib/offline-db");
         const orders = await getOfflineOrders();
-        if (orders.length > 0) {
-          setSyncMessage(`Syncing ${orders.length} offline order(s)...`);
-          const result = await syncOfflineOrders();
-          if (result.synced > 0) {
-            setSyncMessage(`${result.synced} order(s) synced!`);
+        const actions = await getOfflineActions();
+        const totalPending = orders.length + actions.length;
+        if (totalPending > 0) {
+          setSyncMessage(`Syncing ${totalPending} offline item(s)...`);
+          const orderResult = await syncOfflineOrders();
+          const actionResult = await syncOfflineActions();
+          const totalSynced = orderResult.synced + actionResult.synced;
+          if (totalSynced > 0) {
+            setSyncMessage(`${totalSynced} item(s) synced!`);
             setPendingOfflineOrders(0);
           }
           setTimeout(() => setSyncMessage(""), 4000);
@@ -66,7 +68,6 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     };
     const goOffline = () => {
       setIsOnline(false);
-      setShowOfflineBanner(true);
     };
     window.addEventListener("online", goOnline);
     window.addEventListener("offline", goOffline);
@@ -112,14 +113,14 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     }
   }, [mounted]);
 
-  // Check pending offline orders
+  // Check pending offline items
   useEffect(() => {
     if (!mounted) return;
     const checkPending = async () => {
       try {
-        const { getOfflineOrders } = await import("@/lib/offline-db");
-        const orders = await getOfflineOrders();
-        setPendingOfflineOrders(orders.length);
+        const { getPendingCount } = await import("@/lib/offline-db");
+        const count = await getPendingCount();
+        setPendingOfflineOrders(count);
       } catch {}
     };
     checkPending();
@@ -218,20 +219,6 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       value={{ isOnline, isInstalled, canInstall, installApp, pendingOfflineOrders, notificationsEnabled, enableNotifications }}
     >
       {children}
-
-      {/* Offline Banner */}
-      {mounted && showOfflineBanner && (
-        <div className="fixed top-0 left-0 right-0 z-[200] bg-amber-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-lg">
-          <WifiOff className="h-4 w-4" />
-          <span>You&apos;re offline — sales will sync when connection returns</span>
-          {pendingOfflineOrders > 0 && (
-            <span className="bg-white/20 px-2 py-0.5 rounded text-xs">{pendingOfflineOrders} queued</span>
-          )}
-          <button onClick={() => setShowOfflineBanner(false)} className="ml-2 p-0.5 rounded hover:bg-white/20">
-            <X className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      )}
 
       {/* Sync Message */}
       {mounted && syncMessage && (
