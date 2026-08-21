@@ -1,68 +1,47 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 export function LoadingBar() {
-  const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [visible, setVisible] = useState(false);
 
-  useEffect(() => {
-    let activeRequests = 0;
+  const start = useCallback(() => {
+    setVisible(true);
+    setProgress(30);
+  }, []);
 
-    const originalFetch = window.fetch;
-    window.fetch = async (...args) => {
-      const url = typeof args[0] === "string" ? args[0] : (args[0] as Request).url;
-      const isApi = url.startsWith("/api/");
-
-      if (isApi) {
-        activeRequests++;
-        if (activeRequests === 1) {
-          setLoading(true);
-          setProgress(10);
-        }
-      }
-
-      try {
-        const response = await originalFetch(...args);
-        return response;
-      } finally {
-        if (isApi) {
-          activeRequests--;
-          if (activeRequests === 0) {
-            setProgress(100);
-            setTimeout(() => {
-              setLoading(false);
-              setProgress(0);
-            }, 300);
-          }
-        }
-      }
-    };
-
-    return () => {
-      window.fetch = originalFetch;
-    };
+  const done = useCallback(() => {
+    setProgress(100);
+    setTimeout(() => {
+      setVisible(false);
+      setProgress(0);
+    }, 200);
   }, []);
 
   useEffect(() => {
-    if (loading && progress < 90) {
-      timer.current = setInterval(() => {
-        setProgress((p) => {
-          if (p >= 90) return p;
-          return p + Math.random() * 10;
-        });
-      }, 500);
-    }
-    return () => {
-      if (timer.current) clearInterval(timer.current);
-    };
-  }, [loading, progress]);
+    const handleStart = () => start();
+    const handleDone = () => done();
 
-  if (!loading) return null;
+    window.addEventListener("pwa-loading-start", handleStart);
+    window.addEventListener("pwa-loading-done", handleDone);
+    return () => {
+      window.removeEventListener("pwa-loading-start", handleStart);
+      window.removeEventListener("pwa-loading-done", handleDone);
+    };
+  }, [start, done]);
+
+  useEffect(() => {
+    if (visible && progress < 90) {
+      const t = setTimeout(() => setProgress((p) => Math.min(p + 10, 90)), 400);
+      return () => clearTimeout(t);
+    }
+  }, [visible, progress]);
+
+  if (!visible) return null;
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-[300] h-[2px]">
+    <div className="fixed top-0 left-0 right-0 z-[300] h-[2px] pointer-events-none">
       <div
         className="h-full bg-gold transition-all duration-300 ease-out"
         style={{ width: `${progress}%` }}

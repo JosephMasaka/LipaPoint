@@ -26,7 +26,13 @@ export async function GET(request: NextRequest) {
       orderBy: { product: { name: "asc" } },
     });
 
-    return NextResponse.json(records);
+    const recalculated = records.map((r) => ({
+      ...r,
+      closingStock: r.openingStock + r.addedStock - r.soldStock,
+      variance: r.closingStock - (r.openingStock + r.addedStock - r.soldStock),
+    }));
+
+    return NextResponse.json(recalculated);
   } catch (error) {
     console.error("GET /api/stock error:", error);
     return NextResponse.json({ error: "Failed to fetch stock records" }, { status: 500 });
@@ -53,15 +59,24 @@ export async function POST(request: NextRequest) {
         include: { stocks: { where: { locationId } } },
       });
 
+      // Get previous day's closing stock as today's opening
+      const prevDate = new Date(recordDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const prevRecords = await db.stockRecord.findMany({
+        where: { tenantId: user.tenantId, date: prevDate, locationId },
+      });
+      const prevClosingMap = new Map(prevRecords.map((r) => [r.productId, r.openingStock + r.addedStock - r.soldStock]));
+
       const upserts = products.map((product) => {
-        const currentStock = product.stocks[0]?.quantity || 0;
+        // Opening = previous day's calculated closing, or current inventory stock if no previous record
+        const opening = prevClosingMap.get(product.id) ?? (product.stocks[0]?.quantity || 0);
         return db.stockRecord.upsert({
           where: { productId_locationId_date: { productId: product.id, locationId, date: recordDate } },
           update: {},
           create: {
             date: recordDate,
-            openingStock: currentStock,
-            closingStock: currentStock,
+            openingStock: opening,
+            closingStock: opening,
             productId: product.id,
             locationId,
             tenantId: user.tenantId,
@@ -74,12 +89,12 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "update" && records) {
-      const updates = records.map((r: { productId: string; addedStock?: number; closingStock?: number; notes?: string }) => {
+      // First apply addedStock updates
+      const updates = records.map((r: { productId: string; addedStock?: number; notes?: string }) => {
         return db.stockRecord.update({
           where: { productId_locationId_date: { productId: r.productId, locationId, date: recordDate } },
           data: {
             ...(r.addedStock !== undefined && { addedStock: r.addedStock }),
-            ...(r.closingStock !== undefined && { closingStock: r.closingStock }),
             ...(r.notes !== undefined && { notes: r.notes }),
           },
         });
@@ -87,21 +102,32 @@ export async function POST(request: NextRequest) {
 
       await db.$transaction(updates);
 
-      // Recalculate variance for updated records
+      // Recalculate closing stock and variance for all records on this day
       const updatedRecords = await db.stockRecord.findMany({
         where: { tenantId: user.tenantId, date: recordDate, locationId },
       });
 
-      const varianceUpdates = updatedRecords.map((rec) => {
-        const expected = rec.openingStock + rec.addedStock - rec.soldStock;
-        const variance = rec.closingStock - expected;
+      const recalcUpdates = updatedRecords.map((rec) => {
+        const closingStock = rec.openingStock + rec.addedStock - rec.soldStock;
         return db.stockRecord.update({
           where: { id: rec.id },
-          data: { variance },
+          data: { closingStock, variance: 0 },
         });
       });
 
-      await db.$transaction(varianceUpdates);
+      await db.$transaction(recalcUpdates);
+
+      // Also update the actual inventory stock to match closing
+      const stockUpdates = updatedRecords.map((rec) => {
+        const closingStock = rec.openingStock + rec.addedStock - rec.soldStock;
+        return db.stock.upsert({
+          where: { productId_locationId: { productId: rec.productId, locationId } },
+          update: { quantity: closingStock },
+          create: { productId: rec.productId, locationId, quantity: closingStock },
+        });
+      });
+
+      await db.$transaction(stockUpdates);
 
       return NextResponse.json({ message: "Stock records updated" });
     }
@@ -149,6 +175,84 @@ export async function POST(request: NextRequest) {
       });
 
       return NextResponse.json({ message: "Stock added" });
+    }
+
+    if (action === "import") {
+      const { items } = body;
+      if (!Array.isArray(items) || items.length === 0) {
+        return NextResponse.json({ error: "Items array required" }, { status: 400 });
+      }
+
+      let created = 0;
+      let updated = 0;
+
+      for (const item of items) {
+        const { name, sku, price, cost, quantity, category } = item;
+        if (!name) continue;
+
+        // Find or create product
+        let product = sku
+          ? await db.product.findFirst({ where: { sku, tenantId: user.tenantId } })
+          : await db.product.findFirst({ where: { name, tenantId: user.tenantId } });
+
+        let categoryObj = null;
+        if (category) {
+          categoryObj = await db.category.findFirst({ where: { name: category, tenantId: user.tenantId } });
+          if (!categoryObj) {
+            categoryObj = await db.category.create({ data: { name: category, tenantId: user.tenantId } });
+          }
+        }
+
+        if (!product) {
+          product = await db.product.create({
+            data: {
+              name,
+              sku: sku || `SKU-${Date.now()}-${created}`,
+              price: parseFloat(price) || 0,
+              cost: parseFloat(cost) || 0,
+              isActive: true,
+              trackStock: true,
+              tenantId: user.tenantId,
+              ...(categoryObj && { categoryId: categoryObj.id }),
+            },
+          });
+          created++;
+        } else {
+          await db.product.update({
+            where: { id: product.id },
+            data: {
+              ...(price && { price: parseFloat(price) }),
+              ...(cost && { cost: parseFloat(cost) }),
+              ...(categoryObj && { categoryId: categoryObj.id }),
+            },
+          });
+          updated++;
+        }
+
+        // Set inventory stock
+        const qty = parseInt(quantity) || 0;
+        await db.stock.upsert({
+          where: { productId_locationId: { productId: product.id, locationId } },
+          update: { quantity: qty },
+          create: { productId: product.id, locationId, quantity: qty },
+        });
+
+        // Create stock record for today
+        await db.stockRecord.upsert({
+          where: { productId_locationId_date: { productId: product.id, locationId, date: recordDate } },
+          update: { openingStock: qty, closingStock: qty },
+          create: {
+            date: recordDate,
+            openingStock: qty,
+            closingStock: qty,
+            productId: product.id,
+            locationId,
+            tenantId: user.tenantId,
+          },
+        });
+      }
+
+      return NextResponse.json({ message: "Import complete", created, updated, total: items.length });
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

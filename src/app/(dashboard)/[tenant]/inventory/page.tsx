@@ -10,7 +10,7 @@ import { Loader } from "@/components/ui/loader";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   Package, Ruler, BarChart3, DollarSign, Plus, Edit3,
-  ArrowUpDown, Save,
+  ArrowUpDown, Save, Upload,
 } from "lucide-react";
 
 // Types
@@ -238,12 +238,17 @@ function ProductsTab() {
 function StockSheetTab() {
   const [records, setRecords] = useState<StockRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [locationId, setLocationId] = useState("");
-  const [editing, setEditing] = useState<Record<string, { addedStock?: number; closingStock?: number }>>({});
+  const [editing, setEditing] = useState<Record<string, { addedStock?: number }>>({});
   const [addStockModal, setAddStockModal] = useState<{ productId: string; productName: string } | null>(null);
   const [addStockQty, setAddStockQty] = useState("");
+  const [showImport, setShowImport] = useState(false);
+  const [importData, setImportData] = useState<{ name: string; sku: string; price: string; cost: string; quantity: string; category: string }[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; total: number } | null>(null);
 
   useEffect(() => {
     fetch("/api/locations").then(r => r.json()).then(data => {
@@ -268,28 +273,33 @@ function StockSheetTab() {
 
   const handleInitialize = async () => {
     if (!locationId) return;
+    setSaving(true);
     await fetch("/api/stock", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "initialize", date, locationId }),
     });
-    fetchRecords();
+    await fetchRecords();
+    setSaving(false);
   };
 
   const handleSave = async () => {
     const updates = Object.entries(editing).map(([productId, vals]) => ({ productId, ...vals }));
     if (updates.length === 0) return;
+    setSaving(true);
     await fetch("/api/stock", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "update", date, locationId, records: updates }),
     });
     setEditing({});
-    fetchRecords();
+    await fetchRecords();
+    setSaving(false);
   };
 
   const handleAddStock = async () => {
     if (!addStockModal || !addStockQty || isNaN(Number(addStockQty))) return;
+    setSaving(true);
     await fetch("/api/stock", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -297,11 +307,73 @@ function StockSheetTab() {
     });
     setAddStockModal(null);
     setAddStockQty("");
-    fetchRecords();
+    await fetchRecords();
+    setSaving(false);
+  };
+
+  const handleFileImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      if (!text) return;
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) return;
+
+      // Parse headers (first row)
+      const sep = lines[0].includes("\t") ? "\t" : ",";
+      const headers = lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/[^a-z]/g, ""));
+
+      const nameIdx = headers.findIndex(h => h.includes("name") || h.includes("product") || h.includes("item"));
+      const skuIdx = headers.findIndex(h => h.includes("sku") || h.includes("code") || h.includes("barcode"));
+      const priceIdx = headers.findIndex(h => h.includes("price") || h.includes("selling"));
+      const costIdx = headers.findIndex(h => h.includes("cost") || h.includes("buying"));
+      const qtyIdx = headers.findIndex(h => h.includes("qty") || h.includes("quantity") || h.includes("stock") || h.includes("opening"));
+      const catIdx = headers.findIndex(h => h.includes("category") || h.includes("cat") || h.includes("group"));
+
+      const parsed = lines.slice(1).map(line => {
+        const cols = line.split(sep).map(c => c.trim().replace(/^["']|["']$/g, ""));
+        return {
+          name: cols[nameIdx] || "",
+          sku: skuIdx >= 0 ? cols[skuIdx] || "" : "",
+          price: priceIdx >= 0 ? cols[priceIdx] || "0" : "0",
+          cost: costIdx >= 0 ? cols[costIdx] || "0" : "0",
+          quantity: qtyIdx >= 0 ? cols[qtyIdx] || "0" : "0",
+          category: catIdx >= 0 ? cols[catIdx] || "" : "",
+        };
+      }).filter(r => r.name);
+
+      setImportData(parsed);
+      setImportResult(null);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportSubmit = async () => {
+    if (importData.length === 0 || !locationId) return;
+    setImporting(true);
+    try {
+      const res = await fetch("/api/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "import", date, locationId, items: importData }),
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setImportResult(result);
+        await fetchRecords();
+      }
+    } catch { /* ignore */ } finally { setImporting(false); }
+  };
+
+  const getCalculatedClosing = (r: StockRecord) => {
+    const added = editing[r.product.id]?.addedStock ?? r.addedStock;
+    return r.openingStock + added - r.soldStock;
   };
 
   const totalOpening = records.reduce((s, r) => s + r.openingStock * (r.product.cost || 0), 0);
-  const totalClosing = records.reduce((s, r) => s + r.closingStock * (r.product.cost || 0), 0);
+  const totalClosing = records.reduce((s, r) => s + getCalculatedClosing(r) * (r.product.cost || 0), 0);
   const totalSold = records.reduce((s, r) => s + r.soldStock * (r.product.price || 0), 0);
 
   return (
@@ -316,14 +388,17 @@ function StockSheetTab() {
           )}
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setShowImport(true)}>
+            <Upload className="h-4 w-4 mr-1" /> Import
+          </Button>
           {locationId && records.length === 0 && !loading && (
-            <Button onClick={handleInitialize}>
+            <Button onClick={handleInitialize} disabled={saving}>
               <Plus className="h-4 w-4 mr-1" /> Initialize Day
             </Button>
           )}
           {Object.keys(editing).length > 0 && (
-            <Button onClick={handleSave}>
-              <Save className="h-4 w-4 mr-1" /> Save Changes
+            <Button onClick={handleSave} disabled={saving}>
+              <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save Changes"}
             </Button>
           )}
         </div>
@@ -354,7 +429,7 @@ function StockSheetTab() {
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[650px]">
+            <table className="w-full text-sm min-w-[600px]">
               <thead>
                 <tr className="border-b border-border bg-surface-elevated/50">
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">Product</th>
@@ -362,53 +437,45 @@ function StockSheetTab() {
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Added</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Sold</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Closing</th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Variance</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={7} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
+                  <tr><td colSpan={6} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
                 ) : records.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">
+                  <tr><td colSpan={6} className="px-4 py-12 text-center text-text-muted">
                     No stock records for this date. Click &quot;Initialize Day&quot; to start.
                   </td></tr>
-                ) : records.map((r) => (
-                  <tr key={r.id} className="hover:bg-surface-hover transition-colors">
-                    <td className="px-4 py-2">
-                      <p className="font-medium text-text-primary text-xs">{r.product.name}</p>
-                      <p className="text-[10px] text-text-muted font-mono">{r.product.sku}</p>
-                    </td>
-                    <td className="px-4 py-2 text-center text-text-secondary">{r.openingStock}</td>
-                    <td className="px-4 py-2 text-center">
-                      <input
-                        type="number"
-                        className="w-16 text-center rounded border border-border bg-surface-elevated px-1 py-0.5 text-xs text-text-primary"
-                        value={editing[r.product.id]?.addedStock ?? r.addedStock}
-                        onChange={(e) => setEditing({ ...editing, [r.product.id]: { ...editing[r.product.id], addedStock: parseInt(e.target.value) || 0 } })}
-                      />
-                    </td>
-                    <td className="px-4 py-2 text-center text-text-secondary">{r.soldStock}</td>
-                    <td className="px-4 py-2 text-center">
-                      <input
-                        type="number"
-                        className="w-16 text-center rounded border border-border bg-surface-elevated px-1 py-0.5 text-xs text-text-primary"
-                        value={editing[r.product.id]?.closingStock ?? r.closingStock}
-                        onChange={(e) => setEditing({ ...editing, [r.product.id]: { ...editing[r.product.id], closingStock: parseInt(e.target.value) || 0 } })}
-                      />
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <span className={cn("text-xs font-medium", r.variance !== 0 ? "text-red-400" : "text-emerald-400")}>
-                        {r.variance > 0 ? "+" : ""}{r.variance}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <Button variant="ghost" size="sm" onClick={() => { setAddStockModal({ productId: r.product.id, productName: r.product.name }); setAddStockQty(""); }}>
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
+                ) : records.map((r) => {
+                  const closing = getCalculatedClosing(r);
+                  return (
+                    <tr key={r.id} className="hover:bg-surface-hover transition-colors">
+                      <td className="px-4 py-2">
+                        <p className="font-medium text-text-primary text-xs">{r.product.name}</p>
+                        <p className="text-[10px] text-text-muted font-mono">{r.product.sku}</p>
+                      </td>
+                      <td className="px-4 py-2 text-center text-text-secondary">{r.openingStock}</td>
+                      <td className="px-4 py-2 text-center">
+                        <input
+                          type="number"
+                          className="w-16 text-center rounded border border-border bg-surface-elevated px-1 py-0.5 text-xs text-text-primary focus:ring-1 focus:ring-gold focus:border-gold"
+                          value={editing[r.product.id]?.addedStock ?? r.addedStock}
+                          onChange={(e) => setEditing({ ...editing, [r.product.id]: { addedStock: parseInt(e.target.value) || 0 } })}
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-center text-text-secondary">{r.soldStock}</td>
+                      <td className="px-4 py-2 text-center">
+                        <span className="text-xs font-semibold text-text-primary">{closing}</span>
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <Button variant="ghost" size="sm" onClick={() => { setAddStockModal({ productId: r.product.id, productName: r.product.name }); setAddStockQty(""); }}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -436,7 +503,86 @@ function StockSheetTab() {
               />
               <div className="flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => setAddStockModal(null)}>Cancel</Button>
-                <Button className="flex-1" onClick={handleAddStock} disabled={!addStockQty || isNaN(Number(addStockQty))}>Add</Button>
+                <Button className="flex-1" onClick={handleAddStock} disabled={!addStockQty || isNaN(Number(addStockQty)) || saving}>
+                  {saving ? "Adding..." : "Add"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImport && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => { setShowImport(false); setImportData([]); setImportResult(null); }} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[80vh] flex flex-col">
+            <div className="p-6 space-y-4 overflow-y-auto">
+              <div>
+                <h3 className="text-base font-bold text-text-primary">Import Stock Sheet</h3>
+                <p className="text-xs text-text-muted mt-1">
+                  Upload a CSV file to import products and stock. This will create new products (or update existing ones) and set their stock levels.
+                </p>
+              </div>
+
+              <div className="bg-surface-elevated border border-border rounded-lg p-3">
+                <p className="text-xs font-medium text-text-secondary mb-1">Expected CSV columns:</p>
+                <p className="text-[11px] text-text-muted font-mono">Name, SKU, Price, Cost, Quantity, Category</p>
+                <p className="text-[11px] text-text-muted mt-1">Only &quot;Name&quot; is required. Headers are auto-detected.</p>
+              </div>
+
+              <input
+                type="file"
+                accept=".csv,.tsv,.txt"
+                onChange={handleFileImport}
+                className="block w-full text-xs text-text-secondary file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-gold/10 file:text-gold hover:file:bg-gold/20 cursor-pointer"
+              />
+
+              {importData.length > 0 && !importResult && (
+                <div className="space-y-3">
+                  <p className="text-xs text-text-secondary">{importData.length} items found in file:</p>
+                  <div className="max-h-48 overflow-y-auto border border-border rounded-lg">
+                    <table className="w-full text-[11px]">
+                      <thead>
+                        <tr className="border-b border-border bg-surface-elevated/50 sticky top-0">
+                          <th className="px-2 py-1.5 text-left text-text-secondary">Name</th>
+                          <th className="px-2 py-1.5 text-left text-text-secondary">SKU</th>
+                          <th className="px-2 py-1.5 text-right text-text-secondary">Price</th>
+                          <th className="px-2 py-1.5 text-right text-text-secondary">Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {importData.slice(0, 20).map((item, i) => (
+                          <tr key={i}>
+                            <td className="px-2 py-1 text-text-primary">{item.name}</td>
+                            <td className="px-2 py-1 text-text-muted">{item.sku || "-"}</td>
+                            <td className="px-2 py-1 text-right text-text-secondary">{item.price}</td>
+                            <td className="px-2 py-1 text-right text-text-secondary">{item.quantity}</td>
+                          </tr>
+                        ))}
+                        {importData.length > 20 && (
+                          <tr><td colSpan={4} className="px-2 py-1 text-center text-text-muted">...and {importData.length - 20} more</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                  <Button className="w-full" onClick={handleImportSubmit} disabled={importing}>
+                    {importing ? "Importing..." : `Import ${importData.length} Items`}
+                  </Button>
+                </div>
+              )}
+
+              {importResult && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3 text-sm text-emerald-400">
+                  <p className="font-medium">Import Complete!</p>
+                  <p className="text-xs mt-1">{importResult.created} products created, {importResult.updated} updated. Stock sheet and inventory populated.</p>
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => { setShowImport(false); setImportData([]); setImportResult(null); }}>
+                  {importResult ? "Done" : "Cancel"}
+                </Button>
               </div>
             </div>
           </div>

@@ -1,9 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
-import { Wifi, WifiOff, Download, X, Bell, BellOff, CloudOff, Check } from "lucide-react";
+import { createContext, useContext, useEffect, useState, useRef } from "react";
+import { WifiOff, Download, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { syncOfflineOrders, getOfflineOrders } from "@/lib/offline-db";
 
 interface PWAContextType {
   isOnline: boolean;
@@ -39,14 +38,31 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   const [showOfflineBanner, setShowOfflineBanner] = useState(false);
   const [syncMessage, setSyncMessage] = useState("");
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Online/offline detection
   useEffect(() => {
+    if (!mounted) return;
     setIsOnline(navigator.onLine);
-    const goOnline = () => {
+
+    const goOnline = async () => {
       setIsOnline(true);
       setShowOfflineBanner(false);
-      handleSync();
+      try {
+        const { syncOfflineOrders, getOfflineOrders } = await import("@/lib/offline-db");
+        const orders = await getOfflineOrders();
+        if (orders.length > 0) {
+          setSyncMessage(`Syncing ${orders.length} offline order(s)...`);
+          const result = await syncOfflineOrders();
+          if (result.synced > 0) {
+            setSyncMessage(`${result.synced} order(s) synced!`);
+            setPendingOfflineOrders(0);
+          }
+          setTimeout(() => setSyncMessage(""), 4000);
+        }
+      } catch {}
     };
     const goOffline = () => {
       setIsOnline(false);
@@ -58,10 +74,11 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener("online", goOnline);
       window.removeEventListener("offline", goOffline);
     };
-  }, []);
+  }, [mounted]);
 
   // Install prompt
   useEffect(() => {
+    if (!mounted) return;
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches
       || (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
     setIsInstalled(isStandalone);
@@ -76,77 +93,55 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     };
 
     window.addEventListener("beforeinstallprompt", handler);
-
-    const installed = () => {
+    window.addEventListener("appinstalled", () => {
       setIsInstalled(true);
       setCanInstall(false);
       setShowInstallBanner(false);
-    };
-    window.addEventListener("appinstalled", installed);
+    });
 
     return () => {
       window.removeEventListener("beforeinstallprompt", handler);
-      window.removeEventListener("appinstalled", installed);
     };
-  }, []);
+  }, [mounted]);
 
   // Notification permission check
   useEffect(() => {
+    if (!mounted) return;
     if ("Notification" in window) {
       setNotificationsEnabled(Notification.permission === "granted");
     }
-  }, []);
+  }, [mounted]);
 
   // Check pending offline orders
   useEffect(() => {
+    if (!mounted) return;
     const checkPending = async () => {
       try {
+        const { getOfflineOrders } = await import("@/lib/offline-db");
         const orders = await getOfflineOrders();
         setPendingOfflineOrders(orders.length);
       } catch {}
     };
     checkPending();
-    const interval = setInterval(checkPending, 10000);
+    const interval = setInterval(checkPending, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [mounted]);
 
-  // Listen for sync messages from service worker
+  // Listen for SW messages
   useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
+    if (!mounted || !("serviceWorker" in navigator)) return;
     const handler = (event: MessageEvent) => {
       if (event.data?.type === "ORDER_SYNCED") {
-        setSyncMessage(`Order synced successfully`);
+        setSyncMessage("Order synced successfully");
         setTimeout(() => setSyncMessage(""), 4000);
-        getOfflineOrders().then((o) => setPendingOfflineOrders(o.length));
+        import("@/lib/offline-db").then(({ getOfflineOrders }) =>
+          getOfflineOrders().then((o) => setPendingOfflineOrders(o.length))
+        );
       }
     };
     navigator.serviceWorker.addEventListener("message", handler);
     return () => navigator.serviceWorker.removeEventListener("message", handler);
-  }, []);
-
-  // Cache dashboard routes when SW is ready
-  useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.ready.then((reg) => {
-        reg.active?.postMessage({
-          type: "CACHE_URLS",
-          urls: ["/", "/login", "/offline"],
-        });
-      });
-    }
-  }, []);
-
-  const handleSync = useCallback(async () => {
-    const orders = await getOfflineOrders();
-    if (orders.length === 0) return;
-    setSyncMessage(`Syncing ${orders.length} offline order(s)...`);
-    const result = await syncOfflineOrders();
-    if (result.synced > 0) {
-      setSyncMessage(`${result.synced} order(s) synced!`);
-      setPendingOfflineOrders((prev) => prev - result.synced);
-    }
-    setTimeout(() => setSyncMessage(""), 4000);
-  }, []);
+  }, [mounted]);
 
   const installApp = async () => {
     if (!deferredPrompt.current) return;
@@ -186,8 +181,8 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {/* Offline Banner */}
-      {showOfflineBanner && (
-        <div className="fixed top-0 left-0 right-0 z-[200] bg-amber-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-lg animate-in slide-in-from-top duration-300">
+      {mounted && showOfflineBanner && (
+        <div className="fixed top-0 left-0 right-0 z-[200] bg-amber-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-lg">
           <WifiOff className="h-4 w-4" />
           <span>You&apos;re offline — sales will sync when connection returns</span>
           {pendingOfflineOrders > 0 && (
@@ -200,16 +195,16 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       )}
 
       {/* Sync Message */}
-      {syncMessage && (
-        <div className="fixed top-0 left-0 right-0 z-[200] bg-emerald-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-lg animate-in slide-in-from-top duration-300">
+      {mounted && syncMessage && (
+        <div className="fixed top-0 left-0 right-0 z-[200] bg-emerald-600 text-white px-4 py-2 flex items-center justify-center gap-2 text-sm font-medium shadow-lg">
           <Check className="h-4 w-4" />
           <span>{syncMessage}</span>
         </div>
       )}
 
       {/* Install Banner */}
-      {showInstallBanner && !isInstalled && (
-        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-[200] bg-surface border border-gold/30 rounded-2xl p-4 shadow-2xl animate-in slide-in-from-bottom duration-300">
+      {mounted && showInstallBanner && !isInstalled && (
+        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-96 z-[200] bg-surface border border-gold/30 rounded-2xl p-4 shadow-2xl">
           <div className="flex items-start gap-3">
             <div className="h-10 w-10 rounded-lg bg-gold/10 flex items-center justify-center shrink-0">
               <Download className="h-5 w-5 text-gold" />
@@ -234,30 +229,19 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Network status indicator for the sidebar/header
+// Network status indicator
 export function NetworkStatus() {
   const { isOnline, pendingOfflineOrders } = usePWA();
-
   if (isOnline && pendingOfflineOrders === 0) return null;
 
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium">
-      {!isOnline ? (
-        <>
-          <WifiOff className="h-3 w-3 text-amber-500" />
-          <span className="text-amber-500">Offline</span>
-        </>
-      ) : pendingOfflineOrders > 0 ? (
-        <>
-          <CloudOff className="h-3 w-3 text-blue-400" />
-          <span className="text-blue-400">Syncing {pendingOfflineOrders}</span>
-        </>
-      ) : null}
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border border-amber-500/20 bg-amber-500/10">
+      <WifiOff className="h-3 w-3 text-amber-500" />
+      <span className="text-amber-500">{!isOnline ? "Offline" : `Syncing ${pendingOfflineOrders}`}</span>
     </div>
   );
 }
 
-// Type for the beforeinstallprompt event
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
