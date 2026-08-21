@@ -61,7 +61,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-text-primary mb-1">Call Us</h3>
-                  <p className="text-sm text-text-secondary">+254 700 123 456</p>
+                  <p className="text-sm text-text-secondary">+254 793973146</p>
                   <p className="text-sm text-text-secondary">Mon-Fri 8am - 6pm EAT</p>
                 </div>
               </CardContent>
@@ -74,8 +74,8 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-text-primary mb-1">Email</h3>
-                  <p className="text-sm text-text-secondary">sales@lipapoint.co.ke</p>
-                  <p className="text-sm text-text-secondary">support@lipapoint.co.ke</p>
+                  <p className="text-sm text-text-secondary">lipapoint@tunzaassets.co.ke</p>
+                  {/*<p className="text-sm text-text-secondary">support@lipapoint.co.ke</p>*/}
                 </div>
               </CardContent>
             </Card>
@@ -87,7 +87,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-text-primary mb-1">WhatsApp</h3>
-                  <p className="text-sm text-text-secondary">+254 700 123 456</p>
+                  <p className="text-sm text-text-secondary">+254 791298382</p>
                   <p className="text-sm text-text-secondary">Instant response during business hours</p>
                 </div>
               </CardContent>
