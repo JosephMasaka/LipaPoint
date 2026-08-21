@@ -497,11 +497,12 @@ export default function SettingsPage() {
 }
 
 const NOTIF_PREFS_KEY = "lipapoint-notification-prefs";
+const LOW_STOCK_THRESHOLD_KEY = "lipapoint-low-stock-threshold";
 const NOTIF_OPTIONS = [
-  { key: "lowStock", label: "Low stock alerts", desc: "Get notified when product stock falls below threshold" },
-  { key: "dailySummary", label: "Daily sales summary", desc: "Receive end-of-day sales report via email" },
-  { key: "newOrder", label: "New order notifications", desc: "Alert when a new order is placed" },
-  { key: "paymentFailure", label: "Payment failures", desc: "Get notified about failed subscription payments" },
+  { key: "lowStock", label: "Low stock alerts", desc: "Get notified when product stock falls below your set threshold", browser: true },
+  { key: "dailySummary", label: "Daily sales summary", desc: "Receive end-of-day sales report", browser: true },
+  { key: "newOrder", label: "New order notifications", desc: "Alert when a new order is placed", browser: true },
+  { key: "paymentFailure", label: "Payment failures", desc: "Get notified about failed subscription payments", browser: true },
 ];
 
 function NotificationsTab({ notify }: { notify: (type: string, msg: string) => void }) {
@@ -513,6 +514,13 @@ function NotificationsTab({ notify }: { notify: (type: string, msg: string) => v
     } catch { return { lowStock: true, dailySummary: true, newOrder: true, paymentFailure: true }; }
   });
   const [browserEnabled, setBrowserEnabled] = useState(false);
+  const [lowStockThreshold, setLowStockThreshold] = useState(() => {
+    if (typeof window === "undefined") return 20;
+    try {
+      const saved = localStorage.getItem(LOW_STOCK_THRESHOLD_KEY);
+      return saved ? parseInt(saved) : 20;
+    } catch { return 20; }
+  });
 
   useEffect(() => {
     if ("Notification" in window) {
@@ -520,11 +528,33 @@ function NotificationsTab({ notify }: { notify: (type: string, msg: string) => v
     }
   }, []);
 
-  const togglePref = (key: string) => {
+  const togglePref = async (key: string) => {
+    // If enabling and browser notifications not yet granted, request permission first
+    if (!prefs[key] && !browserEnabled) {
+      const granted = await requestBrowserPermission();
+      if (!granted) {
+        notify("error", "Browser notification permission required to enable alerts");
+        return;
+      }
+    }
     const updated = { ...prefs, [key]: !prefs[key] };
     setPrefs(updated);
     localStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(updated));
-    notify("success", "Preference saved");
+    notify("success", updated[key] ? "Notification enabled" : "Notification disabled");
+  };
+
+  const requestBrowserPermission = async (): Promise<boolean> => {
+    if (!("Notification" in window)) return false;
+    if (Notification.permission === "granted") {
+      setBrowserEnabled(true);
+      return true;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission === "granted") {
+      setBrowserEnabled(true);
+      return true;
+    }
+    return false;
   };
 
   const enableBrowserNotifications = async () => {
@@ -532,14 +562,24 @@ function NotificationsTab({ notify }: { notify: (type: string, msg: string) => v
       notify("error", "Browser notifications not supported");
       return;
     }
-    const permission = await Notification.requestPermission();
-    if (permission === "granted") {
-      setBrowserEnabled(true);
+    const granted = await requestBrowserPermission();
+    if (granted) {
       notify("success", "Browser notifications enabled");
       new Notification("LipaPoint", { body: "Notifications are now active!", icon: "/icons/icon-192.svg" });
     } else {
-      notify("error", "Notification permission denied");
+      notify("error", "Notification permission denied. Check your browser settings.");
     }
+  };
+
+  const handleThresholdChange = (value: string) => {
+    const num = parseInt(value) || 0;
+    setLowStockThreshold(num);
+    localStorage.setItem(LOW_STOCK_THRESHOLD_KEY, num.toString());
+  };
+
+  const handleThresholdSave = () => {
+    localStorage.setItem(LOW_STOCK_THRESHOLD_KEY, lowStockThreshold.toString());
+    notify("success", `Low stock alert threshold set to ${lowStockThreshold} units`);
   };
 
   return (
@@ -547,14 +587,14 @@ function NotificationsTab({ notify }: { notify: (type: string, msg: string) => v
       <Card>
         <CardHeader>
           <CardTitle>Browser Notifications</CardTitle>
-          <CardDescription>Enable system notifications for real-time alerts</CardDescription>
+          <CardDescription>Enable push notifications for real-time alerts on this device</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between rounded-lg border border-border p-4">
             <div>
               <p className="text-sm font-medium text-text-primary">Push notifications</p>
               <p className="text-xs text-text-muted mt-0.5">
-                {browserEnabled ? "Enabled - you will receive desktop alerts" : "Enable to get real-time alerts on this device"}
+                {browserEnabled ? "Enabled - you will receive desktop/mobile alerts" : "Enable to get real-time browser alerts"}
               </p>
             </div>
             {browserEnabled ? (
@@ -565,10 +605,39 @@ function NotificationsTab({ notify }: { notify: (type: string, msg: string) => v
           </div>
         </CardContent>
       </Card>
+
       <Card>
         <CardHeader>
-          <CardTitle>Email Notification Preferences</CardTitle>
-          <CardDescription>Choose what email alerts you receive</CardDescription>
+          <CardTitle>Low Stock Alert</CardTitle>
+          <CardDescription>Set when you want to be notified about low stock levels</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Alert when stock falls below</label>
+              <div className="flex items-center gap-3">
+                <Input
+                  type="number"
+                  min="1"
+                  value={lowStockThreshold.toString()}
+                  onChange={(e) => handleThresholdChange(e.target.value)}
+                  className="w-24"
+                />
+                <span className="text-sm text-text-muted">units</span>
+                <Button size="sm" variant="outline" onClick={handleThresholdSave}>Apply</Button>
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-text-muted">
+            You will receive a browser notification whenever any product&apos;s stock drops below {lowStockThreshold} units after a sale.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Notification Preferences</CardTitle>
+          <CardDescription>Choose which alerts you want to receive (browser + email)</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {NOTIF_OPTIONS.map((n) => (

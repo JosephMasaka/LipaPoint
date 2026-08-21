@@ -1,12 +1,10 @@
-const CACHE_VERSION = "lipapoint-v3";
+const CACHE_VERSION = "lipapoint-v4";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 
 const STATIC_ASSETS = [
-  "/",
-  "/login",
-  "/offline",
+  "/offline.html",
   "/manifest.json",
   "/icons/icon-192.svg",
   "/icons/icon-512.svg",
@@ -46,13 +44,15 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
 
   if (request.method !== "GET") {
-    // For POST/PUT requests, try network and queue if offline
-    if (url.pathname.startsWith("/api/orders") && !navigator.onLine) {
+    // For non-GET requests, try network; if it fails, return offline signal
+    if (url.pathname.startsWith("/api/orders")) {
       event.respondWith(
-        new Response(JSON.stringify({ queued: true, offline: true }), {
-          status: 202,
-          headers: { "Content-Type": "application/json" },
-        })
+        fetch(request).catch(() =>
+          new Response(JSON.stringify({ queued: true, offline: true }), {
+            status: 202,
+            headers: { "Content-Type": "application/json" },
+          })
+        )
       );
     }
     return;
@@ -73,6 +73,31 @@ self.addEventListener("fetch", (event) => {
         )
       );
     }
+    return;
+  }
+
+  // Navigation requests: network-first, offline fallback to static HTML
+  if (request.mode === "navigate") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          const offlinePage = await caches.match("/offline.html");
+          if (offlinePage) return offlinePage;
+          return new Response(
+            '<html><body style="font-family:sans-serif;background:#09090b;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center"><div><h1>Offline</h1><p>Check your connection.</p></div></body></html>',
+            { status: 200, headers: { "Content-Type": "text/html" } }
+          );
+        })
+    );
     return;
   }
 
@@ -119,10 +144,15 @@ async function staleWhileRevalidate(request) {
   const networkResponse = await fetchPromise;
   if (networkResponse) return networkResponse;
 
-  // Offline fallback for navigation requests
+  // Offline fallback for navigation requests - serve static HTML
   if (request.mode === "navigate") {
-    const offlinePage = await caches.match("/offline");
+    const offlinePage = await caches.match("/offline.html");
     if (offlinePage) return offlinePage;
+    // Inline fallback if cache missed
+    return new Response(
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline</title></head><body style="font-family:sans-serif;background:#09090b;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center"><div><h1>You\'re Offline</h1><p style="color:#aaa">Check your connection and try again.</p><button onclick="location.reload()" style="margin-top:16px;padding:8px 16px;background:#d4a017;border:none;border-radius:6px;font-weight:600;cursor:pointer">Retry</button></div></body></html>',
+      { status: 200, headers: { "Content-Type": "text/html" } }
+    );
   }
 
   return new Response("Offline", { status: 503 });

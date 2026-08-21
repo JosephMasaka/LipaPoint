@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
 import { saveOfflineOrder, requestBackgroundSync, cacheProducts } from "@/lib/offline-db";
-import { notifyOrderComplete, notifyOfflineOrder } from "@/lib/notifications";
+import { notifyOrderComplete, notifyOfflineOrder, notifyLowStock } from "@/lib/notifications";
 import { NetworkStatus } from "@/components/pwa-provider";
 import {
   Search, Grid3X3, List, Minus, Plus, Trash2,
@@ -263,6 +263,18 @@ export default function POSPage() {
         clearCart();
         setCartOpen(false);
         notifyOrderComplete(order.orderNo, formatCurrency(order.total));
+        // Low stock browser notifications
+        if (order.stockLevels?.length > 0) {
+          const prefs = JSON.parse(localStorage.getItem("lipapoint-notification-prefs") || "{}");
+          if (prefs.lowStock !== false) {
+            const threshold = parseInt(localStorage.getItem("lipapoint-low-stock-threshold") || "20") || 20;
+            for (const s of order.stockLevels) {
+              if (s.remaining <= threshold) {
+                notifyLowStock(s.productName, s.remaining);
+              }
+            }
+          }
+        }
       } else {
         const data = await res.json();
         notify("error", data.error || "Failed to process sale");

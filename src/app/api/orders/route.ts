@@ -257,7 +257,20 @@ export async function POST(request: NextRequest) {
       return newOrder;
     }, { timeout: 30000 });
 
-    return NextResponse.json(order, { status: 201 });
+    // Return remaining stock for sold items so client can check thresholds
+    const stockLevels: { productName: string; remaining: number }[] = [];
+    for (const item of orderItems) {
+      const product = productMap.get(item.productId);
+      if (!product || !product.trackStock) continue;
+      const stock = await db.stock.findUnique({
+        where: { productId_locationId: { productId: product.id, locationId: resolvedLocationId } },
+      });
+      if (stock) {
+        stockLevels.push({ productName: product.name, remaining: stock.quantity });
+      }
+    }
+
+    return NextResponse.json({ ...order, stockLevels }, { status: 201 });
   } catch (error) {
     console.error("POST /api/orders error:", error);
     const message =
