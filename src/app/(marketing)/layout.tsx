@@ -68,7 +68,7 @@ export default function MarketingLayout({
 
       <main className="flex-1">{children}</main>
 
-      <footer className="border-t border-border/50 py-12">
+      <footer className="border-t border-border/50 py-12" role="contentinfo">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
@@ -77,36 +77,43 @@ export default function MarketingLayout({
                 <span className="font-bold text-text-primary">LipaPoint</span>
               </div>
               <p className="text-sm text-text-muted">
-                Enterprise-grade POS system built for Kenyan businesses.
+                Kenya&apos;s #1 Point of Sale system for restaurants, bars, retail shops, supermarkets and pharmacies.
               </p>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-text-primary mb-3">Product</h4>
-              <div className="space-y-2">
-                <Link href="/features" className="block text-sm text-text-muted hover:text-text-secondary">Features</Link>
-                <Link href="/pricing" className="block text-sm text-text-muted hover:text-text-secondary">Pricing</Link>
-                <Link href="/demo-request" className="block text-sm text-text-muted hover:text-text-secondary">Request Demo</Link>
-              </div>
+              <h4 className="text-sm font-semibold text-text-primary mb-3">POS Solutions</h4>
+              <nav aria-label="Product navigation" className="space-y-2">
+                <Link href="/features" className="block text-sm text-text-muted hover:text-text-secondary">POS Features</Link>
+                <Link href="/pricing" className="block text-sm text-text-muted hover:text-text-secondary">POS Pricing</Link>
+                <Link href="/demo-request" className="block text-sm text-text-muted hover:text-text-secondary">Request Free Demo</Link>
+                <Link href="/register" className="block text-sm text-text-muted hover:text-text-secondary">Start Free Trial</Link>
+              </nav>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-text-primary mb-3">Company</h4>
-              <div className="space-y-2">
-                <Link href="/contact" className="block text-sm text-text-muted hover:text-text-secondary">Contact</Link>
-                <span className="block text-sm text-text-muted">Terms of Service</span>
-                <span className="block text-sm text-text-muted">Privacy Policy</span>
-              </div>
+              <h4 className="text-sm font-semibold text-text-primary mb-3">Industries</h4>
+              <nav aria-label="Industries navigation" className="space-y-2">
+                <span className="block text-sm text-text-muted">Restaurant POS</span>
+                <span className="block text-sm text-text-muted">Bar & Lounge POS</span>
+                <span className="block text-sm text-text-muted">Retail Shop POS</span>
+                <span className="block text-sm text-text-muted">Supermarket POS</span>
+                <span className="block text-sm text-text-muted">Pharmacy POS</span>
+              </nav>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-text-primary mb-3">Support</h4>
-              <div className="space-y-2">
-                <span className="block text-sm text-text-muted">help@lipapoint.co.ke</span>
-                <span className="block text-sm text-text-muted">+254 700 123 456</span>
+              <h4 className="text-sm font-semibold text-text-primary mb-3">Contact</h4>
+              <address className="space-y-2 not-italic">
+                <Link href="/contact" className="block text-sm text-text-muted hover:text-text-secondary">Contact Us</Link>
+                <a href="mailto:lipapoint@tunzaassets.co.ke" className="block text-sm text-text-muted hover:text-text-secondary">lipapoint@tunzaassets.co.ke</a>
+                <a href="tel:+254791298382" className="block text-sm text-text-muted hover:text-text-secondary">+254 791 298 382</a>
                 <span className="block text-sm text-text-muted">Nairobi, Kenya</span>
-              </div>
+              </address>
             </div>
           </div>
-          <div className="border-t border-border mt-8 pt-6 text-center">
+          <div className="border-t border-border mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-text-muted">&copy; 2026 LipaPoint. All rights reserved.</p>
+            <p className="text-xs text-text-muted">
+              POS System Kenya | Point of Sale Software | M-Pesa POS
+            </p>
           </div>
         </div>
       </footer>

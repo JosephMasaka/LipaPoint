@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -5,6 +6,18 @@ import {
   Globe, Shield, Clock, Smartphone, Receipt, Bell,
   ArrowRight, Layers, Database, Zap,
 } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "POS Features — M-Pesa, Inventory, Analytics & More",
+  description:
+    "Explore LipaPoint POS features: M-Pesa & card payments, real-time inventory tracking, sales analytics, staff management, multi-location support, offline mode, KRA tax compliance. Best POS for Kenya.",
+  alternates: { canonical: "https://lipapoint.co.ke/features" },
+  openGraph: {
+    title: "LipaPoint POS Features — Everything Your Business Needs",
+    description: "M-Pesa payments, inventory management, real-time analytics, staff tracking, multi-location support & offline mode. Built for Kenyan businesses.",
+    url: "https://lipapoint.co.ke/features",
+  },
+};
 
 const featureGroups = [
   {

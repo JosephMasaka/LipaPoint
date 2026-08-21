@@ -1,7 +1,7 @@
 {
   "name": "LipaPoint POS",
   "short_name": "LipaPoint",
-  "description": "Enterprise-grade POS system built for Kenyan businesses",
+  "description": "Kenya's #1 POS system. M-Pesa payments, inventory management, real-time analytics, staff tracking & multi-location support for restaurants, bars, retail shops, supermarkets and pharmacies.",
   "id": "/",
   "start_url": "/login",
   "scope": "/",

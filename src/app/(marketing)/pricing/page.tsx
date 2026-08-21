@@ -1,6 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Check, Zap, Crown, Building2 } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "Pricing — Affordable POS Plans from KSh 2,999/month",
+  description:
+    "LipaPoint POS pricing: Starter from KSh 2,999/mo, Professional KSh 5,999/mo, Enterprise KSh 14,999/mo. 14-day free trial. No setup fees. Cancel anytime. Best value POS in Kenya.",
+  alternates: { canonical: "https://lipapoint.co.ke/pricing" },
+  openGraph: {
+    title: "LipaPoint Pricing — POS Plans for Every Business Size",
+    description: "From KSh 2,999/month. 14-day free trial, no setup fees. Starter, Professional & Enterprise plans for Kenyan businesses.",
+    url: "https://lipapoint.co.ke/pricing",
+  },
+};
 
 const plans = [
   {
