@@ -92,10 +92,11 @@ export default function OrdersPage() {
     new Date(date).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const handlePrint = (order: Order) => {
+    const isBill = order.status !== "COMPLETED";
     const printWindow = window.open("", "_blank", "width=300,height=600");
     if (!printWindow) return;
     printWindow.document.write(`
-      <html><head><title>Receipt</title>
+      <html><head><title>${isBill ? "Bill" : "Receipt"}</title>
       <style>
         body { font-family: 'Courier New', monospace; font-size: 12px; padding: 10px; max-width: 280px; margin: 0 auto; }
         .center { text-align: center; }
@@ -105,11 +106,13 @@ export default function OrdersPage() {
         @media print { body { margin: 0; padding: 5px; } }
       </style></head><body>
       <div class="center bold">${tenantName}</div>
+      ${isBill ? `<div class="center" style="font-size:14px;margin:4px 0;">*** BILL ***</div>` : ""}
+      ${order.tabName ? `<div class="center">${order.tabName}</div>` : ""}
       <div class="divider"></div>
       <div class="row"><span>Order:</span><span>${order.orderNo}</span></div>
       <div class="row"><span>Date:</span><span>${formatDate(order.createdAt)}</span></div>
       <div class="row"><span>Served by:</span><span>${order.user.name}</span></div>
-      <div class="row"><span>Payment:</span><span>${order.paymentMethod}</span></div>
+      ${!isBill ? `<div class="row"><span>Payment:</span><span>${order.paymentMethod}</span></div>` : ""}
       ${order.customerName ? `<div class="row"><span>Customer:</span><span>${order.customerName}</span></div>` : ""}
       <div class="divider"></div>
       ${order.items.map(i => `<div>${i.product.name}</div><div class="row"><span>${i.quantity} x KSh ${i.unitPrice.toLocaleString()}</span><span>KSh ${i.total.toLocaleString()}</span></div>`).join("")}
@@ -123,7 +126,7 @@ export default function OrdersPage() {
       ${mpesaPaybill ? `<div class="center">Paybill: ${mpesaPaybill}</div>` : ""}
       ${mpesaTill ? `<div class="center">Till No: ${mpesaTill}</div>` : ""}
       ${(mpesaPaybill || mpesaTill) ? `<div class="divider"></div>` : ""}
-      <div class="center">${receiptFooter}</div>
+      ${isBill ? `<div class="center" style="font-size:10px;color:#666;">This is a bill, not a receipt.</div><div class="center" style="font-size:10px;color:#666;">Payment has not been confirmed.</div>` : `<div class="center">${receiptFooter}</div>`}
       <div class="divider"></div>
       <div class="center" style="font-size:9px;margin-top:4px;color:#888">Powered by LipaPoint POS</div>
       <div class="center" style="font-size:9px;color:#888">Dev: Joseph Masaka | 0791298382</div>
@@ -356,17 +359,20 @@ export default function OrdersPage() {
 
             <div className="border-t border-border p-4 flex gap-3">
               <Button variant="outline" className="flex-1" onClick={() => handlePrint(selectedOrder)}>
-                <Printer className="h-4 w-4 mr-2" /> Print
+                <Printer className="h-4 w-4 mr-2" />
+                {selectedOrder.status === "COMPLETED" ? "Receipt" : "Bill"}
               </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => handleEmailReceipt(selectedOrder)}
-                disabled={emailSending}
-              >
-                {emailSending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
-                {emailSent === selectedOrder.id ? "Sent!" : "Email"}
-              </Button>
+              {selectedOrder.status === "COMPLETED" && (
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => handleEmailReceipt(selectedOrder)}
+                  disabled={emailSending}
+                >
+                  {emailSending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Mail className="h-4 w-4 mr-2" />}
+                  {emailSent === selectedOrder.id ? "Sent!" : "Email"}
+                </Button>
+              )}
               <Button className="flex-1" onClick={() => setSelectedOrder(null)}>
                 Close
               </Button>

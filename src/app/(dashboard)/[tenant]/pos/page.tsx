@@ -341,6 +341,44 @@ export default function POSPage() {
     }
   };
 
+  const handlePrintBill = (billItems: { name: string; quantity: number; unitPrice: number }[], total: number, label?: string) => {
+    const printWindow = window.open("", "_blank", "width=300,height=600");
+    if (!printWindow) return;
+    const itemsHtml = billItems.map(i =>
+      `<div class="row"><span>${i.quantity}x ${i.name}</span><span>KSh ${(i.unitPrice * i.quantity).toLocaleString()}</span></div>`
+    ).join("");
+    printWindow.document.write(`
+      <html><head><title>Bill</title>
+      <style>
+        body { font-family: 'Courier New', monospace; font-size: 12px; padding: 10px; max-width: 280px; margin: 0 auto; }
+        .center { text-align: center; }
+        .bold { font-weight: bold; }
+        .divider { border-top: 1px dashed #000; margin: 8px 0; }
+        .row { display: flex; justify-content: space-between; margin: 2px 0; }
+        @media print { body { margin: 0; padding: 5px; } }
+      </style></head><body>
+      <div class="center bold">${tenantName}</div>
+      <div class="center" style="font-size:14px;margin:4px 0;">*** BILL ***</div>
+      ${label ? `<div class="center">${label}</div>` : ""}
+      <div class="divider"></div>
+      ${itemsHtml}
+      <div class="divider"></div>
+      <div class="row bold"><span>TOTAL</span><span>KSh ${total.toLocaleString()}</span></div>
+      <div class="divider"></div>
+      ${mpesaPaybill ? `<div class="center">Paybill: ${mpesaPaybill}</div>` : ""}
+      ${mpesaTill ? `<div class="center">Till No: ${mpesaTill}</div>` : ""}
+      ${(mpesaPaybill || mpesaTill) ? `<div class="divider"></div>` : ""}
+      <div class="center" style="font-size:10px;color:#666;">This is a bill, not a receipt.</div>
+      <div class="center" style="font-size:10px;color:#666;">Payment has not been confirmed.</div>
+      <div class="divider"></div>
+      <div class="center" style="font-size:9px;color:#888">Powered by LipaPoint POS</div>
+      <div class="center" style="font-size:9px;color:#888">Dev: Joseph Masaka | 0791298382</div>
+      <script>window.print(); window.close();</script>
+      </body></html>
+    `);
+    printWindow.document.close();
+  };
+
   const handlePrintReceipt = () => {
     if (!completedOrder) return;
     const receipt = document.getElementById("receipt-content");
@@ -727,6 +765,13 @@ export default function POSPage() {
                   ))}
                 </div>
                 <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => handlePrintBill(
+                    activeTab.items.map(i => ({ name: i.product.name, quantity: i.quantity, unitPrice: i.unitPrice })),
+                    activeTab.total,
+                    activeTab.tabName
+                  )}>
+                    <Printer className="h-3.5 w-3.5" />
+                  </Button>
                   <Button variant="outline" className="flex-1" onClick={() => setMode("sale")}>
                     <Plus className="h-4 w-4 mr-1" /> Add Items
                   </Button>
@@ -898,9 +943,17 @@ export default function POSPage() {
                   {processing ? "Processing..." : `Complete Sale · ${formatCurrency(getTotal(taxRate))}`}
                 </Button>
 
-                <Button size="sm" variant="outline" className="w-full" disabled={items.length === 0} onClick={() => setShowNewTab(true)}>
-                  <Clock className="h-3.5 w-3.5 mr-1" /> Open as Tab
-                </Button>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" className="flex-1" disabled={items.length === 0} onClick={() => setShowNewTab(true)}>
+                    <Clock className="h-3.5 w-3.5 mr-1" /> Open Tab
+                  </Button>
+                  <Button size="sm" variant="outline" className="flex-1" disabled={items.length === 0} onClick={() => handlePrintBill(
+                    items.map(i => ({ name: i.name, quantity: i.quantity, unitPrice: i.price })),
+                    getTotal(taxRate)
+                  )}>
+                    <Printer className="h-3.5 w-3.5 mr-1" /> Print Bill
+                  </Button>
+                </div>
               </>
             )}
           </div>
