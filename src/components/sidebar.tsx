@@ -4,10 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/theme-provider";
+import { usePWA } from "@/components/pwa-provider";
 import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
   Settings, Store, TrendingUp, Users, LogOut, Receipt,
-  Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin,
+  Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin, WifiOff, Download,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -54,6 +55,7 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
     router.refresh();
   };
 
+  const { isOnline, canInstall, installApp } = usePWA();
   const filteredNav = navItems.filter((item) => item.roles.includes(user.role));
 
   const sidebarContent = (
@@ -113,6 +115,22 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
       </nav>
 
       <div className="border-t border-border p-2 space-y-1 shrink-0">
+        {!isOnline && (
+          <div className={cn("flex items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium bg-amber-500/10 text-amber-500 border border-amber-500/20", collapsed && "justify-center px-2")}>
+            <WifiOff className="h-3.5 w-3.5 shrink-0" />
+            {!collapsed && <span>Offline Mode</span>}
+          </div>
+        )}
+        {canInstall && (
+          <button
+            onClick={installApp}
+            className={cn("flex items-center gap-2.5 w-full rounded-lg px-3 py-2 text-sm text-gold hover:bg-gold/10 transition-colors", collapsed && "justify-center px-2")}
+            title={collapsed ? "Install App" : undefined}
+          >
+            <Download className="h-4 w-4 shrink-0" />
+            {!collapsed && <span>Install App</span>}
+          </button>
+        )}
         {/* Desktop collapse toggle */}
         <button
           onClick={toggleCollapsed}

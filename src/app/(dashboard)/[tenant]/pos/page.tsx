@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
+import { saveOfflineOrder, requestBackgroundSync, cacheProducts } from "@/lib/offline-db";
+import { notifyOrderComplete, notifyOfflineOrder } from "@/lib/notifications";
+import { NetworkStatus } from "@/components/pwa-provider";
 import {
   Search, Grid3X3, List, Minus, Plus, Trash2,
   CreditCard, Banknote, Smartphone, Package, ShoppingCart, ChevronUp,
@@ -206,8 +209,15 @@ export default function POSPage() {
       if (data?.mpesaTill) setMpesaTill(data.mpesaTill);
     }).catch(() => {});
     fetch("/api/products").then(r => r.json()).then(data => {
-      if (Array.isArray(data)) setProducts(data);
-    }).catch(() => {});
+      if (Array.isArray(data)) {
+        setProducts(data);
+        cacheProducts(data);
+      }
+    }).catch(async () => {
+      const { getCachedProducts } = await import("@/lib/offline-db");
+      const cached = await getCachedProducts();
+      if (cached.length > 0) setProducts(cached as unknown as Product[]);
+    });
     fetch("/api/products?categories=true").then(r => r.json()).then(data => {
       if (data.categories) setCategories(data.categories);
     }).catch(() => {});
@@ -229,19 +239,22 @@ export default function POSPage() {
   const handleCheckout = async () => {
     if (items.length === 0) return;
     setProcessing(true);
+
+    const orderData = {
+      items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price, productUomId: i.productUomId })),
+      paymentMethod,
+      gatewayRef: paymentMethod === "MPESA_MANUAL" ? mpesaCode.trim() : undefined,
+      enteredManually: paymentMethod === "MPESA_MANUAL",
+      subtotal: getSubtotal(),
+      taxAmount: getTax(taxRate),
+      total: getTotal(taxRate),
+    };
+
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price, productUomId: i.productUomId })),
-          paymentMethod,
-          gatewayRef: paymentMethod === "MPESA_MANUAL" ? mpesaCode.trim() : undefined,
-          enteredManually: paymentMethod === "MPESA_MANUAL",
-          subtotal: getSubtotal(),
-          taxAmount: getTax(taxRate),
-          total: getTotal(taxRate),
-        }),
+        body: JSON.stringify(orderData),
       });
       if (res.ok) {
         const order = await res.json();
@@ -249,12 +262,36 @@ export default function POSPage() {
         setShowSuccess(true);
         clearCart();
         setCartOpen(false);
+        notifyOrderComplete(order.orderNo, formatCurrency(order.total));
       } else {
         const data = await res.json();
         notify("error", data.error || "Failed to process sale");
       }
     } catch {
-      notify("error", "Network error. Please try again.");
+      // Offline: save to IndexedDB
+      if (!navigator.onLine) {
+        const offlineOrderNo = `OFF-${Date.now().toString(36).toUpperCase()}`;
+        await saveOfflineOrder({ ...orderData, orderNo: offlineOrderNo });
+        requestBackgroundSync();
+        setCompletedOrder({
+          id: `offline-${Date.now()}`,
+          orderNo: offlineOrderNo,
+          subtotal: orderData.subtotal,
+          taxAmount: orderData.taxAmount,
+          discount: 0,
+          total: orderData.total,
+          paymentMethod,
+          items: items.map(i => ({ quantity: i.quantity, unitPrice: i.price, total: i.price * i.quantity, product: { name: i.name, sku: i.sku }, productUom: null })),
+          user: { name: "You" },
+        });
+        setShowSuccess(true);
+        clearCart();
+        setCartOpen(false);
+        notifyOfflineOrder(offlineOrderNo);
+        notify("info", "Saved offline — will sync when back online");
+      } else {
+        notify("error", "Network error. Please try again.");
+      }
     } finally {
       setProcessing(false);
       setMpesaCodeModal(false);
@@ -580,6 +617,7 @@ export default function POSPage() {
               className="pl-9"
             />
           </div>
+          <NetworkStatus />
           <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
             <button
               onClick={() => setMode("sale")}
