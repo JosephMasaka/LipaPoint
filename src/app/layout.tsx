@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
+import { PWAProvider } from "@/components/pwa-provider";
+import { LoadingBar } from "@/components/loading-bar";
 import { Toaster } from "@/components/ui/toast";
 import "./globals.css";
 
@@ -121,11 +123,16 @@ export default function RootLayout({
         <meta name="ICBM" content="-1.2921, 36.8219" />
       </head>
       <body className="min-h-screen bg-surface text-text-primary antialiased">
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <PWAProvider>
+            <LoadingBar />
+            {children}
+          </PWAProvider>
+        </ThemeProvider>
         <Toaster />
         <script
           dangerouslySetInnerHTML={{
-            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js')})}`,
+            __html: `if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('/sw.js',{scope:'/'}).then(r=>{r.update();setInterval(()=>r.update(),60*60*1000)})})}`,
           }}
         />
       </body>
