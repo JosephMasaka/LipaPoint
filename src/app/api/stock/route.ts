@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     const records = await db.stockRecord.findMany({
       where,
       include: {
-        product: { select: { id: true, name: true, sku: true, price: true, cost: true } },
+        product: { select: { id: true, name: true, sku: true, price: true, cost: true, baseUnit: { select: { abbreviation: true } } } },
         location: { select: { id: true, name: true } },
       },
       orderBy: { product: { name: "asc" } },

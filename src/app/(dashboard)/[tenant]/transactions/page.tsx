@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader } from "@/components/ui/loader";
 import { formatCurrency } from "@/lib/utils";
+import { Search } from "lucide-react";
+import { Pagination } from "@/components/pagination";
 
 interface Transaction {
   id: string;
@@ -22,12 +24,16 @@ interface Transaction {
 
 const paymentMethods = ["", "CASH", "MPESA_MANUAL", "MPESA_STK", "CARD", "PAYSTACK"];
 
+const TXN_PAGE_SIZE = 25;
+
 export default function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [methodFilter, setMethodFilter] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchTransactions = async () => {
     try {
@@ -39,9 +45,17 @@ export default function TransactionsPage() {
       if (res.ok) {
         const data = await res.json();
         setTransactions(data);
+        if (!methodFilter && !fromDate && !toDate) {
+          try { localStorage.setItem("lipapoint-oc-transactions", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+        }
       }
     } catch {
-      console.error("Failed to fetch transactions");
+      if (transactions.length === 0) {
+        try {
+          const raw = localStorage.getItem("lipapoint-oc-transactions");
+          if (raw) { const { data } = JSON.parse(raw); setTransactions(data); }
+        } catch {}
+      }
     } finally {
       setLoading(false);
     }
@@ -52,11 +66,22 @@ export default function TransactionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [methodFilter, fromDate, toDate]);
 
-  const totalReceived = transactions
+  const filteredTransactions = transactions.filter((tx) => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (tx.reference || "").toLowerCase().includes(q) ||
+      (tx.description || "").toLowerCase().includes(q) ||
+      (tx.order?.orderNo || "").toLowerCase().includes(q);
+  });
+
+  const totalPages = Math.ceil(filteredTransactions.length / TXN_PAGE_SIZE);
+  const paginatedTransactions = filteredTransactions.slice((currentPage - 1) * TXN_PAGE_SIZE, currentPage * TXN_PAGE_SIZE);
+
+  const totalReceived = filteredTransactions
     .filter((t) => t.status === "COMPLETED")
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const totalPending = transactions
+  const totalPending = filteredTransactions
     .filter((t) => t.status === "PENDING")
     .reduce((sum, t) => sum + t.amount, 0);
 
@@ -128,6 +153,10 @@ export default function TransactionsPage() {
 
         {/* Filters */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+            <Input placeholder="Search reference, order..." value={searchQuery} onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }} className="pl-9" />
+          </div>
           <div className="space-y-1.5">
             <label className="text-sm font-medium text-text-secondary">
               Payment Method
@@ -209,7 +238,7 @@ export default function TransactionsPage() {
                       </td>
                     </tr>
                   ) : (
-                    transactions.map((tx) => (
+                    paginatedTransactions.map((tx) => (
                       <tr
                         key={tx.id}
                         className="hover:bg-surface-hover transition-colors"
@@ -243,6 +272,13 @@ export default function TransactionsPage() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={filteredTransactions.length}
+              pageSize={TXN_PAGE_SIZE}
+            />
           </CardContent>
         </Card>
       </div>

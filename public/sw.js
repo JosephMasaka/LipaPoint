@@ -21,6 +21,11 @@ const API_CACHE_ROUTES = [
   "/api/locations",
   "/api/expenses",
   "/api/stock",
+  "/api/dashboard",
+  "/api/analytics",
+  "/api/transactions",
+  "/api/users",
+  "/api/roles",
 ];
 
 // Install: cache shell assets
@@ -52,7 +57,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") {
     // For non-GET requests, try network; if it fails, return offline signal
-    if (url.pathname.startsWith("/api/orders") || url.pathname.startsWith("/api/stock")) {
+    if (url.pathname.startsWith("/api/")) {
       event.respondWith(
         fetch(request).catch(() =>
           new Response(JSON.stringify({ queued: true, offline: true }), {
@@ -357,15 +362,71 @@ async function syncOfflineActions() {
                 method = "PUT";
                 body = { action: "add", ...action.data };
                 break;
+              case "expense_add":
+                url = "/api/expenses";
+                body = action.data;
+                break;
+              case "unit_create":
+                url = "/api/units";
+                body = action.data;
+                break;
+              case "unit_conversion":
+                url = "/api/units";
+                method = "PUT";
+                body = action.data;
+                break;
+              case "product_create":
+                url = "/api/products";
+                body = action.data;
+                break;
+              case "product_update":
+                url = "/api/products/" + action.data._productId;
+                method = "PUT";
+                body = action.data;
+                break;
+              case "location_add":
+                url = "/api/locations";
+                body = action.data;
+                break;
+              case "location_update":
+                url = "/api/locations";
+                method = "PUT";
+                body = action.data;
+                break;
+              case "user_create":
+                url = "/api/users";
+                body = action.data;
+                break;
+              case "user_toggle":
+                url = "/api/users/" + action.data._userId;
+                method = "PATCH";
+                body = { isActive: action.data.isActive };
+                break;
+              case "user_delete":
+                url = "/api/users/" + action.data._userId;
+                method = "DELETE";
+                break;
+              case "role_create":
+                url = "/api/roles";
+                body = action.data;
+                break;
+              case "role_update":
+                url = "/api/roles";
+                method = "PUT";
+                body = action.data;
+                break;
+              case "settings_update":
+                url = "/api/settings";
+                method = "PUT";
+                body = action.data;
+                break;
               default:
                 continue;
             }
 
-            const res = await fetch(url, {
-              method,
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            });
+            const fetchOpts = { method, headers: { "Content-Type": "application/json" } };
+            if (method !== "DELETE") fetchOpts.body = JSON.stringify(body);
+            const res = await fetch(url, fetchOpts);
             if (res.ok) {
               synced.push(action.id);
             }

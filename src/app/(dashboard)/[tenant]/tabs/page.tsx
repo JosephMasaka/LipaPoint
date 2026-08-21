@@ -64,11 +64,12 @@ export default function TabsPage() {
 
   const handleCloseTab = async (tab: Tab) => {
     setProcessing(true);
+    const payload = { orderId: tab.id, action: "close", paymentMethod };
     try {
       const res = await fetch("/api/orders/tabs", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId: tab.id, action: "close", paymentMethod }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         loadTabs();
@@ -76,7 +77,16 @@ export default function TabsPage() {
         notify("success", `"${tab.tabName}" settled successfully`);
       }
     } catch {
-      notify("error", "Network error");
+      if (!navigator.onLine && (paymentMethod === "CASH" || paymentMethod === "MPESA_MANUAL")) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("tab_add", payload);
+        requestBackgroundSync();
+        setTabs(tabs.filter(t => t.id !== tab.id));
+        setSelectedTab(null);
+        notify("info", `"${tab.tabName}" queued to close — will sync when online`);
+      } else {
+        notify("error", "This payment method requires an internet connection");
+      }
     } finally {
       setProcessing(false);
     }

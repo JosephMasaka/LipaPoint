@@ -160,6 +160,11 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
           `/${tenantSlug}/tabs`,
           `/${tenantSlug}/inventory`,
           `/${tenantSlug}/dashboard`,
+          `/${tenantSlug}/transactions`,
+          `/${tenantSlug}/analytics`,
+          `/${tenantSlug}/users`,
+          `/${tenantSlug}/locations`,
+          `/${tenantSlug}/settings`,
         ];
 
         const apisToCache = [
@@ -169,6 +174,14 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
           "/api/auth/me",
           "/api/orders",
           "/api/orders/tabs",
+          "/api/dashboard",
+          "/api/analytics?period=today",
+          "/api/transactions",
+          "/api/users",
+          "/api/roles",
+          "/api/locations",
+          "/api/units",
+          "/api/expenses",
         ];
 
         reg.active?.postMessage({

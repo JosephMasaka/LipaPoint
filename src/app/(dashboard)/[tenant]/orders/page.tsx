@@ -12,6 +12,7 @@ import {
   Search, Eye, Printer, XCircle, CheckCircle, Clock,
   Receipt, Package, User, CreditCard, X, Mail, Loader2,
 } from "lucide-react";
+import { Pagination } from "@/components/pagination";
 
 interface OrderItem {
   id: string;
@@ -42,6 +43,8 @@ interface Order {
 
 const statusFilters = ["ALL", "COMPLETED", "PENDING", "TAB", "CANCELLED", "REFUNDED"];
 
+const ORDERS_PAGE_SIZE = 20;
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,7 @@ export default function OrdersPage() {
   const [mpesaTill, setMpesaTill] = useState("");
   const [emailSending, setEmailSending] = useState(false);
   const [emailSent, setEmailSent] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     fetch("/api/auth/me").then(r => r.json()).then(d => {
@@ -89,7 +93,10 @@ export default function OrdersPage() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchOrders(); }, [search, statusFilter]);
+  useEffect(() => { fetchOrders(); setCurrentPage(1); }, [search, statusFilter]);
+
+  const totalPages = Math.ceil(orders.length / ORDERS_PAGE_SIZE);
+  const paginatedOrders = orders.slice((currentPage - 1) * ORDERS_PAGE_SIZE, currentPage * ORDERS_PAGE_SIZE);
 
   const getStatusConfig = (status: string) => {
     switch (status) {
@@ -233,7 +240,7 @@ export default function OrdersPage() {
                     <tr><td colSpan={7} className="px-4 py-12"><Loader label="Loading orders..." className="py-4" /></td></tr>
                   ) : orders.length === 0 ? (
                     <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">No orders found.</td></tr>
-                  ) : orders.map((order) => {
+                  ) : paginatedOrders.map((order) => {
                     const status = getStatusConfig(order.status);
                     return (
                       <tr key={order.id} className="hover:bg-surface-hover/50 transition-colors">
@@ -282,6 +289,13 @@ export default function OrdersPage() {
                 </tbody>
               </table>
             </div>
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={orders.length}
+              pageSize={ORDERS_PAGE_SIZE}
+            />
           </CardContent>
         </Card>
       </div>

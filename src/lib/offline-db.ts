@@ -10,7 +10,24 @@ interface OfflineOrder {
 
 interface OfflineAction {
   id?: number;
-  type: "stock_add" | "stock_initialize" | "tab_open" | "tab_add";
+  type:
+    | "stock_add"
+    | "stock_initialize"
+    | "tab_open"
+    | "tab_add"
+    | "expense_add"
+    | "unit_create"
+    | "unit_conversion"
+    | "product_create"
+    | "product_update"
+    | "location_add"
+    | "location_update"
+    | "user_create"
+    | "user_toggle"
+    | "user_delete"
+    | "role_create"
+    | "role_update"
+    | "settings_update";
   data: Record<string, unknown>;
   createdAt: string;
   synced: boolean;
@@ -204,13 +221,74 @@ export async function syncOfflineActions(): Promise<{ synced: number; failed: nu
           method = "PUT";
           body = { action: "add", ...action.data };
           break;
+        case "expense_add":
+          url = "/api/expenses";
+          body = action.data;
+          break;
+        case "unit_create":
+          url = "/api/units";
+          body = action.data;
+          break;
+        case "unit_conversion":
+          url = "/api/units";
+          method = "PUT";
+          body = action.data;
+          break;
+        case "product_create":
+          url = "/api/products";
+          body = action.data;
+          break;
+        case "product_update":
+          url = `/api/products/${action.data._productId}`;
+          method = "PUT";
+          body = action.data;
+          break;
+        case "location_add":
+          url = "/api/locations";
+          body = action.data;
+          break;
+        case "location_update":
+          url = "/api/locations";
+          method = "PUT";
+          body = action.data;
+          break;
+        case "user_create":
+          url = "/api/users";
+          body = action.data;
+          break;
+        case "user_toggle":
+          url = `/api/users/${action.data._userId}`;
+          method = "PATCH";
+          body = { isActive: action.data.isActive };
+          break;
+        case "user_delete":
+          url = `/api/users/${action.data._userId}`;
+          method = "DELETE";
+          break;
+        case "role_create":
+          url = "/api/roles";
+          body = action.data;
+          break;
+        case "role_update":
+          url = "/api/roles";
+          method = "PUT";
+          body = action.data;
+          break;
+        case "settings_update":
+          url = "/api/settings";
+          method = "PUT";
+          body = action.data;
+          break;
       }
 
-      const res = await fetch(url, {
+      const fetchOpts: RequestInit = {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      };
+      if (method !== "DELETE") {
+        fetchOpts.body = JSON.stringify(body);
+      }
+      const res = await fetch(url, fetchOpts);
 
       if (res.ok) {
         await removeOfflineAction(action.id!);

@@ -41,8 +41,14 @@ export default function AnalyticsPage() {
         const d = await r.json();
         setData(d);
         setAccessError("");
+        try { localStorage.setItem(`lipapoint-oc-analytics-${period}`, JSON.stringify({ data: d, timestamp: Date.now() })); } catch {}
       })
-      .catch(() => {})
+      .catch(() => {
+        try {
+          const raw = localStorage.getItem(`lipapoint-oc-analytics-${period}`);
+          if (raw) { const { data: d } = JSON.parse(raw); setData(d); }
+        } catch {}
+      })
       .finally(() => setLoading(false));
   }, [period]);
 

@@ -53,7 +53,7 @@ export function OfflineIndicator() {
 
   if (showReconnected) {
     return (
-      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[300] animate-in slide-in-from-bottom-4 fade-in duration-300">
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[300] transition-all duration-300">
         <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 text-white shadow-lg text-sm font-medium">
           <CheckCircle className="h-4 w-4" />
           <span>Back online — syncing data</span>
@@ -63,7 +63,7 @@ export function OfflineIndicator() {
   }
 
   return (
-    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[300] animate-in slide-in-from-bottom-4 fade-in duration-300">
+    <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[300] transition-all duration-300">
       <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-200 shadow-lg text-sm font-medium">
         <WifiOff className="h-4 w-4 text-amber-400" />
         <span>Offline mode</span>

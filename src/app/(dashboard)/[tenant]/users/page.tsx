@@ -71,8 +71,17 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     try {
       const res = await fetch("/api/users");
-      if (res.ok) setUsers(await res.json());
-    } catch { /* ignore */ } finally { setLoading(false); }
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+        try { localStorage.setItem("lipapoint-oc-users", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+      }
+    } catch {
+      try {
+        const raw = localStorage.getItem("lipapoint-oc-users");
+        if (raw) { const { data } = JSON.parse(raw); setUsers(data); }
+      } catch {}
+    } finally { setLoading(false); }
   };
 
   const fetchRoles = useCallback(async () => {
@@ -86,8 +95,21 @@ export default function UsersPage() {
         setRolePermissions(perms);
         setOriginalPermissions(JSON.parse(JSON.stringify(perms)));
         setDirty(false);
+        try { localStorage.setItem("lipapoint-oc-roles", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
       }
-    } catch { /* ignore */ }
+    } catch {
+      try {
+        const raw = localStorage.getItem("lipapoint-oc-roles");
+        if (raw) {
+          const { data }: { data: RoleData[] } = JSON.parse(raw);
+          setRoles(data);
+          const perms: Record<string, string[]> = {};
+          data.forEach(r => { perms[r.role] = [...r.permissions]; });
+          setRolePermissions(perms);
+          setOriginalPermissions(JSON.parse(JSON.stringify(perms)));
+        }
+      } catch {}
+    }
   }, []);
 
   useEffect(() => { fetchUsers(); }, []);
@@ -107,7 +129,18 @@ export default function UsersPage() {
       setShowForm(false);
       fetchUsers();
       notify("success", "Staff member added");
-    } catch { setError("Network error"); }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("user_create", form);
+        requestBackgroundSync();
+        setForm({ name: "", email: "", phone: "", role: "CASHIER" });
+        setShowForm(false);
+        notify("info", "Saved offline — will sync when online");
+      } else {
+        setError("Network error");
+      }
+    }
   };
 
   const toggleActive = async (id: string, isActive: boolean) => {
@@ -115,7 +148,15 @@ export default function UsersPage() {
       await fetch(`/api/users/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: !isActive }) });
       fetchUsers();
       notify("success", isActive ? "Staff deactivated" : "Staff activated");
-    } catch { /* ignore */ }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("user_toggle", { _userId: id, isActive: !isActive });
+        requestBackgroundSync();
+        setUsers(users.map(u => u.id === id ? { ...u, isActive: !isActive } : u));
+        notify("info", "Queued offline — will sync when online");
+      }
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -124,7 +165,16 @@ export default function UsersPage() {
       fetchUsers();
       setConfirmDelete(null);
       notify("success", "Staff member removed");
-    } catch { /* ignore */ }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("user_delete", { _userId: id });
+        requestBackgroundSync();
+        setUsers(users.filter(u => u.id !== id));
+        setConfirmDelete(null);
+        notify("info", "Queued offline — will sync when online");
+      }
+    }
   };
 
   const togglePermission = (role: string, permission: string) => {
@@ -143,14 +193,12 @@ export default function UsersPage() {
   const savePermissions = async () => {
     if (!selectedRole || selectedRole === "OWNER") return;
     setSaving(true);
+    const payload = { role: selectedRole, permissions: rolePermissions[selectedRole] || [] };
     try {
       const res = await fetch("/api/roles", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role: selectedRole,
-          permissions: rolePermissions[selectedRole] || [],
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setOriginalPermissions(JSON.parse(JSON.stringify(rolePermissions)));
@@ -161,7 +209,16 @@ export default function UsersPage() {
         notify("error", d.error || "Failed to save");
       }
     } catch {
-      notify("error", "Network error");
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("role_update", payload);
+        requestBackgroundSync();
+        setOriginalPermissions(JSON.parse(JSON.stringify(rolePermissions)));
+        setDirty(false);
+        notify("info", "Saved offline — will sync when online");
+      } else {
+        notify("error", "Network error");
+      }
     } finally { setSaving(false); }
   };
 
@@ -182,7 +239,21 @@ export default function UsersPage() {
       setDirty(false);
       notify("success", `Permissions saved for ${changedRoles.length} role${changedRoles.length > 1 ? "s" : ""}`);
     } catch {
-      notify("error", "Failed to save permissions");
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        const changedRoles = Object.keys(rolePermissions).filter(
+          role => role !== "OWNER" && JSON.stringify(rolePermissions[role]) !== JSON.stringify(originalPermissions[role])
+        );
+        for (const role of changedRoles) {
+          await saveOfflineAction("role_update", { role, permissions: rolePermissions[role] });
+        }
+        requestBackgroundSync();
+        setOriginalPermissions(JSON.parse(JSON.stringify(rolePermissions)));
+        setDirty(false);
+        notify("info", "Saved offline — will sync when online");
+      } else {
+        notify("error", "Failed to save permissions");
+      }
     } finally { setSaving(false); }
   };
 
@@ -210,7 +281,16 @@ export default function UsersPage() {
         notify("error", d.error || "Failed to create role");
       }
     } catch {
-      notify("error", "Network error");
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("role_create", newRole);
+        requestBackgroundSync();
+        setNewRole({ name: "", description: "", permissions: [] });
+        setShowCreateRole(false);
+        notify("info", "Saved offline — will sync when online");
+      } else {
+        notify("error", "Network error");
+      }
     }
   };
 

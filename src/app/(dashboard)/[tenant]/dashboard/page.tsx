@@ -31,8 +31,16 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch("/api/dashboard")
       .then((r) => r.json())
-      .then(setStats)
-      .catch(() => {})
+      .then((data) => {
+        setStats(data);
+        try { localStorage.setItem("lipapoint-oc-dashboard", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+      })
+      .catch(() => {
+        try {
+          const raw = localStorage.getItem("lipapoint-oc-dashboard");
+          if (raw) { const { data } = JSON.parse(raw); setStats(data); }
+        } catch {}
+      })
       .finally(() => setLoading(false));
   }, []);
 

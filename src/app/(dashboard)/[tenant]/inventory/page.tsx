@@ -10,8 +10,9 @@ import { Loader } from "@/components/ui/loader";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   Package, Ruler, BarChart3, DollarSign, Plus, Edit3,
-  ArrowUpDown, Save, Upload, WifiOff,
+  ArrowUpDown, Save, Upload, Search,
 } from "lucide-react";
+import { Pagination } from "@/components/pagination";
 
 // Types
 interface Product {
@@ -48,7 +49,7 @@ interface StockRecord {
   closingStock: number;
   variance: number;
   notes: string | null;
-  product: { id: string; name: string; sku: string; price: number; cost: number };
+  product: { id: string; name: string; sku: string; price: number; cost: number; baseUnit?: { abbreviation: string } | null };
   location: { id: string; name: string };
 }
 
@@ -110,6 +111,8 @@ export default function InventoryPage() {
 }
 
 // ========== PRODUCTS TAB ==========
+const PRODUCTS_PAGE_SIZE = 20;
+
 function ProductsTab() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -119,6 +122,7 @@ function ProductsTab() {
   const [form, setForm] = useState({ name: "", sku: "", barcode: "", price: "", cost: "", categoryId: "", unitId: "", image: "", lowStockAlert: "10" });
   const [units, setUnits] = useState<UnitOfMeasure[]>([]);
   const [error, setError] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
   const fetchProducts = async () => {
     try {
@@ -142,9 +146,9 @@ function ProductsTab() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchProducts(); }, [search]);
+  useEffect(() => { fetchProducts(); setCurrentPage(1); }, [search]);
   useEffect(() => {
-    fetch("/api/units").then(r => r.json()).then(d => { if (Array.isArray(d)) setUnits(d); }).catch(() => {});
+    fetch("/api/units").then(r => r.json()).then(d => { if (Array.isArray(d)) { setUnits(d); try { localStorage.setItem("lipapoint-oc-units", JSON.stringify({ data: d, timestamp: Date.now() })); } catch {} } }).catch(() => { try { const raw = localStorage.getItem("lipapoint-oc-units"); if (raw) { const { data } = JSON.parse(raw); setUnits(data); } } catch {} });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -157,14 +161,30 @@ function ProductsTab() {
       if (!res.ok) { const d = await res.json(); setError(d.error || "Error"); return; }
       setForm({ name: "", sku: "", barcode: "", price: "", cost: "", categoryId: "", unitId: "", image: "", lowStockAlert: "10" });
       setShowForm(false); setEditingId(null); fetchProducts();
-    } catch { setError("Network error"); }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        if (editingId) {
+          await saveOfflineAction("product_update", { ...form, _productId: editingId });
+        } else {
+          await saveOfflineAction("product_create", form);
+        }
+        requestBackgroundSync();
+        setForm({ name: "", sku: "", barcode: "", price: "", cost: "", categoryId: "", unitId: "", image: "", lowStockAlert: "10" });
+        setShowForm(false); setEditingId(null);
+        setError("");
+      } else {
+        setError("Network error");
+      }
+    }
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="max-w-xs flex-1">
-          <Input placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <div className="relative max-w-xs flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+          <Input placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
         <Button onClick={() => { setShowForm(!showForm); setEditingId(null); }}>
           {showForm ? "Cancel" : <><Plus className="h-4 w-4 mr-1" /> Add Product</>}
@@ -218,7 +238,7 @@ function ProductsTab() {
                   <tr><td colSpan={7} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
                 ) : products.length === 0 ? (
                   <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">No products found.</td></tr>
-                ) : products.map((p) => (
+                ) : products.slice((currentPage - 1) * PRODUCTS_PAGE_SIZE, currentPage * PRODUCTS_PAGE_SIZE).map((p) => (
                   <tr key={p.id} className="hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-3 font-medium text-text-primary">{p.name}</td>
                     <td className="px-4 py-3 text-text-secondary font-mono text-xs">{p.sku}</td>
@@ -226,7 +246,7 @@ function ProductsTab() {
                     <td className="px-4 py-3 text-text-primary">{formatCurrency(p.price)}</td>
                     <td className="px-4 py-3">
                       <span className={p.stock <= p.lowStockAlert ? "text-red-400 font-medium" : "text-emerald-400 font-medium"}>
-                        {p.stock}
+                        {p.stock}{p.baseUnit ? ` ${p.baseUnit.abbreviation}` : ""}
                       </span>
                     </td>
                     <td className="px-4 py-3"><Badge variant={p.isActive ? "success" : "secondary"}>{p.isActive ? "Active" : "Off"}</Badge></td>
@@ -241,6 +261,13 @@ function ProductsTab() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={currentPage}
+            totalPages={Math.ceil(products.length / PRODUCTS_PAGE_SIZE)}
+            onPageChange={setCurrentPage}
+            totalItems={products.length}
+            pageSize={PRODUCTS_PAGE_SIZE}
+          />
         </CardContent>
       </Card>
     </div>
@@ -248,6 +275,8 @@ function ProductsTab() {
 }
 
 // ========== STOCK SHEET TAB ==========
+const STOCK_PAGE_SIZE = 25;
+
 function StockSheetTab() {
   const [records, setRecords] = useState<StockRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,15 +291,24 @@ function StockSheetTab() {
   const [importData, setImportData] = useState<{ name: string; sku: string; price: string; cost: string; quantity: string; category: string }[]>([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ created: number; updated: number; total: number } | null>(null);
+  const [stockSearch, setStockSearch] = useState("");
+  const [stockPage, setStockPage] = useState(1);
 
   useEffect(() => {
     fetch("/api/locations").then(r => r.json()).then(data => {
       if (Array.isArray(data) && data.length > 0) {
         setLocations(data);
         setLocationId(data[0].id);
+        try { localStorage.setItem("lipapoint-oc-stock-locations", JSON.stringify(data)); } catch {}
       }
       setLoading(false);
-    }).catch(() => setLoading(false));
+    }).catch(() => {
+      try {
+        const raw = localStorage.getItem("lipapoint-oc-stock-locations");
+        if (raw) { const data = JSON.parse(raw); setLocations(data); if (data.length > 0) setLocationId(data[0].id); }
+      } catch {}
+      setLoading(false);
+    });
   }, []);
 
   const fetchRecords = async () => {
@@ -278,8 +316,17 @@ function StockSheetTab() {
     setLoading(true);
     try {
       const res = await fetch(`/api/stock?date=${date}&locationId=${locationId}`);
-      if (res.ok) setRecords(await res.json());
-    } catch { /* ignore */ } finally { setLoading(false); }
+      if (res.ok) {
+        const data = await res.json();
+        setRecords(data);
+        try { localStorage.setItem(`lipapoint-oc-stock-${date}-${locationId}`, JSON.stringify(data)); } catch {}
+      }
+    } catch {
+      try {
+        const raw = localStorage.getItem(`lipapoint-oc-stock-${date}-${locationId}`);
+        if (raw) setRecords(JSON.parse(raw));
+      } catch {}
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { if (locationId) fetchRecords(); }, [date, locationId]);
@@ -427,6 +474,15 @@ function StockSheetTab() {
     return r.openingStock + added - r.soldStock;
   };
 
+  const filteredRecords = records.filter((r) => {
+    if (!stockSearch) return true;
+    const q = stockSearch.toLowerCase();
+    return r.product.name.toLowerCase().includes(q) || r.product.sku.toLowerCase().includes(q);
+  });
+
+  const stockTotalPages = Math.ceil(filteredRecords.length / STOCK_PAGE_SIZE);
+  const paginatedRecords = filteredRecords.slice((stockPage - 1) * STOCK_PAGE_SIZE, stockPage * STOCK_PAGE_SIZE);
+
   const totalOpening = records.reduce((s, r) => s + r.openingStock * (r.product.cost || 0), 0);
   const totalClosing = records.reduce((s, r) => s + getCalculatedClosing(r) * (r.product.cost || 0), 0);
   const totalSold = records.reduce((s, r) => s + r.soldStock * (r.product.price || 0), 0);
@@ -434,13 +490,17 @@ function StockSheetTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex gap-3 items-center">
+        <div className="flex gap-3 items-center flex-wrap">
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-44" />
           {locations.length > 0 && (
             <select value={locationId} onChange={(e) => setLocationId(e.target.value)} className="h-10 rounded-lg border border-border bg-surface-elevated px-3 text-sm text-text-primary">
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           )}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+            <Input placeholder="Search product..." value={stockSearch} onChange={(e) => { setStockSearch(e.target.value); setStockPage(1); }} className="pl-9 w-48" />
+          </div>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowImport(true)}>
@@ -488,6 +548,7 @@ function StockSheetTab() {
               <thead>
                 <tr className="border-b border-border bg-surface-elevated/50">
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">Product</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">UoM</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Opening</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Added</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Sold</th>
@@ -497,12 +558,12 @@ function StockSheetTab() {
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={6} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
+                  <tr><td colSpan={7} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
                 ) : records.length === 0 ? (
-                  <tr><td colSpan={6} className="px-4 py-12 text-center text-text-muted">
+                  <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">
                     No stock records for this date. Click &quot;Initialize Day&quot; to start.
                   </td></tr>
-                ) : records.map((r) => {
+                ) : paginatedRecords.map((r) => {
                   const closing = getCalculatedClosing(r);
                   return (
                     <tr key={r.id} className="hover:bg-surface-hover transition-colors">
@@ -510,6 +571,7 @@ function StockSheetTab() {
                         <p className="font-medium text-text-primary text-xs">{r.product.name}</p>
                         <p className="text-[10px] text-text-muted font-mono">{r.product.sku}</p>
                       </td>
+                      <td className="px-4 py-2 text-text-muted text-xs">{r.product.baseUnit?.abbreviation || "-"}</td>
                       <td className="px-4 py-2 text-center text-text-secondary">{r.openingStock}</td>
                       <td className="px-4 py-2 text-center">
                         <input
@@ -534,6 +596,13 @@ function StockSheetTab() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={stockPage}
+            totalPages={stockTotalPages}
+            onPageChange={setStockPage}
+            totalItems={filteredRecords.length}
+            pageSize={STOCK_PAGE_SIZE}
+          />
         </CardContent>
       </Card>
 
@@ -662,8 +731,17 @@ function UnitsTab() {
   const fetchUnits = async () => {
     try {
       const res = await fetch("/api/units");
-      if (res.ok) setUnits(await res.json());
-    } catch { /* ignore */ } finally { setLoading(false); }
+      if (res.ok) {
+        const data = await res.json();
+        setUnits(data);
+        try { localStorage.setItem("lipapoint-oc-units", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+      }
+    } catch {
+      try {
+        const raw = localStorage.getItem("lipapoint-oc-units");
+        if (raw) { const { data } = JSON.parse(raw); setUnits(data); }
+      } catch {}
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchUnits(); }, []);
@@ -671,26 +749,45 @@ function UnitsTab() {
   const handleCreateUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !abbreviation) return;
-    const res = await fetch("/api/units", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, abbreviation }),
-    });
-    if (res.ok) {
-      setName(""); setAbbreviation(""); setShowForm(false); fetchUnits();
+    try {
+      const res = await fetch("/api/units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, abbreviation }),
+      });
+      if (res.ok) {
+        setName(""); setAbbreviation(""); setShowForm(false); fetchUnits();
+      }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("unit_create", { name, abbreviation });
+        requestBackgroundSync();
+        setName(""); setAbbreviation(""); setShowForm(false);
+      }
     }
   };
 
   const handleCreateConversion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fromUnitId || !toUnitId || !factor) return;
-    const res = await fetch("/api/units", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromUnitId, toUnitId, factor: parseFloat(factor) }),
-    });
-    if (res.ok) {
-      setFromUnitId(""); setToUnitId(""); setFactor(""); setShowConversion(false); fetchUnits();
+    const payload = { fromUnitId, toUnitId, factor: parseFloat(factor) };
+    try {
+      const res = await fetch("/api/units", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        setFromUnitId(""); setToUnitId(""); setFactor(""); setShowConversion(false); fetchUnits();
+      }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("unit_conversion", payload);
+        requestBackgroundSync();
+        setFromUnitId(""); setToUnitId(""); setFactor(""); setShowConversion(false);
+      }
     }
   };
 
@@ -783,47 +880,85 @@ function UnitsTab() {
 }
 
 // ========== EXPENSES TAB ==========
+const EXPENSES_PAGE_SIZE = 20;
+
 function ExpensesTab() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ date: new Date().toISOString().split("T")[0], category: "", description: "", amount: "" });
+  const [expenseSearch, setExpenseSearch] = useState("");
+  const [expensePage, setExpensePage] = useState(1);
 
   const categories = ["Rent", "Utilities", "Salaries", "Supplies", "Maintenance", "Transport", "Marketing", "Other"];
 
   const fetchExpenses = async () => {
     try {
       const res = await fetch("/api/expenses");
-      if (res.ok) setExpenses(await res.json());
-    } catch { /* ignore */ } finally { setLoading(false); }
+      if (res.ok) {
+        const data = await res.json();
+        setExpenses(data);
+        try { localStorage.setItem("lipapoint-oc-expenses", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+      }
+    } catch {
+      try {
+        const raw = localStorage.getItem("lipapoint-oc-expenses");
+        if (raw) { const { data } = JSON.parse(raw); setExpenses(data); }
+      } catch {}
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchExpenses(); }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const res = await fetch("/api/expenses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.ok) {
-      setForm({ date: new Date().toISOString().split("T")[0], category: "", description: "", amount: "" });
-      setShowForm(false); fetchExpenses();
+    try {
+      const res = await fetch("/api/expenses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      if (res.ok) {
+        setForm({ date: new Date().toISOString().split("T")[0], category: "", description: "", amount: "" });
+        setShowForm(false); fetchExpenses();
+      }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("expense_add", form);
+        requestBackgroundSync();
+        setExpenses([...expenses, { id: `offline-${Date.now()}`, date: form.date, category: form.category, description: form.description, amount: parseFloat(form.amount) || 0, user: null }]);
+        setForm({ date: new Date().toISOString().split("T")[0], category: "", description: "", amount: "" });
+        setShowForm(false);
+      }
     }
   };
 
-  const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+  const filteredExpenses = expenses.filter((e) => {
+    if (!expenseSearch) return true;
+    const q = expenseSearch.toLowerCase();
+    return e.description.toLowerCase().includes(q) || e.category.toLowerCase().includes(q);
+  });
+
+  const expenseTotalPages = Math.ceil(filteredExpenses.length / EXPENSES_PAGE_SIZE);
+  const paginatedExpenses = filteredExpenses.slice((expensePage - 1) * EXPENSES_PAGE_SIZE, expensePage * EXPENSES_PAGE_SIZE);
+  const totalExpenses = filteredExpenses.reduce((s, e) => s + e.amount, 0);
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Card className="flex-1 max-w-xs">
-          <CardContent className="p-4">
-            <p className="text-xs text-text-muted">Total Expenses</p>
-            <p className="text-xl font-bold text-red-400">{formatCurrency(totalExpenses)}</p>
-          </CardContent>
-        </Card>
+        <div className="flex gap-3 items-center flex-wrap">
+          <Card className="max-w-xs">
+            <CardContent className="p-4">
+              <p className="text-xs text-text-muted">Total Expenses</p>
+              <p className="text-xl font-bold text-red-400">{formatCurrency(totalExpenses)}</p>
+            </CardContent>
+          </Card>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
+            <Input placeholder="Search expenses..." value={expenseSearch} onChange={(e) => { setExpenseSearch(e.target.value); setExpensePage(1); }} className="pl-9 w-48" />
+          </div>
+        </div>
         <Button onClick={() => setShowForm(!showForm)}>
           <Plus className="h-4 w-4 mr-1" /> {showForm ? "Cancel" : "Add Expense"}
         </Button>
@@ -867,9 +1002,9 @@ function ExpensesTab() {
               <tbody className="divide-y divide-border">
                 {loading ? (
                   <tr><td colSpan={5} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
-                ) : expenses.length === 0 ? (
+                ) : filteredExpenses.length === 0 ? (
                   <tr><td colSpan={5} className="px-4 py-12 text-center text-text-muted">No expenses recorded.</td></tr>
-                ) : expenses.map((exp) => (
+                ) : paginatedExpenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-surface-hover transition-colors">
                     <td className="px-4 py-3 text-text-secondary text-xs">{new Date(exp.date).toLocaleDateString("en-KE")}</td>
                     <td className="px-4 py-3"><Badge variant="secondary">{exp.category}</Badge></td>
@@ -881,6 +1016,13 @@ function ExpensesTab() {
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={expensePage}
+            totalPages={expenseTotalPages}
+            onPageChange={setExpensePage}
+            totalItems={filteredExpenses.length}
+            pageSize={EXPENSES_PAGE_SIZE}
+          />
         </CardContent>
       </Card>
     </div>

@@ -43,8 +43,17 @@ export default function LocationsPage() {
   const fetchLocations = async () => {
     try {
       const res = await fetch("/api/locations");
-      if (res.ok) setLocations(await res.json());
-    } catch {} finally { setLoading(false); }
+      if (res.ok) {
+        const data = await res.json();
+        setLocations(data);
+        try { localStorage.setItem("lipapoint-oc-locations", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+      }
+    } catch {
+      try {
+        const raw = localStorage.getItem("lipapoint-oc-locations");
+        if (raw) { const { data } = JSON.parse(raw); setLocations(data); }
+      } catch {}
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchLocations(); }, []);
@@ -67,18 +76,30 @@ export default function LocationsPage() {
       } else {
         notify("error", data.error || "Failed to add location");
       }
-    } catch { notify("error", "Network error"); }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("location_add", form);
+        requestBackgroundSync();
+        setShowAdd(false);
+        setForm({ name: "", address: "", phone: "" });
+        notify("info", "Saved offline — will sync when online");
+      } else {
+        notify("error", "Network error");
+      }
+    }
     finally { setSaving(false); }
   };
 
   const handleUpdate = async () => {
     if (!editing) return;
     setSaving(true);
+    const payload = { id: editing.id, ...form };
     try {
       const res = await fetch("/api/locations", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: editing.id, ...form }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setLocations(locations.map(l => l.id === editing.id ? { ...l, ...form } : l));
@@ -88,22 +109,44 @@ export default function LocationsPage() {
         const data = await res.json();
         notify("error", data.error || "Failed to update");
       }
-    } catch { notify("error", "Network error"); }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("location_update", payload);
+        requestBackgroundSync();
+        setLocations(locations.map(l => l.id === editing.id ? { ...l, ...form } : l));
+        setEditing(null);
+        notify("info", "Saved offline — will sync when online");
+      } else {
+        notify("error", "Network error");
+      }
+    }
     finally { setSaving(false); }
   };
 
   const toggleActive = async (loc: Location) => {
+    const payload = { id: loc.id, isActive: !loc.isActive };
     try {
       const res = await fetch("/api/locations", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: loc.id, isActive: !loc.isActive }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setLocations(locations.map(l => l.id === loc.id ? { ...l, isActive: !l.isActive } : l));
         notify("success", `Location ${!loc.isActive ? "activated" : "deactivated"}`);
       }
-    } catch { notify("error", "Network error"); }
+    } catch {
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("location_update", payload);
+        requestBackgroundSync();
+        setLocations(locations.map(l => l.id === loc.id ? { ...l, isActive: !l.isActive } : l));
+        notify("info", "Queued offline — will sync when online");
+      } else {
+        notify("error", "Network error");
+      }
+    }
   };
 
   if (loading) {

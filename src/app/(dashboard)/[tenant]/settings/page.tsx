@@ -57,9 +57,17 @@ export default function SettingsPage() {
     fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
-        if (data && !data.error) setSettings(data);
+        if (data && !data.error) {
+          setSettings(data);
+          try { localStorage.setItem("lipapoint-oc-settings", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
+        }
       })
-      .catch(() => {})
+      .catch(() => {
+        try {
+          const raw = localStorage.getItem("lipapoint-oc-settings");
+          if (raw) { const { data } = JSON.parse(raw); setSettings(data); }
+        } catch {}
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -97,9 +105,19 @@ export default function SettingsPage() {
       if (res.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
+        try { localStorage.setItem("lipapoint-oc-settings", JSON.stringify({ data: settings, timestamp: Date.now() })); } catch {}
       }
     } catch {
-      notify("error", "Failed to save settings");
+      if (!navigator.onLine) {
+        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+        await saveOfflineAction("settings_update", settings as unknown as Record<string, unknown>);
+        requestBackgroundSync();
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+        try { localStorage.setItem("lipapoint-oc-settings", JSON.stringify({ data: settings, timestamp: Date.now() })); } catch {}
+      } else {
+        notify("error", "Failed to save settings");
+      }
     } finally {
       setSaving(false);
     }
