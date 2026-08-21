@@ -72,8 +72,21 @@ export default function OrdersPage() {
       if (statusFilter !== "ALL") params.set("status", statusFilter);
       if (search) params.set("search", search);
       const res = await fetch(`/api/orders?${params.toString()}`);
-      if (res.ok) setOrders(await res.json());
-    } catch { /* ignore */ } finally { setLoading(false); }
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setOrders(data);
+          try { localStorage.setItem("lipapoint-cached-orders", JSON.stringify(data)); } catch {}
+        }
+      }
+    } catch {
+      if (orders.length === 0) {
+        try {
+          const cached = localStorage.getItem("lipapoint-cached-orders");
+          if (cached) setOrders(JSON.parse(cached));
+        } catch {}
+      }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchOrders(); }, [search, statusFilter]);

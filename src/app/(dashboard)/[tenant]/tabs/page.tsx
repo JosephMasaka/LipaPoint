@@ -45,9 +45,19 @@ export default function TabsPage() {
       const res = await fetch("/api/orders/tabs");
       if (res.ok) {
         const data = await res.json();
-        if (Array.isArray(data)) setTabs(data);
+        if (Array.isArray(data)) {
+          setTabs(data);
+          try { localStorage.setItem("lipapoint-cached-tabs", JSON.stringify(data)); } catch {}
+        }
       }
-    } catch { /* ignore */ } finally { setLoading(false); }
+    } catch {
+      if (tabs.length === 0) {
+        try {
+          const cached = localStorage.getItem("lipapoint-cached-tabs");
+          if (cached) setTabs(JSON.parse(cached));
+        } catch {}
+      }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { loadTabs(); }, []);

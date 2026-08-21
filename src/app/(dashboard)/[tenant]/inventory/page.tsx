@@ -125,8 +125,21 @@ function ProductsTab() {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
       const res = await fetch(`/api/products?${params.toString()}`);
-      if (res.ok) setProducts(await res.json());
-    } catch { /* ignore */ } finally { setLoading(false); }
+      if (res.ok) {
+        const data = await res.json();
+        setProducts(data);
+        if (!search) {
+          try { localStorage.setItem("lipapoint-cached-inventory", JSON.stringify(data)); } catch {}
+        }
+      }
+    } catch {
+      if (products.length === 0) {
+        try {
+          const cached = localStorage.getItem("lipapoint-cached-inventory");
+          if (cached) setProducts(JSON.parse(cached));
+        } catch {}
+      }
+    } finally { setLoading(false); }
   };
 
   useEffect(() => { fetchProducts(); }, [search]);

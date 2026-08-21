@@ -1,4 +1,4 @@
-const CACHE_VERSION = "lipapoint-v4";
+const CACHE_VERSION = "lipapoint-v5";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const API_CACHE = `${CACHE_VERSION}-api`;
@@ -14,6 +14,13 @@ const API_CACHE_ROUTES = [
   "/api/products",
   "/api/settings",
   "/api/auth/me",
+  "/api/orders",
+  "/api/orders/tabs",
+  "/api/categories",
+  "/api/units",
+  "/api/locations",
+  "/api/expenses",
+  "/api/stock",
 ];
 
 // Install: cache shell assets
@@ -76,34 +83,119 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigation requests: network-first, offline fallback to static HTML
+  // RSC (React Server Component) requests — client-side navigation in Next.js
+  // These have the same URL as pages but include RSC headers
+  const isRSC = request.headers.get("RSC") === "1" ||
+    request.headers.get("Next-Router-State-Tree") !== null;
+
+  if (isRSC) {
+    event.respondWith(networkFirstRSC(request));
+    return;
+  }
+
+  // Navigation requests: network-first, offline fallback
   if (request.mode === "navigate") {
-    event.respondWith(
-      fetch(request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, clone));
-          }
-          return response;
-        })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          const offlinePage = await caches.match("/offline.html");
-          if (offlinePage) return offlinePage;
-          return new Response(
-            '<html><body style="font-family:sans-serif;background:#09090b;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center"><div><h1>Offline</h1><p>Check your connection.</p></div></body></html>',
-            { status: 200, headers: { "Content-Type": "text/html" } }
-          );
-        })
-    );
+    event.respondWith(handleNavigation(request));
     return;
   }
 
   // Static assets & pages: stale-while-revalidate
   event.respondWith(staleWhileRevalidate(request));
 });
+
+async function handleNavigation(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const clone = response.clone();
+      caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, clone));
+    }
+    return response;
+  } catch {
+    // Try exact cache match first
+    const cached = await caches.match(request);
+    if (cached) return cached;
+
+    // For dashboard routes, try to find any cached dashboard page
+    const url = new URL(request.url);
+    const pathParts = url.pathname.split("/");
+    // Pattern: /{tenant}/{page} — check if this is a dashboard route
+    if (pathParts.length >= 3 && !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/_next/")) {
+      const tenantSlug = pathParts[1];
+      const cachedDashboard = await findCachedDashboardPage(tenantSlug, url.pathname);
+      if (cachedDashboard) return cachedDashboard;
+    }
+
+    // Final fallback: offline.html
+    const offlinePage = await caches.match("/offline.html");
+    if (offlinePage) return offlinePage;
+    return new Response(
+      '<html><body style="font-family:sans-serif;background:#09090b;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center"><div><h1>Offline</h1><p>Check your connection.</p></div></body></html>',
+      { status: 200, headers: { "Content-Type": "text/html" } }
+    );
+  }
+}
+
+async function findCachedDashboardPage(tenantSlug, requestedPath) {
+  const cache = await caches.open(DYNAMIC_CACHE);
+  const keys = await cache.keys();
+
+  // Priority order for offline dashboard pages
+  const preferredPages = ["pos", "orders", "tabs", "inventory", "dashboard"];
+  const requestedPage = requestedPath.split("/").pop();
+
+  // First try the exact requested page
+  for (const key of keys) {
+    const keyUrl = new URL(key.url);
+    if (keyUrl.pathname === requestedPath) {
+      return cache.match(key);
+    }
+  }
+
+  // Then try other cached dashboard pages for same tenant
+  // Sort by preference (pos first since it works best offline)
+  const tenantPrefix = `/${tenantSlug}/`;
+  const dashboardKeys = keys.filter((k) => {
+    const keyUrl = new URL(k.url);
+    return keyUrl.pathname.startsWith(tenantPrefix) && !keyUrl.pathname.includes("/_next/");
+  });
+
+  // Sort by preference
+  dashboardKeys.sort((a, b) => {
+    const aPage = new URL(a.url).pathname.split("/").pop();
+    const bPage = new URL(b.url).pathname.split("/").pop();
+    const aIdx = preferredPages.indexOf(aPage);
+    const bIdx = preferredPages.indexOf(bPage);
+    return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
+  });
+
+  if (dashboardKeys.length > 0) {
+    return cache.match(dashboardKeys[0]);
+  }
+
+  return null;
+}
+
+async function networkFirstRSC(request) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const clone = response.clone();
+      caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, clone));
+    }
+    return response;
+  } catch {
+    // Try cached RSC response
+    const cached = await caches.match(request);
+    if (cached) return cached;
+
+    // Return empty RSC payload that triggers client-side navigation fallback
+    return new Response("", {
+      status: 503,
+      headers: { "Content-Type": "text/x-component" },
+    });
+  }
+}
 
 async function networkFirstWithCache(request, cacheName) {
   try {
@@ -144,17 +236,6 @@ async function staleWhileRevalidate(request) {
   const networkResponse = await fetchPromise;
   if (networkResponse) return networkResponse;
 
-  // Offline fallback for navigation requests - serve static HTML
-  if (request.mode === "navigate") {
-    const offlinePage = await caches.match("/offline.html");
-    if (offlinePage) return offlinePage;
-    // Inline fallback if cache missed
-    return new Response(
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Offline</title></head><body style="font-family:sans-serif;background:#09090b;color:#fff;display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center"><div><h1>You\'re Offline</h1><p style="color:#aaa">Check your connection and try again.</p><button onclick="location.reload()" style="margin-top:16px;padding:8px 16px;background:#d4a017;border:none;border-radius:6px;font-weight:600;cursor:pointer">Retry</button></div></body></html>',
-      { status: 200, headers: { "Content-Type": "text/html" } }
-    );
-  }
-
   return new Response("Offline", { status: 503 });
 }
 
@@ -186,7 +267,6 @@ async function syncOfflineOrders() {
             });
             if (res.ok) {
               synced.push(order.id);
-              // Notify the client
               const clients = await self.clients.matchAll();
               clients.forEach((client) =>
                 client.postMessage({ type: "ORDER_SYNCED", orderId: order.id, orderNo: order.data.orderNo })
@@ -197,7 +277,6 @@ async function syncOfflineOrders() {
           }
         }
 
-        // Remove synced orders
         if (synced.length > 0) {
           const deleteTx = db.transaction("offline-orders", "readwrite");
           const deleteStore = deleteTx.objectStore("offline-orders");
@@ -320,4 +399,31 @@ self.addEventListener("message", (event) => {
       )
     );
   }
+  if (event.data?.type === "WARM_CACHE") {
+    event.waitUntil(warmCache(event.data.urls || []));
+  }
 });
+
+async function warmCache(urls) {
+  const cache = await caches.open(DYNAMIC_CACHE);
+  const apiCache = await caches.open(API_CACHE);
+
+  for (const url of urls) {
+    try {
+      // Skip if already cached
+      const existing = await cache.match(url) || await apiCache.match(url);
+      if (existing) continue;
+
+      const response = await fetch(url);
+      if (response.ok) {
+        if (url.startsWith("/api/")) {
+          await apiCache.put(url, response);
+        } else {
+          await cache.put(url, response);
+        }
+      }
+    } catch {
+      // Network failed, skip this URL
+    }
+  }
+}

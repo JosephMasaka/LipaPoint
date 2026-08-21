@@ -143,6 +143,45 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     return () => navigator.serviceWorker.removeEventListener("message", handler);
   }, [mounted]);
 
+  // Warm cache: proactively cache dashboard pages and API data for offline use
+  useEffect(() => {
+    if (!mounted || !("serviceWorker" in navigator) || !navigator.onLine) return;
+
+    const warmDashboardCache = async () => {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const tenantSlug = window.location.pathname.split("/")[1];
+        if (!tenantSlug || tenantSlug.startsWith("_next") || tenantSlug === "api") return;
+
+        const pagesToCache = [
+          `/${tenantSlug}/pos`,
+          `/${tenantSlug}/orders`,
+          `/${tenantSlug}/tabs`,
+          `/${tenantSlug}/inventory`,
+          `/${tenantSlug}/dashboard`,
+        ];
+
+        const apisToCache = [
+          "/api/products",
+          "/api/products?categories=true",
+          "/api/settings",
+          "/api/auth/me",
+          "/api/orders",
+          "/api/orders/tabs",
+        ];
+
+        reg.active?.postMessage({
+          type: "WARM_CACHE",
+          urls: [...pagesToCache, ...apisToCache],
+        });
+      } catch {}
+    };
+
+    // Delay warming to not compete with initial page load
+    const timer = setTimeout(warmDashboardCache, 5000);
+    return () => clearTimeout(timer);
+  }, [mounted]);
+
   const installApp = async () => {
     if (!deferredPrompt.current) return;
     deferredPrompt.current.prompt();
