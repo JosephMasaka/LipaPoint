@@ -1,4 +1,4 @@
-const CACHE_VERSION = "lipapoint-v5";
+const CACHE_VERSION = "lipapoint-v6";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const API_CACHE = `${CACHE_VERSION}-api`;
