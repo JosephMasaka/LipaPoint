@@ -116,6 +116,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
+        <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="geo.region" content="KE" />

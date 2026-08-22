@@ -1,10 +1,41 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="80" fill="#0a0a0f"/>
-  <rect x="40" y="40" width="432" height="432" rx="64" fill="#1a1a2e"/>
-  <g transform="translate(136,136)" fill="none" stroke="#d4a843" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="8" y="4" width="224" height="232" rx="16"/>
-    <path d="M72 80h96M72 140h96M72 200h96"/>
-    <circle cx="192" cy="200" r="28" fill="#d4a843" stroke="none" opacity="0.3"/>
-    <path d="M184 200l8 8 16-16"/>
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5d875"/>
+      <stop offset="50%" stop-color="#d4a843"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111116"/>
+      <stop offset="100%" stop-color="#09090b"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="url(#bgGrad)"/>
+  <!-- Subtle inner border -->
+  <rect x="8" y="8" width="496" height="496" rx="88" fill="none" stroke="#d4a843" stroke-opacity="0.12" stroke-width="1.5"/>
+  <!-- Payment tap ripple rings -->
+  <circle cx="256" cy="232" r="88" fill="none" stroke="url(#goldGrad)" stroke-width="2" stroke-opacity="0.15"/>
+  <circle cx="256" cy="232" r="120" fill="none" stroke="url(#goldGrad)" stroke-width="1.5" stroke-opacity="0.08"/>
+  <!-- Main "L" lettermark with stylized payment point -->
+  <g filter="url(#glow)">
+    <!-- The L shape — bold, modern -->
+    <path d="M172 140 L172 332 L324 332" fill="none" stroke="url(#goldGrad)" stroke-width="38" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Payment point / tap indicator dot -->
+    <circle cx="316" cy="188" r="22" fill="url(#goldGrad)"/>
+    <!-- Signal arcs — contactless payment -->
+    <path d="M344 164 C364 184 364 212 344 232" fill="none" stroke="url(#goldGrad)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M364 148 C392 176 392 228 364 256" fill="none" stroke="url(#goldGrad)" stroke-width="7" stroke-linecap="round" stroke-opacity="0.55"/>
   </g>
+  <!-- "LIPAPOINT" wordmark -->
+  <text x="256" y="416" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="40" font-weight="700" letter-spacing="7" fill="url(#goldGrad)">LIPAPOINT</text>
+  <!-- Tagline -->
+  <text x="256" y="452" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="400" letter-spacing="4" fill="#d4a843" fill-opacity="0.45">POINT OF SALE</text>
 </svg>

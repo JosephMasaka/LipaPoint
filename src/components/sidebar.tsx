@@ -7,7 +7,7 @@ import { useTheme } from "@/components/theme-provider";
 import { usePWA } from "@/components/pwa-provider";
 import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
-  Settings, Store, TrendingUp, Users, LogOut, Receipt,
+  Settings, TrendingUp, Users, LogOut, Receipt,
   Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin, WifiOff, Download,
 } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -64,7 +64,11 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/10">
-              <Store className="h-4 w-4 text-gold" />
+              <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 7L9 22L21 22" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-gold"/>
+                <circle cx="20" cy="11" r="2.2" fill="currentColor" className="text-gold"/>
+                <path d="M23 8.5C25 10.5 25 13 23 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-gold"/>
+              </svg>
             </div>
             <div className="min-w-0">
               <h1 className="text-xs font-bold text-text-primary truncate">
@@ -78,7 +82,11 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
         )}
         {collapsed && (
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/10">
-            <Store className="h-4 w-4 text-gold" />
+            <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 7L9 22L21 22" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-gold"/>
+              <circle cx="20" cy="11" r="2.2" fill="currentColor" className="text-gold"/>
+              <path d="M23 8.5C25 10.5 25 13 23 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-gold"/>
+            </svg>
           </div>
         )}
         <button

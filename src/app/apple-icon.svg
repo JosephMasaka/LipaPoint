@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5d875"/>
+      <stop offset="50%" stop-color="#d4a843"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+  </defs>
+  <!-- Solid background for Apple -->
+  <rect width="180" height="180" rx="36" fill="#0c0c10"/>
+  <!-- Subtle border -->
+  <rect x="3" y="3" width="174" height="174" rx="33" fill="none" stroke="#d4a843" stroke-opacity="0.12" stroke-width="1"/>
+  <!-- Ripple -->
+  <circle cx="90" cy="82" r="34" fill="none" stroke="url(#g)" stroke-width="1" stroke-opacity="0.15"/>
+  <!-- L shape -->
+  <path d="M56 44 L56 120 L112 120" fill="none" stroke="url(#g)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Payment dot -->
+  <circle cx="110" cy="63" r="8.5" fill="url(#g)"/>
+  <!-- Signal arcs -->
+  <path d="M122 52 C130 60 130 71 122 79" fill="none" stroke="url(#g)" stroke-width="4" stroke-linecap="round"/>
+  <path d="M130 44 C141 55 141 75 130 86" fill="none" stroke="url(#g)" stroke-width="3" stroke-linecap="round" stroke-opacity="0.5"/>
+  <!-- Wordmark -->
+  <text x="90" y="154" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="15" font-weight="700" letter-spacing="2.5" fill="url(#g)">LIPAPOINT</text>
+</svg>

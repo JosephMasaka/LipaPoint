@@ -48,6 +48,15 @@ export default function LoginPage() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
+        <div className="flex justify-center mb-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gold/10">
+            <svg width="28" height="28" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M9 7L9 22L21 22" stroke="#d4a843" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <circle cx="20" cy="11" r="2.2" fill="#d4a843"/>
+              <path d="M23 8.5C25 10.5 25 13 23 15" stroke="#d4a843" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+          </div>
+        </div>
         <CardTitle className="text-2xl">Welcome Back</CardTitle>
         <CardDescription>Sign in to your LipaPoint account</CardDescription>
       </CardHeader>

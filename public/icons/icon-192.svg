@@ -1,8 +1,31 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <rect width="192" height="192" rx="32" fill="#0a0a0f"/>
-  <rect x="16" y="16" width="160" height="160" rx="24" fill="#1a1a2e"/>
-  <g transform="translate(56,56)" fill="none" stroke="#d4a843" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M4 2h16a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" transform="scale(3.2)"/>
-    <path d="M9 9h6M9 15h6M9 12h6" transform="scale(3.2)"/>
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5d875"/>
+      <stop offset="50%" stop-color="#d4a843"/>
+      <stop offset="100%" stop-color="#b8860b"/>
+    </linearGradient>
+    <filter id="gl">
+      <feGaussianBlur stdDeviation="1.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <!-- Background -->
+  <rect width="192" height="192" rx="40" fill="#0c0c10"/>
+  <!-- Subtle border -->
+  <rect x="3" y="3" width="186" height="186" rx="37" fill="none" stroke="#d4a843" stroke-opacity="0.12" stroke-width="1"/>
+  <!-- Ripple -->
+  <circle cx="96" cy="88" r="36" fill="none" stroke="url(#g)" stroke-width="1" stroke-opacity="0.15"/>
+  <!-- Logo mark -->
+  <g filter="url(#gl)">
+    <!-- L shape -->
+    <path d="M60 48 L60 128 L120 128" fill="none" stroke="url(#g)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Payment dot -->
+    <circle cx="118" cy="68" r="9" fill="url(#g)"/>
+    <!-- Signal arcs -->
+    <path d="M130 56 C138 64 138 76 130 84" fill="none" stroke="url(#g)" stroke-width="4.5" stroke-linecap="round"/>
+    <path d="M138 48 C150 60 150 80 138 92" fill="none" stroke="url(#g)" stroke-width="3" stroke-linecap="round" stroke-opacity="0.5"/>
   </g>
+  <!-- Compact wordmark -->
+  <text x="96" y="164" text-anchor="middle" font-family="system-ui,-apple-system,sans-serif" font-size="16" font-weight="700" letter-spacing="3" fill="url(#g)">LIPAPOINT</text>
 </svg>
