@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Store } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/logo";
 
 export default function MarketingLayout({
   children,
@@ -27,7 +27,7 @@ export default function MarketingLayout({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gold/10">
-              <Store className="h-5 w-5 text-gold" />
+              <Logo size={22} className="text-gold" />
             </div>
             <span className="text-lg font-bold text-text-primary">LipaPoint</span>
           </Link>
@@ -73,7 +73,7 @@ export default function MarketingLayout({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Store className="h-5 w-5 text-gold" />
+                <Logo size={22} className="text-gold" />
                 <span className="font-bold text-text-primary">LipaPoint</span>
               </div>
               <p className="text-sm text-text-muted">
