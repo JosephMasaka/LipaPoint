@@ -11,6 +11,7 @@ import {
   ArrowLeft, Clock, Users, X, Banknote, Smartphone, CreditCard,
   Plus, ShoppingCart, Wifi, Receipt, CheckCircle,
 } from "lucide-react";
+import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
 
 interface Tab {
   id: string;
@@ -78,7 +79,7 @@ export default function TabsPage() {
       }
     } catch {
       if (!navigator.onLine && (paymentMethod === "CASH" || paymentMethod === "MPESA_MANUAL")) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("tab_add", payload);
         requestBackgroundSync();
         setTabs(tabs.filter(t => t.id !== tab.id));

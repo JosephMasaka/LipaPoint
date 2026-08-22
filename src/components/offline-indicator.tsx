@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { WifiOff, CloudOff, CheckCircle } from "lucide-react";
+import { getPendingCount } from "@/lib/offline-db";
 
 export function OfflineIndicator() {
   const [isOffline, setIsOffline] = useState(false);
@@ -43,7 +44,6 @@ export function OfflineIndicator() {
 
   const updatePendingCount = async () => {
     try {
-      const { getPendingCount } = await import("@/lib/offline-db");
       const count = await getPendingCount();
       setPendingCount(count);
     } catch {}

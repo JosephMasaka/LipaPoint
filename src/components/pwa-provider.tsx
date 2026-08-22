@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { WifiOff, Download, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { syncOfflineOrders, syncOfflineActions, getOfflineOrders, getOfflineActions, getPendingCount } from "@/lib/offline-db";
 
 interface PWAContextType {
   isOnline: boolean;
@@ -49,7 +50,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     const goOnline = async () => {
       setIsOnline(true);
       try {
-        const { syncOfflineOrders, syncOfflineActions, getOfflineOrders, getOfflineActions } = await import("@/lib/offline-db");
+
         const orders = await getOfflineOrders();
         const actions = await getOfflineActions();
         const totalPending = orders.length + actions.length;
@@ -118,7 +119,6 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     if (!mounted) return;
     const checkPending = async () => {
       try {
-        const { getPendingCount } = await import("@/lib/offline-db");
         const count = await getPendingCount();
         setPendingOfflineOrders(count);
       } catch {}
@@ -135,9 +135,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       if (event.data?.type === "ORDER_SYNCED") {
         setSyncMessage("Order synced successfully");
         setTimeout(() => setSyncMessage(""), 4000);
-        import("@/lib/offline-db").then(({ getOfflineOrders }) =>
-          getOfflineOrders().then((o) => setPendingOfflineOrders(o.length))
-        );
+        getOfflineOrders().then((o) => setPendingOfflineOrders(o.length)).catch(() => {});
       }
     };
     navigator.serviceWorker.addEventListener("message", handler);

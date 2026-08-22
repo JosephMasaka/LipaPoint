@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/ui/loader";
 import { cn } from "@/lib/utils";
 import { MapPin, Plus, Edit3, Power, X, CheckCircle, Store } from "lucide-react";
+import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
 
 interface Register {
   id: string;
@@ -78,7 +79,7 @@ export default function LocationsPage() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("location_add", form);
         requestBackgroundSync();
         setShowAdd(false);
@@ -111,7 +112,7 @@ export default function LocationsPage() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("location_update", payload);
         requestBackgroundSync();
         setLocations(locations.map(l => l.id === editing.id ? { ...l, ...form } : l));
@@ -138,7 +139,7 @@ export default function LocationsPage() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("location_update", payload);
         requestBackgroundSync();
         setLocations(locations.map(l => l.id === loc.id ? { ...l, isActive: !l.isActive } : l));

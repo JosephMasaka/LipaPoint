@@ -11,6 +11,7 @@ import {
   Store, CreditCard, Bell, Shield,
   Receipt, Save, CheckCircle, Check, Smartphone
 } from "lucide-react";
+import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
 
 interface TenantSettings {
   name: string;
@@ -109,7 +110,7 @@ export default function SettingsPage() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("settings_update", settings as unknown as Record<string, unknown>);
         requestBackgroundSync();
         setSaved(true);

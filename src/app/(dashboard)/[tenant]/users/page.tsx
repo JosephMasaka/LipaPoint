@@ -13,6 +13,7 @@ import {
   Users, Lock, ShoppingCart, Package, BarChart3, X,
   Settings, Receipt, CheckCircle, AlertCircle,
 } from "lucide-react";
+import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
 
 interface StaffUser {
   id: string;
@@ -131,7 +132,7 @@ export default function UsersPage() {
       notify("success", "Staff member added");
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("user_create", form);
         requestBackgroundSync();
         setForm({ name: "", email: "", phone: "", role: "CASHIER" });
@@ -150,7 +151,7 @@ export default function UsersPage() {
       notify("success", isActive ? "Staff deactivated" : "Staff activated");
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("user_toggle", { _userId: id, isActive: !isActive });
         requestBackgroundSync();
         setUsers(users.map(u => u.id === id ? { ...u, isActive: !isActive } : u));
@@ -167,7 +168,7 @@ export default function UsersPage() {
       notify("success", "Staff member removed");
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("user_delete", { _userId: id });
         requestBackgroundSync();
         setUsers(users.filter(u => u.id !== id));
@@ -210,7 +211,7 @@ export default function UsersPage() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("role_update", payload);
         requestBackgroundSync();
         setOriginalPermissions(JSON.parse(JSON.stringify(rolePermissions)));
@@ -240,7 +241,7 @@ export default function UsersPage() {
       notify("success", `Permissions saved for ${changedRoles.length} role${changedRoles.length > 1 ? "s" : ""}`);
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         const changedRoles = Object.keys(rolePermissions).filter(
           role => role !== "OWNER" && JSON.stringify(rolePermissions[role]) !== JSON.stringify(originalPermissions[role])
         );
@@ -282,7 +283,7 @@ export default function UsersPage() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("role_create", newRole);
         requestBackgroundSync();
         setNewRole({ name: "", description: "", permissions: [] });

@@ -13,6 +13,7 @@ import {
   ArrowUpDown, Save, Upload, Search,
 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
+import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
 
 // Types
 interface Product {
@@ -163,7 +164,7 @@ function ProductsTab() {
       setShowForm(false); setEditingId(null); fetchProducts();
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         if (editingId) {
           await saveOfflineAction("product_update", { ...form, _productId: editingId });
         } else {
@@ -347,7 +348,7 @@ function StockSheetTab() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("stock_initialize", { date, locationId });
         requestBackgroundSync();
       }
@@ -373,7 +374,7 @@ function StockSheetTab() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         for (const update of updates) {
           await saveOfflineAction("stock_add", { date, locationId, productId: update.productId, quantity: update.addedStock || 0 });
         }
@@ -403,7 +404,7 @@ function StockSheetTab() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("stock_add", { date, locationId, productId: addStockModal.productId, quantity });
         requestBackgroundSync();
         setAddStockModal(null);
@@ -760,7 +761,7 @@ function UnitsTab() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("unit_create", { name, abbreviation });
         requestBackgroundSync();
         setName(""); setAbbreviation(""); setShowForm(false);
@@ -783,7 +784,7 @@ function UnitsTab() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("unit_conversion", payload);
         requestBackgroundSync();
         setFromUnitId(""); setToUnitId(""); setFactor(""); setShowConversion(false);
@@ -924,7 +925,7 @@ function ExpensesTab() {
       }
     } catch {
       if (!navigator.onLine) {
-        const { saveOfflineAction, requestBackgroundSync } = await import("@/lib/offline-db");
+
         await saveOfflineAction("expense_add", form);
         requestBackgroundSync();
         setExpenses([...expenses, { id: `offline-${Date.now()}`, date: form.date, category: form.category, description: form.description, amount: parseFloat(form.amount) || 0, user: null }]);
