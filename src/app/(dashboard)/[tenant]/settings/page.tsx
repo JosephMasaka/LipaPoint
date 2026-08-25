@@ -438,13 +438,13 @@ export default function SettingsPage() {
               <div className="rounded-lg border border-border bg-surface-elevated/50 p-6 font-mono text-xs text-text-secondary text-center space-y-1">
                 <p className="font-bold text-text-primary">{settings.receiptHeader || settings.name}</p>
                 <p>================================</p>
-                <p className="text-left">Served by: Cashier Name</p>
+                <p className="">Served by: Cashier Name</p>
                 <p>================================</p>
-                <p className="text-left">Item 1 x2 ........ KSh 1,000</p>
-                <p className="text-left">Item 2 x1 .......... KSh 300</p>
+                <p className="">Item 1 x2 ........ KSh 1,000</p>
+                <p className="">Item 2 x1 .......... KSh 300</p>
                 <p>================================</p>
-                <p className="text-left">Subtotal .......... KSh 1,300</p>
-                <p className="text-left">VAT ({settings.taxRate}%) ........ KSh {Math.round(1300 * settings.taxRate / 100)}</p>
+                <p className="">Subtotal .......... KSh 1,300</p>
+                <p className="">VAT ({settings.taxRate}%) ........ KSh {Math.round(1300 * settings.taxRate / 100)}</p>
                 <p>================================</p>
                 <p className="font-bold text-text-primary">TOTAL: KSh {Math.round(1300 * (1 + settings.taxRate / 100)).toLocaleString()}</p>
                 {(settings.mpesaPaybill || settings.mpesaTill) && (

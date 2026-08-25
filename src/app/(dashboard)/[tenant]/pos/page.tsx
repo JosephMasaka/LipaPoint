@@ -201,33 +201,51 @@ export default function POSPage() {
       if (data.user?.tenant) {
         setTaxRate(data.user.tenant.taxRate ?? 16);
         setTenantName(data.user.tenant.name);
+        try { localStorage.setItem("lipapoint-pos-auth", JSON.stringify({ taxRate: data.user.tenant.taxRate ?? 16, tenantName: data.user.tenant.name })); } catch {}
       }
-    }).catch(() => {});
+    }).catch(() => {
+      try { const c = localStorage.getItem("lipapoint-pos-auth"); if (c) { const d = JSON.parse(c); setTaxRate(d.taxRate); setTenantName(d.tenantName); } } catch {}
+    });
     fetch("/api/settings").then(r => r.json()).then(data => {
       if (data?.receiptFooter) setReceiptFooter(data.receiptFooter);
       if (data?.mpesaPaybill) setMpesaPaybill(data.mpesaPaybill);
       if (data?.mpesaTill) setMpesaTill(data.mpesaTill);
-    }).catch(() => {});
+      try { localStorage.setItem("lipapoint-pos-settings", JSON.stringify({ receiptFooter: data.receiptFooter || "", mpesaPaybill: data.mpesaPaybill || "", mpesaTill: data.mpesaTill || "" })); } catch {}
+    }).catch(() => {
+      try { const c = localStorage.getItem("lipapoint-pos-settings"); if (c) { const d = JSON.parse(c); if (d.receiptFooter) setReceiptFooter(d.receiptFooter); if (d.mpesaPaybill) setMpesaPaybill(d.mpesaPaybill); if (d.mpesaTill) setMpesaTill(d.mpesaTill); } } catch {}
+    });
     fetch("/api/products").then(r => r.json()).then(data => {
       if (Array.isArray(data)) {
         setProducts(data);
         cacheProducts(data);
       }
     }).catch(async () => {
-      const { getCachedProducts } = await import("@/lib/offline-db");
-      const cached = await getCachedProducts();
-      if (cached.length > 0) setProducts(cached as unknown as Product[]);
+      try {
+        const { getCachedProducts } = await import("@/lib/offline-db");
+        const cached = await getCachedProducts();
+        if (cached.length > 0) setProducts(cached as unknown as Product[]);
+      } catch {}
     });
     fetch("/api/products?categories=true").then(r => r.json()).then(data => {
-      if (data.categories) setCategories(data.categories);
-    }).catch(() => {});
+      if (data.categories) {
+        setCategories(data.categories);
+        try { localStorage.setItem("lipapoint-pos-categories", JSON.stringify(data.categories)); } catch {}
+      }
+    }).catch(() => {
+      try { const c = localStorage.getItem("lipapoint-pos-categories"); if (c) setCategories(JSON.parse(c)); } catch {}
+    });
     loadTabs();
   }, []);
 
   const loadTabs = () => {
     fetch("/api/orders/tabs").then(r => r.json()).then(data => {
-      if (Array.isArray(data)) setTabs(data);
-    }).catch(() => {});
+      if (Array.isArray(data)) {
+        setTabs(data);
+        try { localStorage.setItem("lipapoint-pos-tabs", JSON.stringify(data)); } catch {}
+      }
+    }).catch(() => {
+      try { const c = localStorage.getItem("lipapoint-pos-tabs"); if (c) setTabs(JSON.parse(c)); } catch {}
+    });
   };
 
   const filtered = products.filter((p) => {

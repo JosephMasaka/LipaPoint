@@ -1,7 +1,8 @@
-const CACHE_VERSION = "lipapoint-v6";
+const CACHE_VERSION = "lipapoint-v7";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const API_CACHE = `${CACHE_VERSION}-api`;
+const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 
 const STATIC_ASSETS = [
   "/offline.html",
@@ -56,7 +57,6 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
 
   if (request.method !== "GET") {
-    // For non-GET requests, try network; if it fails, return offline signal
     if (url.pathname.startsWith("/api/")) {
       event.respondWith(
         fetch(request).catch(() =>
@@ -74,7 +74,7 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/api/")) {
     const shouldCache = API_CACHE_ROUTES.some((r) => url.pathname.startsWith(r));
     if (shouldCache) {
-      event.respondWith(networkFirstWithCache(request, API_CACHE));
+      event.respondWith(networkFirstAPI(request));
     } else {
       event.respondWith(
         fetch(request).catch(() =>
@@ -88,13 +88,12 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // RSC (React Server Component) requests — client-side navigation in Next.js
-  // These have the same URL as pages but include RSC headers
+  // RSC requests — client-side navigation in Next.js App Router
   const isRSC = request.headers.get("RSC") === "1" ||
     request.headers.get("Next-Router-State-Tree") !== null;
 
   if (isRSC) {
-    event.respondWith(networkFirstRSC(request));
+    event.respondWith(handleRSC(request));
     return;
   }
 
@@ -108,27 +107,27 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(staleWhileRevalidate(request));
 });
 
+// Full-page navigation handler
 async function handleNavigation(request) {
   try {
     const response = await fetch(request);
     if (response.ok) {
       const clone = response.clone();
-      caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, clone));
+      caches.open(PAGE_CACHE).then((cache) => cache.put(request, clone));
     }
     return response;
   } catch {
-    // Try exact cache match first
-    const cached = await caches.match(request);
+    // Try exact cache match in PAGE_CACHE
+    const cached = await caches.match(request, { cacheName: PAGE_CACHE });
     if (cached) return cached;
 
-    // For dashboard routes, try to find any cached dashboard page
+    // For dashboard routes, try to find any cached HTML page for this tenant
     const url = new URL(request.url);
     const pathParts = url.pathname.split("/");
-    // Pattern: /{tenant}/{page} — check if this is a dashboard route
     if (pathParts.length >= 3 && !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/_next/")) {
       const tenantSlug = pathParts[1];
-      const cachedDashboard = await findCachedDashboardPage(tenantSlug, url.pathname);
-      if (cachedDashboard) return cachedDashboard;
+      const cachedPage = await findCachedHTMLPage(tenantSlug);
+      if (cachedPage) return cachedPage;
     }
 
     // Final fallback: offline.html
@@ -141,78 +140,81 @@ async function handleNavigation(request) {
   }
 }
 
-async function findCachedDashboardPage(tenantSlug, requestedPath) {
-  const cache = await caches.open(DYNAMIC_CACHE);
+// Only return responses that are actually HTML pages
+async function findCachedHTMLPage(tenantSlug) {
+  const cache = await caches.open(PAGE_CACHE);
   const keys = await cache.keys();
-
-  // Priority order for offline dashboard pages
-  const preferredPages = ["pos", "orders", "tabs", "inventory", "dashboard"];
-  const requestedPage = requestedPath.split("/").pop();
-
-  // First try the exact requested page
-  for (const key of keys) {
-    const keyUrl = new URL(key.url);
-    if (keyUrl.pathname === requestedPath) {
-      return cache.match(key);
-    }
-  }
-
-  // Then try other cached dashboard pages for same tenant
-  // Sort by preference (pos first since it works best offline)
   const tenantPrefix = `/${tenantSlug}/`;
+
   const dashboardKeys = keys.filter((k) => {
     const keyUrl = new URL(k.url);
-    return keyUrl.pathname.startsWith(tenantPrefix) && !keyUrl.pathname.includes("/_next/");
+    return keyUrl.pathname.startsWith(tenantPrefix) &&
+      !keyUrl.pathname.includes("/_next/") &&
+      !keyUrl.pathname.startsWith(`${tenantPrefix}api/`);
   });
 
-  // Sort by preference
-  dashboardKeys.sort((a, b) => {
-    const aPage = new URL(a.url).pathname.split("/").pop();
-    const bPage = new URL(b.url).pathname.split("/").pop();
-    const aIdx = preferredPages.indexOf(aPage);
-    const bIdx = preferredPages.indexOf(bPage);
-    return (aIdx === -1 ? 99 : aIdx) - (bIdx === -1 ? 99 : bIdx);
-  });
-
-  if (dashboardKeys.length > 0) {
-    return cache.match(dashboardKeys[0]);
+  // Return first available HTML page
+  for (const key of dashboardKeys) {
+    const response = await cache.match(key);
+    if (response) {
+      const contentType = response.headers.get("Content-Type") || "";
+      if (contentType.includes("text/html")) {
+        return response;
+      }
+    }
   }
 
   return null;
 }
 
-async function networkFirstRSC(request) {
+// RSC handler — cache by pathname only (strip varying headers)
+async function handleRSC(request) {
+  const url = new URL(request.url);
+  const cacheKey = new Request(url.pathname + url.search, {
+    headers: { "X-RSC-Cache": "1" },
+  });
+
   try {
     const response = await fetch(request);
     if (response.ok) {
       const clone = response.clone();
-      caches.open(DYNAMIC_CACHE).then((cache) => cache.put(request, clone));
+      caches.open(DYNAMIC_CACHE).then((cache) => cache.put(cacheKey, clone));
     }
     return response;
   } catch {
-    // Try cached RSC response
-    const cached = await caches.match(request);
+    // Try cached RSC response by pathname
+    const cache = await caches.open(DYNAMIC_CACHE);
+    const cached = await cache.match(cacheKey);
     if (cached) return cached;
 
-    // Return empty RSC payload that triggers client-side navigation fallback
-    return new Response("", {
-      status: 503,
-      headers: { "Content-Type": "text/x-component" },
-    });
+    // Fallback: redirect browser to do a full page navigation
+    // This triggers handleNavigation which can serve cached HTML
+    return Response.redirect(url.href, 302);
   }
 }
 
-async function networkFirstWithCache(request, cacheName) {
+// API handler — cache by URL (ignoring Vary headers)
+async function networkFirstAPI(request) {
+  const url = new URL(request.url);
+  const cacheKey = new Request(url.pathname + url.search);
+
   try {
     const response = await fetch(request);
     if (response.ok) {
-      const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
+      const cache = await caches.open(API_CACHE);
+      cache.put(cacheKey, response.clone());
     }
     return response;
   } catch {
-    const cached = await caches.match(request);
+    const cache = await caches.open(API_CACHE);
+    const cached = await cache.match(cacheKey);
     if (cached) return cached;
+
+    // Try matching just the pathname (without query params) for base routes
+    const baseKey = new Request(url.pathname);
+    const baseCached = await cache.match(baseKey);
+    if (baseCached) return baseCached;
+
     return new Response(JSON.stringify({ error: "Offline", cached: false }), {
       status: 503,
       headers: { "Content-Type": "application/json" },
@@ -226,15 +228,15 @@ async function staleWhileRevalidate(request) {
   const fetchPromise = fetch(request)
     .then((response) => {
       if (response.ok && response.type !== "opaque") {
-        const cache_name = request.url.includes("/_next/static") ? STATIC_CACHE : DYNAMIC_CACHE;
-        caches.open(cache_name).then((cache) => cache.put(request, response.clone()));
+        const cacheName = request.url.includes("/_next/static") ? STATIC_CACHE : DYNAMIC_CACHE;
+        caches.open(cacheName).then((cache) => cache.put(request, response.clone()));
       }
       return response;
     })
     .catch(() => null);
 
   if (cached) {
-    fetchPromise; // fire-and-forget background update
+    fetchPromise;
     return cached;
   }
 
@@ -539,25 +541,29 @@ self.addEventListener("message", (event) => {
 });
 
 async function warmCache(urls) {
-  const cache = await caches.open(DYNAMIC_CACHE);
+  const pageCache = await caches.open(PAGE_CACHE);
   const apiCache = await caches.open(API_CACHE);
 
   for (const url of urls) {
     try {
-      // Skip if already cached
-      const existing = await cache.match(url) || await apiCache.match(url);
-      if (existing) continue;
-
-      const response = await fetch(url);
-      if (response.ok) {
-        if (url.startsWith("/api/")) {
-          await apiCache.put(url, response);
-        } else {
-          await cache.put(url, response);
+      if (url.startsWith("/api/")) {
+        const cacheKey = new Request(url);
+        const existing = await apiCache.match(cacheKey);
+        if (existing) continue;
+        const response = await fetch(url);
+        if (response.ok) {
+          await apiCache.put(cacheKey, response);
+        }
+      } else {
+        const existing = await pageCache.match(url);
+        if (existing) continue;
+        const response = await fetch(url);
+        if (response.ok) {
+          await pageCache.put(url, response);
         }
       }
     } catch {
-      // Network failed, skip this URL
+      // Network failed, skip
     }
   }
 }
