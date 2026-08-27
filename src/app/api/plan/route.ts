@@ -10,7 +10,7 @@ export async function GET() {
 
     const tenant = await db.tenant.findUnique({
       where: { id: user.tenantId },
-      select: { tier: true, trialEndsAt: true, isActive: true },
+      select: { tier: true, type: true, trialEndsAt: true, isActive: true },
     });
 
     if (!tenant) return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
@@ -21,8 +21,8 @@ export async function GET() {
       db.user.count({ where: { tenantId: user.tenantId, isActive: true } }),
     ]);
 
-    const limits = getPlanLimits(tenant.tier);
-    const usage = checkUsage(tenant.tier, { products: productCount, locations: locationCount, staff: staffCount });
+    const limits = getPlanLimits(tenant.tier, tenant.type);
+    const usage = checkUsage(tenant.tier, { products: productCount, locations: locationCount, staff: staffCount }, tenant.type);
 
     const now = new Date();
     const trialExpired = tenant.trialEndsAt ? now > tenant.trialEndsAt : false;

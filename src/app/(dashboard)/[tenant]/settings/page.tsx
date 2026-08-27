@@ -12,6 +12,7 @@ import {
   Receipt, Save, CheckCircle, Check, Smartphone
 } from "lucide-react";
 import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
+import { getPlanPricing, getPlanLimits, formatPrice, getBusinessCategory, VERTICAL_PLANS, FEATURE_DISPLAY } from "@/lib/plans";
 
 interface TenantSettings {
   name: string;
@@ -213,6 +214,7 @@ export default function SettingsPage() {
                     <option value="SUPERMARKET">Supermarket</option>
                     <option value="PHARMACY">Pharmacy</option>
                     <option value="HARDWARE">Hardware Store</option>
+                    <option value="BARBERSHOP">Barbershop / Salon</option>
                   </select>
                 </div>
                 <div>
@@ -323,49 +325,45 @@ export default function SettingsPage() {
                     <Badge variant="success">Active</Badge>
                   </div>
                   <p className="text-sm text-text-secondary">
-                    {settings.tier === "STARTER" && "KSh 2,999/month"}
-                    {settings.tier === "PROFESSIONAL" && "KSh 7,999/month"}
-                    {settings.tier === "ENTERPRISE" && "KSh 19,999/month"}
+                    {formatPrice(getPlanPricing(settings.tier, settings.type).monthly)}/month
                   </p>
                 </div>
               </div>
 
               <div className="grid md:grid-cols-3 gap-4">
-                {[
-                  { tier: "STARTER", price: "2,999", features: ["Up to 100 products", "1 location", "2 staff", "Basic reports"] },
-                  { tier: "PROFESSIONAL", price: "7,999", features: ["Unlimited products", "3 locations", "10 staff", "Advanced analytics", "Priority support"] },
-                  { tier: "ENTERPRISE", price: "19,999", features: ["Unlimited everything", "Unlimited locations", "Unlimited staff", "Custom reports", "Dedicated support", "API access"] },
-                ].map((plan) => (
+                {Object.entries(VERTICAL_PLANS[getBusinessCategory(settings.type)]).map(([planTier, config]) => (
                   <div
-                    key={plan.tier}
-                    className={`rounded-lg border p-5 space-y-3 ${settings.tier === plan.tier ? "border-gold bg-gold/5" : "border-border"}`}
+                    key={planTier}
+                    className={`rounded-lg border p-5 space-y-3 ${settings.tier === planTier ? "border-gold bg-gold/5" : "border-border"}`}
                   >
                     <div>
-                      <h4 className="font-bold text-text-primary capitalize">{plan.tier.toLowerCase()}</h4>
-                      <p className="text-lg font-bold text-gold">KSh {plan.price}<span className="text-xs text-text-muted font-normal">/mo</span></p>
+                      <h4 className="font-bold text-text-primary capitalize">{planTier.toLowerCase()}</h4>
+                      <p className="text-lg font-bold text-gold">
+                        {formatPrice(config.pricing.monthly)}<span className="text-xs text-text-muted font-normal">/mo</span>
+                      </p>
                     </div>
                     <ul className="space-y-1.5">
-                      {plan.features.map((f) => (
+                      {config.limits.features.slice(0, 5).map((f) => (
                         <li key={f} className="flex items-center gap-2 text-xs text-text-secondary">
-                          <Check className="h-3 w-3 text-gold shrink-0" /> {f}
+                          <Check className="h-3 w-3 text-gold shrink-0" /> {FEATURE_DISPLAY[f] || f}
                         </li>
                       ))}
                     </ul>
-                    {settings.tier === plan.tier ? (
+                    {settings.tier === planTier ? (
                       <Badge variant="success" className="w-full justify-center">Current Plan</Badge>
                     ) : (
                       <Button
                         size="sm"
-                        variant={(tierOrder[plan.tier] || 0) > (tierOrder[settings.tier] || 0) ? "default" : "outline"}
+                        variant={(tierOrder[planTier] || 0) > (tierOrder[settings.tier] || 0) ? "default" : "outline"}
                         className="w-full"
-                        disabled={upgradingTier === plan.tier}
+                        disabled={upgradingTier === planTier}
                         onClick={async () => {
-                          setUpgradingTier(plan.tier);
+                          setUpgradingTier(planTier);
                           try {
                             const res = await fetch("/api/paystack/subscribe", {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ tier: plan.tier }),
+                              body: JSON.stringify({ tier: planTier }),
                             });
                             const data = await res.json();
                             if (data.url) {
@@ -380,9 +378,9 @@ export default function SettingsPage() {
                           }
                         }}
                       >
-                        {upgradingTier === plan.tier ? (
+                        {upgradingTier === planTier ? (
                           <Loader size="sm" />
-                        ) : (tierOrder[plan.tier] || 0) > (tierOrder[settings.tier] || 0) ? "Upgrade" : "Switch"}
+                        ) : (tierOrder[planTier] || 0) > (tierOrder[settings.tier] || 0) ? "Upgrade" : "Switch"}
                       </Button>
                     )}
                   </div>
