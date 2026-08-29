@@ -5,6 +5,8 @@ import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/ui/loader";
+import { AIInsights } from "@/components/ai-insights";
+import { usePlan } from "@/components/plan-guard";
 import { formatCurrency } from "@/lib/utils";
 import {
   ShoppingCart, Package, TrendingUp, Users, AlertTriangle,
@@ -25,6 +27,7 @@ interface DashboardStats {
 }
 
 export default function DashboardPage() {
+  const plan = usePlan();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -234,6 +237,9 @@ export default function DashboardPage() {
             </Card>
           </div>
         </div>
+
+        {/* AI Insights */}
+        <AIInsights tier={plan?.tier || "STARTER"} />
       </div>
     </div>
   );

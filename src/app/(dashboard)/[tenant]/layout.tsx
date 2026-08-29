@@ -4,6 +4,8 @@ import { Sidebar } from "@/components/sidebar";
 import { DashboardMain } from "@/components/dashboard-main";
 import { Tour } from "@/components/tour";
 import { PlanProvider } from "@/components/plan-guard";
+import { AIAssistant } from "@/components/ai-assistant";
+import { canAccessFeature } from "@/lib/plans";
 
 export default async function DashboardLayout({
   children,
@@ -23,12 +25,15 @@ export default async function DashboardLayout({
     redirect(`/${user.tenant.slug}/dashboard`);
   }
 
+  const showAI = canAccessFeature(user.tenant.tier, "ai-assistant", user.tenant.type);
+
   return (
     <PlanProvider tenantSlug={tenantSlug}>
       <div className="min-h-screen bg-surface">
         <Sidebar tenantSlug={tenantSlug} user={user} />
         <DashboardMain>{children}</DashboardMain>
         <Tour />
+        {showAI && <AIAssistant />}
       </div>
     </PlanProvider>
   );
