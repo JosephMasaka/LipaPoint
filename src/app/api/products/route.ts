@@ -77,7 +77,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const limits = getPlanLimits(user.tenant.tier);
+    const limits = getPlanLimits(user.tenant.tier, user.tenant.type);
     const productCount = await db.product.count({ where: { tenantId: user.tenantId, isActive: true } });
     if (productCount >= limits.products) {
       return NextResponse.json({ error: `Product limit reached (${limits.products}). Upgrade your plan to add more.` }, { status: 403 });

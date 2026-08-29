@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
-    const limits = getPlanLimits(user.tenant.tier);
+    const limits = getPlanLimits(user.tenant.tier, user.tenant.type);
     const count = await db.location.count({ where: { tenantId: user.tenantId, isActive: true } });
     if (count >= limits.locations) {
       return NextResponse.json({ error: `Your ${user.tenant.tier.toLowerCase()} plan allows up to ${limits.locations} location${limits.locations > 1 ? "s" : ""}. Upgrade to add more.` }, { status: 403 });

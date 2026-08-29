@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!canAccessFeature(user.tenant.tier, "analytics")) {
+  if (!canAccessFeature(user.tenant.tier, "analytics", user.tenant.type)) {
     return NextResponse.json({ error: "Analytics is available on Professional and Enterprise plans. Upgrade to access." }, { status: 403 });
   }
 
