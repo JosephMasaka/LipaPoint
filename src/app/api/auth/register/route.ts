@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { hashPassword, createSession } from "@/lib/auth";
 import { initializeTransaction } from "@/lib/paystack";
 import { sendEmail, welcomeEmail } from "@/lib/email";
+import { getPlanPricing } from "@/lib/plans";
 
 function generateSlug(name: string): string {
   return name
@@ -11,12 +12,6 @@ function generateSlug(name: string): string {
     .replace(/^-|-$/g, "")
     .slice(0, 50);
 }
-
-const PLAN_AMOUNTS: Record<string, number> = {
-  STARTER: 2999,
-  PROFESSIONAL: 7999,
-  ENTERPRISE: 19999,
-};
 
 export async function POST(request: NextRequest) {
   try {
@@ -89,7 +84,7 @@ export async function POST(request: NextRequest) {
     const emailContent = welcomeEmail(ownerName, businessName, tier, slug);
     sendEmail({ to: email.toLowerCase().trim(), ...emailContent }).catch(() => {});
 
-    const amount = PLAN_AMOUNTS[tier] || 2999;
+    const amount = getPlanPricing(tier, businessType).monthly;
     let paymentUrl: string | null = null;
 
     if (process.env.PAYSTACK_SECRET_KEY) {

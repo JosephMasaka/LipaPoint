@@ -8,27 +8,24 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { UserPlus } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { BUSINESS_TYPES, VERTICAL_PLANS, getBusinessCategory, formatPrice } from "@/lib/plans";
 
-const businessTypes = [
-  { value: "RETAIL", label: "Retail Shop" },
-  { value: "RESTAURANT", label: "Restaurant" },
-  { value: "BAR", label: "Bar / Lounge" },
-  { value: "SUPERMARKET", label: "Supermarket" },
-  { value: "PHARMACY", label: "Pharmacy" },
-  { value: "HARDWARE", label: "Hardware Store" },
-];
-
-const plans = [
-  { value: "STARTER", label: "Starter - KSh 2,999/mo", price: "2999" },
-  { value: "PROFESSIONAL", label: "Professional - KSh 7,999/mo", price: "7999" },
-  { value: "ENTERPRISE", label: "Enterprise - KSh 19,999/mo", price: "19999" },
-];
+function getPlansForType(businessType: string) {
+  const category = getBusinessCategory(businessType);
+  return Object.entries(VERTICAL_PLANS[category]).map(([tier, config]) => ({
+    value: tier,
+    label: `${tier.charAt(0) + tier.slice(1).toLowerCase()} - ${formatPrice(config.pricing.monthly)}/mo`,
+  }));
+}
 
 export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
+  const [businessType, setBusinessType] = useState("RETAIL");
+
+  const plans = getPlansForType(businessType);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -100,10 +97,12 @@ export default function RegisterPage() {
                 <select
                   name="businessType"
                   required
+                  value={businessType}
+                  onChange={(e) => setBusinessType(e.target.value)}
                   className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
                 >
                   <option value="">Select your business type...</option>
-                  {businessTypes.map((t) => (
+                  {BUSINESS_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
                   ))}
                 </select>
