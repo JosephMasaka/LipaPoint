@@ -16,6 +16,7 @@ const PUBLIC_PATHS = [
 ];
 
 const ROUTE_PERMISSIONS: Record<string, string[]> = {
+  admin: ["SUPER_ADMIN"],
   pos: ["OWNER", "ADMIN", "MANAGER", "CASHIER"],
   orders: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "KITCHEN"],
   tabs: ["OWNER", "ADMIN", "MANAGER", "CASHIER"],
@@ -25,7 +26,17 @@ const ROUTE_PERMISSIONS: Record<string, string[]> = {
   settings: ["OWNER", "ADMIN"],
   locations: ["OWNER", "ADMIN"],
   expenses: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"],
+  customers: ["OWNER", "ADMIN", "MANAGER", "CASHIER"],
+  discounts: ["OWNER", "ADMIN", "MANAGER"],
   kitchen: ["OWNER", "ADMIN", "MANAGER", "KITCHEN"],
+  tables: ["OWNER", "ADMIN", "MANAGER", "CASHIER"],
+  menu: ["OWNER", "ADMIN", "MANAGER"],
+  "online-ordering": ["OWNER", "ADMIN", "MANAGER"],
+  delivery: ["OWNER", "ADMIN", "MANAGER"],
+  appointments: ["OWNER", "ADMIN", "MANAGER", "CASHIER"],
+  services: ["OWNER", "ADMIN", "MANAGER"],
+  queue: ["OWNER", "ADMIN", "MANAGER", "CASHIER"],
+  scheduling: ["OWNER", "ADMIN", "MANAGER"],
 };
 
 function isPublicPath(pathname: string): boolean {
@@ -67,6 +78,33 @@ export async function middleware(request: NextRequest) {
 
   if (isPublicPath(pathname)) {
     return NextResponse.next();
+  }
+
+  // Admin panel routes - require SUPER_ADMIN role
+  if (pathname.startsWith("/admin")) {
+    const token = request.cookies.get(COOKIE_NAME)?.value;
+
+    if (!token) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    try {
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+      const { payload } = await jwtVerify(token, secret);
+      const userRole = (payload.role as string) || "";
+
+      if (userRole !== "SUPER_ADMIN") {
+        return NextResponse.redirect(new URL("/login", request.url));
+      }
+
+      return NextResponse.next();
+    } catch {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
   if (isTenantPath(pathname)) {

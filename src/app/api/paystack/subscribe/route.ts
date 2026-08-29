@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { initializeTransaction } from "@/lib/paystack";
-
-const PLAN_PRICES: Record<string, number> = {
-  STARTER: 2999,
-  PROFESSIONAL: 7999,
-  ENTERPRISE: 19999,
-};
+import { db } from "@/lib/db";
+import { getPlanPricing, VERTICAL_PLANS, getBusinessCategory } from "@/lib/plans";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +17,8 @@ export async function POST(request: NextRequest) {
 
     const { tier } = await request.json();
 
-    if (!tier || !PLAN_PRICES[tier]) {
+    const category = getBusinessCategory(user.tenant.type);
+    if (!tier || !(tier in VERTICAL_PLANS[category])) {
       return NextResponse.json({ error: "Invalid plan tier" }, { status: 400 });
     }
 
@@ -29,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Already on this plan" }, { status: 400 });
     }
 
-    const amount = PLAN_PRICES[tier];
+    const amount = getPlanPricing(tier, user.tenant.type).monthly;
     const origin = request.headers.get("origin") || request.nextUrl.origin;
 
     const result = await initializeTransaction({

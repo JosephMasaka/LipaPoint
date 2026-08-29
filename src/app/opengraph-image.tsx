@@ -105,7 +105,7 @@ export default async function OgImage() {
               fontSize: "20px",
             }}
           >
-            From KSh 2,999/mo
+            From KSh 1,999/mo
           </div>
         </div>
       </div>

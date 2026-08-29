@@ -9,27 +9,73 @@ import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
   Settings, TrendingUp, Users, LogOut, Receipt,
   Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin, WifiOff, Download,
+  UserCircle, Tag, UtensilsCrossed, ChefHat, BookOpen, Globe, Truck, Calendar, Scissors, ListOrdered, CalendarDays,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { getBusinessCategory, canAccessFeature, type BusinessCategory } from "@/lib/plans";
 import { useState, useEffect } from "react";
 
 interface SidebarProps {
   tenantSlug: string;
-  user: { name: string; role: string; tenant: { name: string; tier: string } };
+  user: { name: string; role: string; tenant: { name: string; tier: string; type: string } };
 }
 
-const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "STOCK_KEEPER", "KITCHEN"] },
-  { icon: ShoppingCart, label: "Point of Sale", href: "/pos", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"] },
-  { icon: Clock, label: "Tabs", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"] },
-  { icon: ClipboardList, label: "Orders", href: "/orders", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "KITCHEN"] },
-  { icon: Package, label: "Inventory", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"] },
-  { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"] },
-  { icon: TrendingUp, label: "Analytics", href: "/analytics", roles: ["OWNER", "ADMIN", "MANAGER"] },
-  { icon: Users, label: "Staff", href: "/users", roles: ["OWNER", "ADMIN", "MANAGER"] },
-  { icon: MapPin, label: "Locations", href: "/locations", roles: ["OWNER", "ADMIN"] },
-  { icon: Settings, label: "Settings", href: "/settings", roles: ["OWNER", "ADMIN"] },
+interface NavItem {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  href: string;
+  roles: string[];
+  feature: string | null;
+}
+
+const baseNavItems: NavItem[] = [
+  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "STOCK_KEEPER", "KITCHEN"], feature: null },
+  { icon: ShoppingCart, label: "Point of Sale", href: "/pos", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null },
+  { icon: ClipboardList, label: "Orders", href: "/orders", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "KITCHEN"], feature: null },
 ];
+
+const categoryNavItems: Record<BusinessCategory, NavItem[]> = {
+  RETAIL_GENERAL: [
+    { icon: Clock, label: "Tabs", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null },
+    { icon: Package, label: "Inventory", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"], feature: null },
+    { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null },
+  ],
+  RESTAURANT_HOSPITALITY: [
+    { icon: Clock, label: "Tabs", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null },
+    { icon: UtensilsCrossed, label: "Tables", href: "/tables", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "table-management" },
+    { icon: BookOpen, label: "Menu", href: "/menu", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "menu-management" },
+    { icon: ChefHat, label: "Kitchen Display", href: "/kitchen", roles: ["OWNER", "ADMIN", "MANAGER", "KITCHEN"], feature: "kitchen-display" },
+    { icon: Package, label: "Inventory", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"], feature: null },
+    { icon: Globe, label: "Online Ordering", href: "/online-ordering", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "online-ordering" },
+    { icon: Truck, label: "Delivery", href: "/delivery", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "delivery-management" },
+    { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null },
+  ],
+  BARBERSHOP_SALON: [
+    { icon: Calendar, label: "Appointments", href: "/appointments", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "appointments" },
+    { icon: Scissors, label: "Services", href: "/services", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "service-catalog" },
+    { icon: ListOrdered, label: "Queue", href: "/queue", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "queue-management" },
+    { icon: CalendarDays, label: "Scheduling", href: "/scheduling", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "staff-scheduling" },
+    { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null },
+  ],
+};
+
+const suffixNavItems: NavItem[] = [
+  { icon: UserCircle, label: "Customers", href: "/customers", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null },
+  { icon: Tag, label: "Discounts", href: "/discounts", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "discounts" },
+  { icon: TrendingUp, label: "Analytics", href: "/analytics", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "analytics" },
+  { icon: Users, label: "Staff", href: "/users", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null },
+  { icon: MapPin, label: "Locations", href: "/locations", roles: ["OWNER", "ADMIN"], feature: null },
+  { icon: Settings, label: "Settings", href: "/settings", roles: ["OWNER", "ADMIN"], feature: null },
+];
+
+function getNavItems(tenantType: string, tier: string): NavItem[] {
+  const category = getBusinessCategory(tenantType);
+  return [
+    ...baseNavItems,
+    ...categoryNavItems[category],
+    ...suffixNavItems,
+  ].filter(item => !item.feature || canAccessFeature(tier, item.feature, tenantType));
+}
 
 export function Sidebar({ tenantSlug, user }: SidebarProps) {
   const pathname = usePathname();
@@ -57,7 +103,8 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
   };
 
   const { isOnline, canInstall, installApp } = usePWA();
-  const filteredNav = navItems.filter((item) => item.roles.includes(user.role));
+  const allNav = getNavItems(user.tenant.type, user.tenant.tier);
+  const filteredNav = allNav.filter((item) => item.roles.includes(user.role));
 
   const sidebarContent = (
     <>
