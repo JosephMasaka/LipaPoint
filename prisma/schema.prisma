@@ -1,158 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-// ─── ENUMS ───────────────────────────────────────────────────────────────────
-
-enum SubscriptionTier {
-  STARTER
-  PROFESSIONAL
-  ENTERPRISE
-}
-
-enum TenantType {
-  RETAIL
-  RESTAURANT
-  BAR
-  SUPERMARKET
-  PHARMACY
-  HARDWARE
-}
-
-enum OrderStatus {
-  PENDING
-  PREPARING
-  COMPLETED
-  CANCELLED
-  REFUNDED
-  TAB
-}
-
-enum PaymentMethod {
-  CASH
-  MPESA_MANUAL   // was MPESA — till/paybill on the wall, code entered by cashier
-  MPESA_STK      // aggregator or Daraja push to customer's phone
-  CARD
-  PDQ
-  PAYSTACK
-}
-
-enum PaymentProvider {
-  DARAJA
-  INTASEND
-  PESAPAL
-  KOPOKOPO
-  FLUTTERWAVE
-  PAYSTACK
-}
-
-enum PaymentStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
-}
-
-enum UserRole {
-  OWNER
-  ADMIN
-  MANAGER
-  CASHIER
-  STOCK_KEEPER
-  KITCHEN
-}
-
-enum DemoRequestStatus {
-  PENDING
-  CONTACTED
-  CONVERTED
-  DECLINED
-}
-
-enum StockMovementType {
-  GOODS_RECEIPT
-  GOODS_ISSUE
-  TRANSFER
-  ADJUSTMENT
-  SALE_RETURN
-  OPENING_BALANCE
-}
-
-// ─── MODELS ──────────────────────────────────────────────────────────────────
-
 model Tenant {
-  id              String           @id @default(cuid())
-  name            String
-  slug            String           @unique
-  type            TenantType
-  tier            SubscriptionTier @default(STARTER)
-  email           String
-  phone           String?
-  logo            String?
-  address         String?
-  city            String?
-  country         String           @default("KE")
-  currency        String           @default("KES")
-  taxRate         Float            @default(16.0)
-  receiptHeader   String?
-  receiptFooter   String?          @default("Thank you for shopping with us!")
-  paystackSubCode String?
-  isActive        Boolean          @default(true)
-  trialEndsAt     DateTime?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-
-  users          User[]
-  locations      Location[]
-  categories     Category[]
-  products       Product[]
-  orders         Order[]
-  transactions   Transaction[]
-  activityLogs   ActivityLog[]
-  unitsOfMeasure UnitOfMeasure[]
-  stockRecords   StockRecord[]
-  stockMovements StockMovement[]
-  expenses        Expense[]
-  dailySummaries  DailySummary[]
-  rolePermissions RolePermission[]
-
+  id               String                 @id @default(cuid())
+  name             String
+  slug             String                 @unique
+  type             TenantType
+  tier             SubscriptionTier       @default(STARTER)
+  email            String
+  phone            String?
+  logo             String?
+  address          String?
+  city             String?
+  country          String                 @default("KE")
+  currency         String                 @default("KES")
+  taxRate          Float                  @default(16.0)
+  receiptHeader    String?
+  receiptFooter    String?                @default("Thank you for shopping with us!")
+  paystackSubCode  String?
+  isActive         Boolean                @default(true)
+  trialEndsAt      DateTime?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  mpesaAccountName String?
   mpesaPaybill     String?
   mpesaTill        String?
-  mpesaAccountName String?
-
+  activityLogs     ActivityLog[]
+  categories       Category[]
+  dailySummaries   DailySummary[]
+  expenses         Expense[]
+  locations        Location[]
+  orders           Order[]
+  products         Product[]
+  rolePermissions  RolePermission[]
+  stockMovements   StockMovement[]
+  stockRecords     StockRecord[]
   paymentGateways  TenantPaymentGateway[]
+  transactions     Transaction[]
+  unitsOfMeasure   UnitOfMeasure[]
+  users            User[]
 
   @@index([slug])
   @@index([isActive])
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String
-  phone     String?
-  password  String
-  role      UserRole @default(CASHIER)
-  avatar    String?
-  isActive  Boolean  @default(true)
-  tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  orders         Order[]
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String
+  phone          String?
+  password       String
+  role           UserRole        @default(CASHIER)
+  avatar         String?
+  isActive       Boolean         @default(true)
+  tenantId       String
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   activityLogs   ActivityLog[]
-  sessions       Session[]
-  expenses       Expense[]
-  transactions   Transaction[]
-  stockMovements StockMovement[]
   dailySummaries DailySummary[]
+  expenses       Expense[]
+  orders         Order[]
   passwordResets PasswordReset[]
+  sessions       Session[]
+  stockMovements StockMovement[]
+  transactions   Transaction[]
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([email])
@@ -162,9 +80,9 @@ model Session {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([userId])
@@ -177,15 +95,15 @@ model Location {
   phone          String?
   isActive       Boolean         @default(true)
   tenantId       String
+  createdAt      DateTime        @default(now())
+  dailySummaries DailySummary[]
+  expenses       Expense[]
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders         Order[]
   registers      Register[]
   stocks         Stock[]
-  orders         Order[]
-  stockRecords   StockRecord[]
   stockMovements StockMovement[]
-  expenses       Expense[]
-  dailySummaries DailySummary[]
-  createdAt      DateTime        @default(now())
+  stockRecords   StockRecord[]
 
   @@index([tenantId])
 }
@@ -195,8 +113,8 @@ model Register {
   name       String
   isActive   Boolean  @default(true)
   locationId String
-  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   orders     Order[]
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
 
   @@index([locationId])
 }
@@ -207,9 +125,9 @@ model Category {
   color    String     @default("#6366f1")
   icon     String?
   parentId String?
+  tenantId String
   parent   Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
   children Category[] @relation("CategoryHierarchy")
-  tenantId String
   tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products Product[]
 
@@ -223,11 +141,11 @@ model UnitOfMeasure {
   name            String
   abbreviation    String
   tenantId        String
-  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products        Product[]        @relation("ProductBaseUnit")
   productUoms     ProductUoM[]
   conversionsFrom UnitConversion[] @relation("FromUnit")
   conversionsTo   UnitConversion[] @relation("ToUnit")
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -236,17 +154,15 @@ model UnitOfMeasure {
 model UnitConversion {
   id         String        @id @default(cuid())
   fromUnitId String
-  fromUnit   UnitOfMeasure @relation("FromUnit", fields: [fromUnitId], references: [id], onDelete: Cascade)
   toUnitId   String
-  toUnit     UnitOfMeasure @relation("ToUnit", fields: [toUnitId], references: [id], onDelete: Cascade)
   factor     Float
+  fromUnit   UnitOfMeasure @relation("FromUnit", fields: [fromUnitId], references: [id], onDelete: Cascade)
+  toUnit     UnitOfMeasure @relation("ToUnit", fields: [toUnitId], references: [id], onDelete: Cascade)
 
   @@unique([fromUnitId, toUnitId])
   @@index([fromUnitId])
   @@index([toUnitId])
 }
-
-// ─── SAP MATERIAL MASTER (MARA) ─────────────────────────────────────────────
 
 model Product {
   id             String          @id @default(cuid())
@@ -255,24 +171,24 @@ model Product {
   barcode        String?
   description    String?
   image          String?
-  price          Float // base UoM selling price
-  cost           Float           @default(0) // base UoM cost price
+  price          Float
+  cost           Float           @default(0)
   isActive       Boolean         @default(true)
   trackStock     Boolean         @default(true)
   lowStockAlert  Int             @default(10)
-  baseUnitId     String // SAP MEINS - base unit of measure for stock tracking
-  baseUnit       UnitOfMeasure   @relation("ProductBaseUnit", fields: [baseUnitId], references: [id])
+  baseUnitId     String
   tenantId       String
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   categoryId     String?
-  category       Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  stocks         Stock[]
-  orderItems     OrderItem[]
-  stockRecords   StockRecord[]
-  stockMovements StockMovement[]
-  productUoms    ProductUoM[]
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+  orderItems     OrderItem[]
+  baseUnit       UnitOfMeasure   @relation("ProductBaseUnit", fields: [baseUnitId], references: [id])
+  category       Category?       @relation(fields: [categoryId], references: [id])
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  productUoms    ProductUoM[]
+  stocks         Stock[]
+  stockMovements StockMovement[]
+  stockRecords   StockRecord[]
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -281,22 +197,19 @@ model Product {
   @@index([baseUnitId])
 }
 
-// ─── SAP MARM - Product Unit of Measure (Dimensions of Pay) ─────────────────
-
 model ProductUoM {
   id               String        @id @default(cuid())
   productId        String
-  product          Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
   unitId           String
-  unit             UnitOfMeasure @relation(fields: [unitId], references: [id])
-  conversionFactor Float // how many base units in this UoM (e.g., crate=24, dozen=12)
-  price            Float // selling price in this UoM
-  cost             Float         @default(0) // cost price in this UoM
-  barcode          String? // barcode specific to this UoM packaging
-  isDefault        Boolean       @default(false) // default selling UoM in POS
+  conversionFactor Float
+  price            Float
+  cost             Float         @default(0)
+  barcode          String?
+  isDefault        Boolean       @default(false)
   isActive         Boolean       @default(true)
-
-  orderItems OrderItem[]
+  orderItems       OrderItem[]
+  product          Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  unit             UnitOfMeasure @relation(fields: [unitId], references: [id])
 
   @@unique([productId, unitId])
   @@index([productId])
@@ -308,33 +221,31 @@ model Stock {
   id         String   @id @default(cuid())
   quantity   Int      @default(0)
   productId  String
-  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   locationId String
-  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   updatedAt  DateTime @updatedAt
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, locationId])
   @@index([productId])
   @@index([locationId])
 }
 
-// ─── SAP MSEG - Stock Movement Document ─────────────────────────────────────
-
 model StockMovement {
   id         String            @id @default(cuid())
   type       StockMovementType
   quantity   Int
   productId  String
-  product    Product           @relation(fields: [productId], references: [id])
   locationId String
-  location   Location          @relation(fields: [locationId], references: [id])
-  reference  String? // order number, PO number, etc.
+  reference  String?
   notes      String?
   tenantId   String
-  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId     String?
-  user       User?             @relation(fields: [userId], references: [id])
   createdAt  DateTime          @default(now())
+  location   Location          @relation(fields: [locationId], references: [id])
+  product    Product           @relation(fields: [productId], references: [id])
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user       User?             @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
   @@index([productId])
@@ -359,17 +270,17 @@ model Order {
   customerName  String?
   customerPhone String?
   tenantId      String
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId    String
-  location      Location      @relation(fields: [locationId], references: [id])
   registerId    String?
-  register      Register?     @relation(fields: [registerId], references: [id])
   userId        String
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  location      Location      @relation(fields: [locationId], references: [id])
+  register      Register?     @relation(fields: [registerId], references: [id])
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user          User          @relation(fields: [userId], references: [id])
   items         OrderItem[]
   transactions  Transaction[]
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
 
   @@index([tenantId])
   @@index([locationId])
@@ -381,17 +292,17 @@ model Order {
 
 model OrderItem {
   id           String      @id @default(cuid())
-  quantity     Int // quantity in selected UoM
-  unitPrice    Float // price per selected UoM
+  quantity     Int
+  unitPrice    Float
   total        Float
-  baseQuantity Int // quantity converted to base UoM (for stock deduction)
+  baseQuantity Int
   note         String?
   productId    String
-  product      Product     @relation(fields: [productId], references: [id])
   productUomId String?
-  productUom   ProductUoM? @relation(fields: [productUomId], references: [id])
   orderId      String
   order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product      Product     @relation(fields: [productId], references: [id])
+  productUom   ProductUoM? @relation(fields: [productUomId], references: [id])
 
   @@index([orderId])
   @@index([productId])
@@ -401,39 +312,39 @@ model OrderItem {
 model TenantPaymentGateway {
   id           String          @id @default(cuid())
   tenantId     String
-  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   provider     PaymentProvider
   isActive     Boolean         @default(false)
-  apiKeyEnc    String?         // AES-256-GCM encrypted, decrypted only server-side
+  apiKeyEnc    String?
   apiSecretEnc String?
-  merchantRef  String?         // sub-merchant/shortcode at the aggregator
+  merchantRef  String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, provider])
   @@index([tenantId])
 }
 
 model Transaction {
-  id            String        @id @default(cuid())
-  type          String // SALE, REFUND, PAYMENT
-  amount        Float
-  method        PaymentMethod
-  status        PaymentStatus @default(PENDING)
-  reference     String?       @unique
-  gatewayRef    String? // Paystack/M-Pesa reference
-  gatewayStatus String? // gateway-specific status
-  enteredManually Boolean @default(false)
-  mpesaPhone    String? // for M-Pesa STK push
-  cardLast4     String? // last 4 digits for card/PDQ
-  description   String?
-  tenantId      String
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  orderId       String?
-  order         Order?        @relation(fields: [orderId], references: [id])
-  userId        String?
-  user          User?         @relation(fields: [userId], references: [id])
-  createdAt     DateTime      @default(now())
+  id              String        @id @default(cuid())
+  type            String
+  amount          Float
+  method          PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  reference       String?       @unique
+  gatewayRef      String?
+  gatewayStatus   String?
+  mpesaPhone      String?
+  cardLast4       String?
+  description     String?
+  tenantId        String
+  orderId         String?
+  userId          String?
+  createdAt       DateTime      @default(now())
+  enteredManually Boolean       @default(false)
+  order           Order?        @relation(fields: [orderId], references: [id])
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User?         @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
   @@index([reference])
@@ -449,37 +360,33 @@ model ActivityLog {
   entityId  String?
   details   String?
   tenantId  String
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userId    String?
-  user      User?    @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User?    @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
   @@index([createdAt])
 }
 
-// ─── SAP Daily Stock Ledger ─────────────────────────────────────────────────
-// Closing stock = opening + added - sold + adjustment
-// Next day's opening = previous day's closing
-
 model StockRecord {
   id           String   @id @default(cuid())
   date         DateTime @db.Date
-  openingStock Int // carried from previous day's closingStock
-  addedStock   Int      @default(0) // goods received today
-  soldStock    Int      @default(0) // sold today (from completed orders)
-  closingStock Int // = openingStock + addedStock - soldStock + adjustment
-  adjustment   Int      @default(0) // manual adjustments (breakage, theft, etc.)
-  variance     Int      @default(0) // closingStock - (openingStock + addedStock - soldStock + adjustment)
+  openingStock Int
+  addedStock   Int      @default(0)
+  soldStock    Int      @default(0)
+  closingStock Int
+  adjustment   Int      @default(0)
+  variance     Int      @default(0)
   notes        String?
   productId    String
-  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   locationId   String
-  location     Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   tenantId     String
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  location     Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([productId, locationId, date])
   @@index([tenantId])
@@ -498,12 +405,12 @@ model Expense {
   supplier    String?
   isRecurring Boolean   @default(false)
   tenantId    String
-  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId  String?
-  location    Location? @relation(fields: [locationId], references: [id])
   userId      String?
-  user        User?     @relation(fields: [userId], references: [id])
   createdAt   DateTime  @default(now())
+  location    Location? @relation(fields: [locationId], references: [id])
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        User?     @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
   @@index([date])
@@ -511,66 +418,59 @@ model Expense {
   @@index([locationId])
 }
 
-// ─── Password Reset ─────────────────────────────────────────────────────────
-
 model PasswordReset {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([userId])
 }
 
-// ─── Role Permissions (Per-Tenant Customizable RBAC) ────────────────────────
-
 model RolePermission {
   id          String   @id @default(cuid())
-  role        String // matches UserRole enum value or custom role name
-  permissions String[] // array of permission keys (e.g., ["pos", "orders", "tabs"])
-  description String?  // custom description for the role
-  isSystem    Boolean  @default(true) // system roles can't be deleted
+  role        String
+  permissions String[]
+  description String?
+  isSystem    Boolean  @default(true)
   tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, role])
   @@index([tenantId])
 }
 
-// ─── Daily Cash Summary (Bar Stock Sheet Reconciliation) ────────────────────
-// Matches the physical "SUMMARY" section on Club Chairman-style stock sheets
-
 model DailySummary {
   id                 String   @id @default(cuid())
   date               DateTime @db.Date
-  cashBroughtForward Float    @default(0) // previous day's cashCarriedForward
-  totalSales         Float    @default(0) // sum of completed cash orders
-  debtsPaid          Float    @default(0) // tabs/debts collected today
-  otherIncome        Float    @default(0) // miscellaneous income
-  subtotal           Float    @default(0) // cashBroughtForward + totalSales + debtsPaid + otherIncome
-  mpesaReceived      Float    @default(0) // M-Pesa payments (non-cash, deducted)
-  purchases          Float    @default(0) // stock purchased today
-  expenses           Float    @default(0) // operational expenses today
-  unpaidBills        Float    @default(0) // credit given (tabs opened, not settled)
-  totalCash          Float    @default(0) // subtotal - (mpesa + purchases + expenses + unpaidBills)
-  cashSurrendered    Float    @default(0) // what cashier physically hands over
-  shortExcess        Float    @default(0) // totalCash - cashSurrendered (negative=short, positive=excess)
-  cashCarriedForward Float    @default(0) // carried to next day
+  cashBroughtForward Float    @default(0)
+  totalSales         Float    @default(0)
+  debtsPaid          Float    @default(0)
+  otherIncome        Float    @default(0)
+  subtotal           Float    @default(0)
+  mpesaReceived      Float    @default(0)
+  purchases          Float    @default(0)
+  expenses           Float    @default(0)
+  unpaidBills        Float    @default(0)
+  totalCash          Float    @default(0)
+  cashSurrendered    Float    @default(0)
+  shortExcess        Float    @default(0)
+  cashCarriedForward Float    @default(0)
   notes              String?
   tenantId           String
-  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   locationId         String
-  location           Location @relation(fields: [locationId], references: [id])
-  userId             String? // cashier who closed the day
-  user               User?    @relation(fields: [userId], references: [id])
+  userId             String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
+  location           Location @relation(fields: [locationId], references: [id])
+  tenant             Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user               User?    @relation(fields: [userId], references: [id])
 
   @@unique([tenantId, locationId, date])
   @@index([tenantId])
@@ -607,4 +507,77 @@ model Subscription {
   updatedAt        DateTime         @updatedAt
 
   @@index([tenantId])
+}
+
+enum SubscriptionTier {
+  STARTER
+  PROFESSIONAL
+  ENTERPRISE
+}
+
+enum TenantType {
+  RETAIL
+  RESTAURANT
+  BAR
+  SUPERMARKET
+  PHARMACY
+  HARDWARE
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  COMPLETED
+  CANCELLED
+  REFUNDED
+  TAB
+}
+
+enum PaymentMethod {
+  CASH
+  MPESA_MANUAL
+  MPESA_STK
+  CARD
+  PDQ
+  PAYSTACK
+}
+
+enum PaymentProvider {
+  DARAJA
+  INTASEND
+  PESAPAL
+  KOPOKOPO
+  FLUTTERWAVE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  MANAGER
+  CASHIER
+  STOCK_KEEPER
+  KITCHEN
+}
+
+enum DemoRequestStatus {
+  PENDING
+  CONTACTED
+  CONVERTED
+  DECLINED
+}
+
+enum StockMovementType {
+  GOODS_RECEIPT
+  GOODS_ISSUE
+  TRANSFER
+  ADJUSTMENT
+  SALE_RETURN
+  OPENING_BALANCE
 }
