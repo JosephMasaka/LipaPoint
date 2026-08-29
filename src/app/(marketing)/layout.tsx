@@ -77,7 +77,7 @@ export default function MarketingLayout({
                 <span className="font-bold text-text-primary">LipaPoint</span>
               </div>
               <p className="text-sm text-text-muted">
-                Kenya&apos;s #1 Point of Sale system for restaurants, bars, retail shops, supermarkets and pharmacies.
+                Kenya&apos;s #1 Point of Sale system for restaurants, bars, retail shops, supermarkets, pharmacies and barbershops.
               </p>
             </div>
             <div>
@@ -97,6 +97,7 @@ export default function MarketingLayout({
                 <span className="block text-sm text-text-muted">Retail Shop POS</span>
                 <span className="block text-sm text-text-muted">Supermarket POS</span>
                 <span className="block text-sm text-text-muted">Pharmacy POS</span>
+                <span className="block text-sm text-text-muted">Barbershop & Salon POS</span>
               </nav>
             </div>
             <div>

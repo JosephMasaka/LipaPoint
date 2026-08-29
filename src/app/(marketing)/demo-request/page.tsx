@@ -13,6 +13,7 @@ const businessTypes = [
   "SUPERMARKET",
   "PHARMACY",
   "HARDWARE",
+  "BARBERSHOP",
 ];
 
 export default function DemoRequestPage() {

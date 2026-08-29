@@ -36,8 +36,8 @@ const jsonLd = {
       offers: {
         "@type": "AggregateOffer",
         priceCurrency: "KES",
-        lowPrice: "2999",
-        highPrice: "14999",
+        lowPrice: "1999",
+        highPrice: "19999",
         offerCount: "3",
       },
       aggregateRating: {
@@ -93,7 +93,7 @@ const jsonLd = {
           name: "How much does a POS system cost in Kenya?",
           acceptedAnswer: {
             "@type": "Answer",
-            text: "LipaPoint POS plans start from KSh 2,999/month for the Starter plan (ideal for small shops), KSh 5,999/month for Professional (multi-location businesses), and KSh 14,999/month for Enterprise (unlimited everything with API access). All plans include a free 14-day trial.",
+            text: "LipaPoint POS plans start from KSh 1,999/month for barbershops and salons, KSh 2,999/month for retail and restaurants. Professional and Enterprise tiers are available for growing businesses. All plans include a free 14-day trial.",
           },
         },
         {
@@ -287,7 +287,7 @@ export default function HomePage() {
               },
               {
                 q: "How much does a POS system cost in Kenya?",
-                a: "LipaPoint POS plans start from KSh 2,999/month for small shops, KSh 5,999/month for multi-location businesses, and KSh 14,999/month for enterprise. All plans include a free 14-day trial with no setup fees.",
+                a: "LipaPoint POS plans start from KSh 1,999/month for barbershops and salons, KSh 2,999/month for retail and restaurants. Professional and Enterprise tiers are available for growing businesses. All plans include a free 14-day trial with no setup fees.",
               },
               {
                 q: "Does LipaPoint POS support M-Pesa payments?",
@@ -333,7 +333,7 @@ export default function HomePage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register">
               <Button size="xl">
-                Get Started Free
+                Start Free Trial
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
