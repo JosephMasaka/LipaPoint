@@ -45,6 +45,14 @@ model Tenant {
   transactions     Transaction[]
   unitsOfMeasure   UnitOfMeasure[]
   users            User[]
+  customers        Customer[]
+  discounts        Discount[]
+  tables           Table[]
+  deliveryZones    DeliveryZone[]
+  services         Service[]
+  appointments     Appointment[]
+  queueEntries     QueueEntry[]
+  staffSchedules   StaffSchedule[]
 
   @@index([slug])
   @@index([isActive])
@@ -71,6 +79,9 @@ model User {
   stockMovements StockMovement[]
   transactions   Transaction[]
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedAppts  Appointment[]
+  assignedQueue  QueueEntry[]
+  staffSchedules StaffSchedule[]
 
   @@index([tenantId])
   @@index([email])
@@ -104,6 +115,7 @@ model Location {
   stocks         Stock[]
   stockMovements StockMovement[]
   stockRecords   StockRecord[]
+  tables         Table[]
 
   @@index([tenantId])
 }
@@ -130,6 +142,7 @@ model Category {
   children Category[] @relation("CategoryHierarchy")
   tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   products Product[]
+  services Service[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -255,32 +268,39 @@ model StockMovement {
 }
 
 model Order {
-  id            String        @id @default(cuid())
-  orderNo       String        @unique
-  status        OrderStatus   @default(PENDING)
-  tabName       String?
-  subtotal      Float
-  taxAmount     Float
-  discount      Float         @default(0)
-  total         Float
-  paymentMethod PaymentMethod @default(CASH)
-  paymentStatus PaymentStatus @default(PENDING)
-  paymentRef    String?
-  notes         String?
-  customerName  String?
-  customerPhone String?
-  tenantId      String
-  locationId    String
-  registerId    String?
-  userId        String
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-  location      Location      @relation(fields: [locationId], references: [id])
-  register      Register?     @relation(fields: [registerId], references: [id])
-  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user          User          @relation(fields: [userId], references: [id])
-  items         OrderItem[]
-  transactions  Transaction[]
+  id              String        @id @default(cuid())
+  orderNo         String        @unique
+  status          OrderStatus   @default(PENDING)
+  tabName         String?
+  subtotal        Float
+  taxAmount       Float
+  discount        Float         @default(0)
+  total           Float
+  paymentMethod   PaymentMethod @default(CASH)
+  paymentStatus   PaymentStatus @default(PENDING)
+  paymentRef      String?
+  notes           String?
+  customerName    String?
+  customerPhone   String?
+  tenantId        String
+  locationId      String
+  registerId      String?
+  userId          String
+  tableId         String?
+  customerId      String?
+  deliveryAddress String?
+  deliveryPhone   String?
+  deliveryFee     Float?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  location        Location      @relation(fields: [locationId], references: [id])
+  register        Register?     @relation(fields: [registerId], references: [id])
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User          @relation(fields: [userId], references: [id])
+  table           Table?        @relation(fields: [tableId], references: [id])
+  customer        Customer?     @relation(fields: [customerId], references: [id])
+  items           OrderItem[]
+  transactions    Transaction[]
 
   @@index([tenantId])
   @@index([locationId])
@@ -288,21 +308,23 @@ model Order {
   @@index([createdAt])
   @@index([orderNo])
   @@index([status])
+  @@index([tableId])
 }
 
 model OrderItem {
-  id           String      @id @default(cuid())
-  quantity     Int
-  unitPrice    Float
-  total        Float
-  baseQuantity Int
-  note         String?
-  productId    String
-  productUomId String?
-  orderId      String
-  order        Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product      Product     @relation(fields: [productId], references: [id])
-  productUom   ProductUoM? @relation(fields: [productUomId], references: [id])
+  id            String            @id @default(cuid())
+  quantity      Int
+  unitPrice     Float
+  total         Float
+  baseQuantity  Int
+  note          String?
+  kitchenStatus KitchenItemStatus @default(PENDING)
+  productId     String
+  productUomId  String?
+  orderId       String
+  order         Order             @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product       Product           @relation(fields: [productId], references: [id])
+  productUom    ProductUoM?       @relation(fields: [productUomId], references: [id])
 
   @@index([orderId])
   @@index([productId])
@@ -522,6 +544,7 @@ enum TenantType {
   SUPERMARKET
   PHARMACY
   HARDWARE
+  BARBERSHOP
 }
 
 enum OrderStatus {
@@ -580,4 +603,207 @@ enum StockMovementType {
   ADJUSTMENT
   SALE_RETURN
   OPENING_BALANCE
+}
+
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  CLEANING
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum QueueStatus {
+  WAITING
+  SERVING
+  COMPLETED
+  CANCELLED
+}
+
+enum KitchenItemStatus {
+  PENDING
+  PREPARING
+  READY
+  SERVED
+}
+
+// --- Customer & Discount ---
+
+model Customer {
+  id            String    @id @default(cuid())
+  name          String
+  email         String?
+  phone         String?
+  address       String?
+  notes         String?
+  totalSpent    Float     @default(0)
+  visitCount    Int       @default(0)
+  lastVisit     DateTime?
+  loyaltyPoints Int       @default(0)
+  tenantId      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders        Order[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model Discount {
+  id        String    @id @default(cuid())
+  name      String
+  code      String?
+  type      String
+  value     Float
+  minOrder  Float?
+  maxUses   Int?
+  usedCount Int       @default(0)
+  isActive  Boolean   @default(true)
+  startsAt  DateTime?
+  expiresAt DateTime?
+  tenantId  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+// --- Restaurant: Tables ---
+
+model Table {
+  id         String      @id @default(cuid())
+  name       String
+  capacity   Int         @default(4)
+  status     TableStatus @default(AVAILABLE)
+  locationId String
+  tenantId   String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  location   Location    @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders     Order[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([locationId])
+  @@index([status])
+}
+
+// --- Restaurant: Delivery ---
+
+model DeliveryZone {
+  id            String   @id @default(cuid())
+  name          String
+  minOrder      Float    @default(0)
+  deliveryFee   Float    @default(0)
+  estimatedTime Int      @default(30)
+  isActive      Boolean  @default(true)
+  tenantId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+// --- Barbershop: Services ---
+
+model Service {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  price        Float
+  duration     Int           @default(30)
+  isActive     Boolean       @default(true)
+  categoryId   String?
+  tenantId     String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  category     Category?     @relation(fields: [categoryId], references: [id])
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@index([tenantId])
+  @@index([categoryId])
+}
+
+// --- Barbershop: Appointments ---
+
+model Appointment {
+  id          String            @id @default(cuid())
+  date        DateTime          @db.Date
+  startTime   String
+  endTime     String
+  status      AppointmentStatus @default(SCHEDULED)
+  notes       String?
+  clientName  String
+  clientPhone String?
+  serviceId   String
+  staffId     String?
+  tenantId    String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  service     Service           @relation(fields: [serviceId], references: [id])
+  staff       User?             @relation(fields: [staffId], references: [id])
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([date])
+  @@index([staffId])
+  @@index([status])
+}
+
+// --- Barbershop: Queue ---
+
+model QueueEntry {
+  id          String      @id @default(cuid())
+  ticketNo    Int
+  clientName  String
+  clientPhone String?
+  serviceName String?
+  status      QueueStatus @default(WAITING)
+  staffId     String?
+  tenantId    String
+  createdAt   DateTime    @default(now())
+  servedAt    DateTime?
+  completedAt DateTime?
+  staff       User?       @relation(fields: [staffId], references: [id])
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// --- Barbershop: Staff Scheduling ---
+
+model StaffSchedule {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  startTime String
+  endTime   String
+  isOff     Boolean  @default(false)
+  notes     String?
+  staffId   String
+  tenantId  String
+  createdAt DateTime @default(now())
+  staff     User     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date])
+  @@index([tenantId])
+  @@index([date])
+  @@index([staffId])
 }
