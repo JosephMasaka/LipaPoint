@@ -186,6 +186,17 @@ export async function POST(request: NextRequest) {
       let created = 0;
       let updated = 0;
 
+      // Get or create a default unit of measure for imported products
+      let defaultUnit = await db.unitOfMeasure.findFirst({
+        where: { tenantId: user.tenantId },
+        orderBy: { name: "asc" },
+      });
+      if (!defaultUnit) {
+        defaultUnit = await db.unitOfMeasure.create({
+          data: { name: "Piece", abbreviation: "pc", tenantId: user.tenantId },
+        });
+      }
+
       for (const item of items) {
         const { name, sku, price, cost, quantity, category } = item;
         if (!name) continue;
@@ -212,6 +223,7 @@ export async function POST(request: NextRequest) {
               cost: parseFloat(cost) || 0,
               isActive: true,
               trackStock: true,
+              baseUnitId: defaultUnit.id,
               tenantId: user.tenantId,
               ...(categoryObj && { categoryId: categoryObj.id }),
             },
