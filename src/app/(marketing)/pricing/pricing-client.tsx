@@ -44,12 +44,11 @@ export function PricingClient() {
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
             No setup fees. No hidden charges. Cancel anytime.
-            Every plan includes a 14-day free trial.
           </p>
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
+          {/*<div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
             <Check className="h-4 w-4 text-emerald-400" />
             <span className="text-sm text-emerald-400 font-medium">14-day free trial on all plans</span>
-          </div>
+          </div>*/}
         </div>
 
         {/* Business Category Tabs */}
@@ -175,7 +174,7 @@ export function PricingClient() {
                     className="w-full"
                     size="lg"
                   >
-                    Start 14-Day Free Trial
+                    Get Started
                   </Button>
                 </Link>
               </div>
