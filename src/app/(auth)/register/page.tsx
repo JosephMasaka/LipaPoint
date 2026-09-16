@@ -79,7 +79,7 @@ export default function RegisterPage() {
         </div>
         <CardTitle className="text-2xl">Create Your Account</CardTitle>
         <CardDescription>
-          Start your 14-day free trial. No credit card required.
+          Get started today. No credit card required.
         </CardDescription>
       </CardHeader>
       <CardContent>
