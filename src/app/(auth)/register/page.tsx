@@ -91,7 +91,7 @@ export default function RegisterPage() {
           )}
 
           <div className={step === 1 ? "space-y-4" : "hidden"}>
-              <Input name="businessName" label="Business Name" placeholder="Kamau Enterprises" required />
+              <Input name="businessName" label="Business Name" placeholder="Acme Enterprises" required />
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-text-secondary">Business Type</label>
                 <select
@@ -125,7 +125,7 @@ export default function RegisterPage() {
           </div>
 
           <div className={step === 2 ? "space-y-4" : "hidden"}>
-              <Input name="ownerName" label="Your Full Name" placeholder="John Kamau" required />
+              <Input name="ownerName" label="Your Full Name" placeholder="John Doe" required />
               <Input name="email" label="Email Address" type="email" placeholder="john@business.co.ke" required />
               <Input name="phone" label="Phone Number" type="tel" placeholder="+254 7XX XXX XXX" required />
               <Input name="password" label="Password" type="password" placeholder="Min 8 characters" required minLength={8} />
