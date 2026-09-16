@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hashPassword, createSession } from "@/lib/auth";
-import { initiateStkPush } from "@/lib/palpluss";
+import { initializeTransaction } from "@/lib/paystack";
+import { initializeTransactionPalPluss } from "@/lib/palpluss";
 import { sendEmail, welcomeEmail } from "@/lib/email";
 import { getPlanPricing } from "@/lib/plans";
 
@@ -85,23 +86,17 @@ export async function POST(request: NextRequest) {
     sendEmail({ to: email.toLowerCase().trim(), ...emailContent }).catch(() => {});
 
     const amount = getPlanPricing(tier, businessType).monthly;
-    let paymentInitiated = false;
-    let paymentTransactionId: string | null = null;
+    let paymentUrl: string | null = null;
 
-    // STK Push needs a phone number to send the prompt to — skip payment
-    // init if the tenant didn't provide one, same as the old code skipped
-    // on missing config.
-    if (process.env.PALPLUSS_SECRET_KEY && phone) {
+    if (process.env.PAYSTACK_SECRET_KEY) {
       try {
-        const txn = await initiateStkPush({
-          phone,
+        const txn = await initializeTransactionPalPluss({
+          email: email.toLowerCase().trim(),
           amount,
-          accountReference: slug,
-          transactionDesc: `${tier} subscription — ${businessName}`,
-          callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/palpluss`,
+          metadata: { tenantId: tenant.id, tier, type: "subscription_upgrade" },
+          callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/${slug}/settings?upgraded=${tier}`,
         });
-        paymentInitiated = true;
-        paymentTransactionId = txn.data.transactionId;
+        paymentUrl = txn.data.authorization_url;
       } catch {
         // Payment init failed — continue with free trial
       }
@@ -110,8 +105,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug },
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
-      paymentInitiated,
-      paymentTransactionId,
+      paymentUrl,
     }, { status: 201 });
   } catch (error) {
     console.error("Registration error:", error);
