@@ -328,12 +328,12 @@ export default function HomePage() {
           </h2>
           <p className="text-text-secondary mb-8">
             Join hundreds of Kenyan businesses already using LipaPoint.
-            Start your 14-day free trial today — no credit card required.
+            Get started today — no credit card required.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register">
               <Button size="xl">
-                Start Free Trial
+                Get Started
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
