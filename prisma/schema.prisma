@@ -7,6 +7,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model PendingSignup {
+  id              String           @id @default(cuid())
+  businessName    String
+  businessType    TenantType
+  tier            SubscriptionTier
+  ownerName       String
+  email           String
+  phone           String
+  passwordHash    String
+  slug            String   // reserved slug, not yet claimed by a Tenant
+  amount          Float
+  status          String   @default("PENDING") // PENDING | COMPLETED | FAILED
+  failureReason   String?  // event_type / result_desc on FAILED
+  transactionId   String?  // PalPluss STK transaction id
+  completionToken String   @unique // one-time token binding the browser poll to session creation
+  tenantId        String?  // set once COMPLETED
+  userId          String?  // set once COMPLETED
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime // e.g. createdAt + 30 minutes — stale pending signups should be cleaned up
+
+  @@index([email])
+  @@index([transactionId])
+}
+
 model Tenant {
   id               String                 @id @default(cuid())
   name             String

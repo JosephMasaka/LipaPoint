@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { sendEmail, welcomeEmail } from "@/lib/email";
 
 // PalPluss confirms payloads are signed but the security docs I've fetched
 // so far don't give the header name or algorithm. DO NOT deploy without
-// confirming that — right now this endpoint trusts any POST body, meaning
-// anyone who finds this URL could fake a successful payment.
+// confirming that — right now this endpoint trusts any POST body. That
+// matters more now than before: this endpoint creates real accounts and
+// real subscriptions.
 //
 // Once confirmed, it'll likely look something like:
 //
@@ -19,13 +21,13 @@ import { db } from "@/lib/db";
 
 interface PalPlussWebhookTransaction {
   id: string;
-  tenant_id: string; // PalPluss's own tenant/business id — NOT our db.tenant.id
+  tenant_id: string; // PalPluss's own tenant/business id — unrelated to our db.tenant
   type: "STK" | "B2C";
   status: "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED";
   amount: number;
   currency: string;
   phone_number: string;
-  external_reference: string | null; // our accountReference / reference
+  external_reference: string | null; // our PendingSignup.id, set as accountReference
   provider: string;
   provider_request_id: string;
   provider_checkout_id: string;
@@ -46,12 +48,15 @@ interface PalPlussWebhookPayload {
   transaction: PalPlussWebhookTransaction;
 }
 
-const ACTION_BY_EVENT: Record<PalPlussWebhookPayload["event_type"], string> = {
-  "transaction.success": "PAYMENT_SUCCESS",
-  "transaction.failed": "PAYMENT_FAILED",
-  "transaction.cancelled": "PAYMENT_CANCELLED",
-  "transaction.expired": "PAYMENT_EXPIRED",
-};
+const SUBSCRIPTION_PERIOD_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 50);
+}
 
 export async function POST(request: NextRequest) {
   let payload: PalPlussWebhookPayload;
@@ -69,58 +74,149 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Malformed payload" }, { status: 400 });
   }
 
-  // Idempotency guard — PalPluss says the same callback may be delivered
-  // more than once on retry. transaction.id is stable per transaction.
-  const alreadyProcessed = await db.activityLog.findFirst({
-    where: { entity: "transaction", entityId: transaction.id },
-  });
-  if (alreadyProcessed) {
+  const pendingSignupId = transaction.external_reference;
+  const pending = pendingSignupId
+    ? await db.pendingSignup.findUnique({ where: { id: pendingSignupId } })
+    : null;
+
+  if (!pending) {
+    console.error("PalPluss webhook: no pending signup for reference", pendingSignupId);
     return NextResponse.json({ received: true });
   }
 
-  // external_reference round-trips the accountReference we set when
-  // initiating the STK Push (the tenant's slug) in the signup route.
-  const slug = transaction.external_reference;
-  const tenant = slug ? await db.tenant.findUnique({ where: { slug } }) : null;
-
-  if (!tenant) {
-    console.error(
-      "PalPluss webhook: no tenant found for external_reference",
-      slug
-    );
-    // Still 2xx — acknowledging stops retries even when we can't correlate it.
+  // Idempotency — PalPluss retries the same callback on delivery failure.
+  // Once a pending signup has left PENDING, it's already been handled.
+  if (pending.status !== "PENDING") {
     return NextResponse.json({ received: true });
   }
 
-  await db.activityLog.create({
+  if (event_type === "transaction.success") {
+    // Re-check uniqueness — time has passed since the original request,
+    // so someone else could have taken this email or slug in the meantime.
+    const existingUser = await db.user.findUnique({ where: { email: pending.email } });
+    if (existingUser) {
+      await db.pendingSignup.update({
+        where: { id: pending.id },
+        data: { status: "FAILED", failureReason: "email_taken_before_completion" },
+      });
+      console.error(
+        "PalPluss webhook: payment succeeded but email was claimed before completion",
+        pending.email
+      );
+      // TODO: real edge case worth refunding/flagging for support review —
+      // the customer paid but we couldn't create their account.
+      return NextResponse.json({ received: true });
+    }
+
+    let slug = pending.slug;
+    const slugTaken = await db.tenant.findUnique({ where: { slug } });
+    if (slugTaken) {
+      slug = `${generateSlug(pending.businessName)}-${Date.now().toString(36)}`;
+    }
+
+    // No trial period here — payment already happened, so this tenant
+    // starts as an active paying customer, not a trial.
+    const tenant = await db.tenant.create({
+      data: {
+        name: pending.businessName,
+        slug,
+        type: pending.businessType,
+        tier: pending.tier,
+        email: pending.email,
+        phone: pending.phone,
+        trialEndsAt: null,
+        locations: {
+          create: {
+            name: "Main Location",
+            registers: { create: { name: "Register 1" } },
+          },
+        },
+        users: {
+          create: {
+            name: pending.ownerName,
+            email: pending.email,
+            phone: pending.phone,
+            password: pending.passwordHash,
+            role: "OWNER",
+          },
+        },
+      },
+      include: { users: true },
+    });
+
+    const user = tenant.users[0];
+
+    await db.activityLog.create({
+      data: {
+        action: "TENANT_CREATED",
+        entity: "tenant",
+        entityId: tenant.id,
+        tenantId: tenant.id,
+        userId: user.id,
+      },
+    });
+
+    // The schema's Subscription model has paystackPlanCode/SubCode/CustCode
+    // fields — left null here since PalPluss has no plan/subscription API
+    // (just one-off STK Push). Renewing this monthly will need your own
+    // cron that triggers a fresh STK Push and extends currentPeriodEnd —
+    // not built yet, flagging rather than guessing at that design.
+    await db.subscription.create({
+      data: {
+        tenantId: tenant.id,
+        tier: pending.tier,
+        amount: pending.amount,
+        currency: "KES",
+        status: "active",
+        currentPeriodEnd: new Date(Date.now() + SUBSCRIPTION_PERIOD_MS),
+      },
+    });
+
+    await db.transaction.create({
+      data: {
+        type: "SUBSCRIPTION",
+        amount: transaction.amount,
+        method: "MPESA_STK",
+        status: "COMPLETED",
+        reference: transaction.id,
+        gatewayRef: transaction.mpesa_receipt ?? transaction.provider_request_id,
+        gatewayStatus: transaction.result_desc,
+        mpesaPhone: transaction.phone_number,
+        description: `${pending.tier} subscription — ${pending.businessName}`,
+        tenantId: tenant.id,
+        userId: user.id,
+      },
+    });
+
+    await db.pendingSignup.update({
+      where: { id: pending.id },
+      data: {
+        status: "COMPLETED",
+        transactionId: transaction.id,
+        tenantId: tenant.id,
+        userId: user.id,
+        // Clear the password hash now that the real User row has it —
+        // no reason for two copies of it to exist.
+        passwordHash: "",
+      },
+    });
+
+    const emailContent = welcomeEmail(pending.ownerName, pending.businessName, pending.tier, slug);
+    sendEmail({ to: pending.email, ...emailContent }).catch(() => {});
+
+    return NextResponse.json({ received: true });
+  }
+
+  // FAILED, CANCELLED, or EXPIRED — no tenant exists yet to attach a
+  // Transaction row to, so the failure only lives on the pending signup.
+  await db.pendingSignup.update({
+    where: { id: pending.id },
     data: {
-      action: ACTION_BY_EVENT[event_type],
-      entity: "transaction",
-      entityId: transaction.id,
-      tenantId: tenant.id,
+      status: "FAILED",
+      failureReason: event_type,
+      transactionId: transaction.id,
     },
   });
 
-  if (event_type === "transaction.success") {
-    // transaction.mpesa_receipt (e.g. "LGR019G3J2") is the official M-Pesa
-    // proof of payment — worth persisting somewhere queryable if you have
-    // a payments/invoices table, rather than only in activityLog.
-    console.log(
-      `Payment confirmed for ${tenant.slug}: receipt ${transaction.mpesa_receipt}`
-    );
-
-    // TODO: this is where you'd flip the tenant from trial to an active
-    // paid subscription — clearing trialEndsAt, setting a
-    // subscriptionStatus field, etc. Left as a stub since I don't know
-    // those field names in your schema.
-    // await db.tenant.update({ where: { id: tenant.id }, data: { ... } });
-  }
-
-  // Note: the docs' own example acknowledges (200) before processing, to
-  // stay well inside the 30s response window and avoid needless retries.
-  // The work above is a couple of small queries, so responding after it
-  // completes should still be safely within that window — but if you add
-  // anything slower here (external calls, heavy processing), move it to a
-  // background job and return 200 immediately instead.
   return NextResponse.json({ received: true });
 }

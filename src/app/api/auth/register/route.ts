@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
-import { hashPassword, createSession } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
 import { initiateStkPush } from "@/lib/palpluss";
-import { sendEmail, welcomeEmail } from "@/lib/email";
 import { getPlanPricing } from "@/lib/plans";
+
+const VALID_BUSINESS_TYPES = [
+  "RETAIL",
+  "RESTAURANT",
+  "BAR",
+  "SUPERMARKET",
+  "PHARMACY",
+  "HARDWARE",
+  "BARBERSHOP",
+] as const;
+type TenantType = (typeof VALID_BUSINESS_TYPES)[number];
+
+const VALID_TIERS = ["STARTER", "PROFESSIONAL", "ENTERPRISE"] as const;
+type SubscriptionTier = (typeof VALID_TIERS)[number];
 
 function generateSlug(name: string): string {
   return name
@@ -13,12 +27,14 @@ function generateSlug(name: string): string {
     .slice(0, 50);
 }
 
+const PENDING_SIGNUP_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { businessName, businessType, plan, ownerName, email, phone, password } = body;
 
-    if (!businessName || !businessType || !ownerName || !email || !password) {
+    if (!businessName || !businessType || !ownerName || !email || !phone || !password) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
     }
 
@@ -26,9 +42,41 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     }
 
-    const existingUser = await db.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+    // Tenant.type and Tenant.tier are enums in the schema — validate here
+    // rather than letting an invalid value blow up in the webhook after
+    // the customer has already paid.
+    if (!VALID_BUSINESS_TYPES.includes(businessType)) {
+      return NextResponse.json({ error: "Invalid business type" }, { status: 400 });
+    }
+    const tier: SubscriptionTier = VALID_TIERS.includes(plan) ? plan : "STARTER";
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } });
     if (existingUser) {
       return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+    }
+
+    // Payment is now mandatory to create an account, so a missing key is a
+    // hard failure, not a silent skip.
+    if (!process.env.PALPLUSS_SECRET_KEY) {
+      console.error("Registration blocked — PALPLUSS_SECRET_KEY is not set");
+      return NextResponse.json(
+        { error: "Payment is temporarily unavailable. Please try again shortly." },
+        { status: 503 }
+      );
+    }
+
+    // Don't let someone spam duplicate STK prompts for the same email while
+    // a prior attempt is still pending.
+    const activePending = await db.pendingSignup.findFirst({
+      where: { email: normalizedEmail, status: "PENDING", expiresAt: { gt: new Date() } },
+    });
+    if (activePending) {
+      return NextResponse.json(
+        { error: "A signup for this email is already in progress. Check your phone, or wait a few minutes and try again." },
+        { status: 409 }
+      );
     }
 
     let slug = generateSlug(businessName);
@@ -38,81 +86,59 @@ export async function POST(request: NextRequest) {
     }
 
     const hashedPassword = await hashPassword(password);
-    const tier = (plan as string) === "PROFESSIONAL" ? "PROFESSIONAL" : (plan as string) === "ENTERPRISE" ? "ENTERPRISE" : "STARTER";
+    const amount = getPlanPricing(tier, businessType as TenantType).monthly;
+    const completionToken = randomBytes(32).toString("hex");
 
-    const tenant = await db.tenant.create({
+    const pendingSignup = await db.pendingSignup.create({
       data: {
-        name: businessName,
-        slug,
-        type: businessType,
+        businessName,
+        businessType,
         tier,
-        email: email.toLowerCase().trim(),
+        ownerName,
+        email: normalizedEmail,
         phone,
-        trialEndsAt: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        locations: {
-          create: {
-            name: "Main Location",
-            registers: { create: { name: "Register 1" } },
-          },
-        },
-        users: {
-          create: {
-            name: ownerName,
-            email: email.toLowerCase().trim(),
-            phone,
-            password: hashedPassword,
-            role: "OWNER",
-          },
-        },
-      },
-      include: { users: true, locations: true },
-    });
-
-    const user = tenant.users[0];
-    await createSession({ id: user.id, tenantId: tenant.id, role: user.role, tenant: { slug: tenant.slug } });
-
-    await db.activityLog.create({
-      data: {
-        action: "TENANT_CREATED",
-        entity: "tenant",
-        entityId: tenant.id,
-        tenantId: tenant.id,
-        userId: user.id,
+        passwordHash: hashedPassword,
+        slug,
+        amount,
+        status: "PENDING",
+        completionToken,
+        expiresAt: new Date(Date.now() + PENDING_SIGNUP_TTL_MS),
       },
     });
 
-    const emailContent = welcomeEmail(ownerName, businessName, tier, slug);
-    sendEmail({ to: email.toLowerCase().trim(), ...emailContent }).catch(() => {});
+    try {
+      const txn = await initiateStkPush({
+        phone,
+        amount,
+        accountReference: pendingSignup.id,
+        transactionDesc: `${tier} subscription — ${businessName}`,
+        callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/palpluss`,
+      });
 
-    const amount = getPlanPricing(tier, businessType).monthly;
-    let paymentInitiated = false;
-    let paymentTransactionId: string | null = null;
+      await db.pendingSignup.update({
+        where: { id: pendingSignup.id },
+        data: { transactionId: txn.data.transactionId },
+      });
 
-    // STK Push needs a phone number to send the prompt to — skip payment
-    // init if the tenant didn't provide one, same as the old code skipped
-    // on missing config.
-    if (process.env.PALPLUSS_SECRET_KEY && phone) {
-      try {
-        const txn = await initiateStkPush({
-          phone,
-          amount,
-          accountReference: slug,
-          transactionDesc: `${tier} subscription — ${businessName}`,
-          callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/palpluss`,
-        });
-        paymentInitiated = true;
-        paymentTransactionId = txn.data.transactionId;
-      } catch {
-        // Payment init failed — continue with free trial
-      }
+      return NextResponse.json(
+        {
+          pendingSignupId: pendingSignup.id,
+          completionToken,
+          transactionId: txn.data.transactionId,
+        },
+        { status: 202 } // Accepted, not Created — no account exists yet
+      );
+    } catch (err) {
+      console.error("PalPluss STK Push failed for pending signup", pendingSignup.id, err);
+      await db.pendingSignup.update({
+        where: { id: pendingSignup.id },
+        data: { status: "FAILED", failureReason: "stk_initiation_failed" },
+      });
+      return NextResponse.json(
+        { error: "Could not start payment. Please try again." },
+        { status: 502 }
+      );
     }
-
-    return NextResponse.json({
-      tenant: { id: tenant.id, name: tenant.name, slug: tenant.slug },
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
-      paymentInitiated,
-      paymentTransactionId,
-    }, { status: 201 });
   } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json({ error: "Registration failed. Please try again." }, { status: 500 });

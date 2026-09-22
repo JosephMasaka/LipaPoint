@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { hashPassword, createSession } from "@/lib/auth";
 import { initializeTransaction } from "@/lib/paystack";
-import { initializeTransactionPalPluss } from "@/lib/palpluss";
 import { sendEmail, welcomeEmail } from "@/lib/email";
 import { getPlanPricing } from "@/lib/plans";
 
@@ -90,7 +89,7 @@ export async function POST(request: NextRequest) {
 
     if (process.env.PAYSTACK_SECRET_KEY) {
       try {
-        const txn = await initializeTransactionPalPluss({
+        const txn = await initializeTransaction({
           email: email.toLowerCase().trim(),
           amount,
           metadata: { tenantId: tenant.id, tier, type: "subscription_upgrade" },
