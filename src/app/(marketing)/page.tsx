@@ -152,12 +152,12 @@ export default function HomePage() {
       <section className="relative py-24 md:py-32 px-6">
         <div className="absolute inset-0 bg-gradient-to-b from-gold/5 via-transparent to-transparent" />
         <div className="max-w-5xl mx-auto text-center relative">
-          <div className="inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/5 px-4 py-1.5 mb-8">
+          {/*<div className="inline-flex items-center gap-2 rounded-full border border-gold/20 bg-gold/5 px-4 py-1.5 mb-8">
             <Zap className="h-3.5 w-3.5 text-gold" />
             <span className="text-xs font-medium text-gold">
               Trusted by 500+ Kenyan Businesses
             </span>
-          </div>
+          </div>*/}
 
           <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-text-primary leading-[1.1] mb-6">
             Run Your Business
