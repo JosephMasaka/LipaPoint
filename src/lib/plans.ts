@@ -31,7 +31,7 @@ export const VERTICAL_PLANS: Record<BusinessCategory, Record<string, PlanConfig>
   RETAIL_GENERAL: {
     STARTER: {
       limits: { products: 100, locations: 1, staff: 2, features: ["pos", "orders", "tabs", "inventory", "expenses", "customers"] },
-      pricing: { monthly: 2, annual: 29990 },
+      pricing: { monthly: 1, annual: 29990 },
     },
     PROFESSIONAL: {
       limits: { products: Infinity, locations: 3, staff: 10, features: ["pos", "orders", "tabs", "inventory", "expenses", "customers", "discounts", "analytics", "stock-records", "daily-summary", "ai-assistant"] },
