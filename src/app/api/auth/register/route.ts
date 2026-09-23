@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
-import { initiateStkPush } from "@/lib/palpluss";
+import { initiateStkPush, normalizeKenyanPhone } from "@/lib/palpluss";
 import { getPlanPricing } from "@/lib/plans";
 
 const VALID_BUSINESS_TYPES = [
@@ -42,23 +42,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
     }
 
-    // Tenant.type and Tenant.tier are enums in the schema — validate here
-    // rather than letting an invalid value blow up in the webhook after
-    // the customer has already paid.
     if (!VALID_BUSINESS_TYPES.includes(businessType)) {
       return NextResponse.json({ error: "Invalid business type" }, { status: 400 });
     }
     const tier: SubscriptionTier = VALID_TIERS.includes(plan) ? plan : "STARTER";
 
     const normalizedEmail = email.toLowerCase().trim();
+    const normalizedPhone = normalizeKenyanPhone(phone);
+    if (!/^0\d{9}$/.test(normalizedPhone)) {
+      return NextResponse.json(
+        { error: "Enter a valid Kenyan phone number (e.g. 0712345678)" },
+        { status: 400 }
+      );
+    }
 
     const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } });
     if (existingUser) {
       return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
     }
 
-    // Payment is now mandatory to create an account, so a missing key is a
-    // hard failure, not a silent skip.
     if (!process.env.PALPLUSS_SECRET_KEY) {
       console.error("Registration blocked — PALPLUSS_SECRET_KEY is not set");
       return NextResponse.json(
@@ -67,8 +69,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Don't let someone spam duplicate STK prompts for the same email while
-    // a prior attempt is still pending.
     const activePending = await db.pendingSignup.findFirst({
       where: { email: normalizedEmail, status: "PENDING", expiresAt: { gt: new Date() } },
     });
@@ -96,7 +96,7 @@ export async function POST(request: NextRequest) {
         tier,
         ownerName,
         email: normalizedEmail,
-        phone,
+        phone: normalizedPhone,
         passwordHash: hashedPassword,
         slug,
         amount,
@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
 
     try {
       const txn = await initiateStkPush({
-        phone,
+        phone: normalizedPhone,
         amount,
         accountReference: pendingSignup.id,
         transactionDesc: `${tier} subscription — ${businessName}`,
@@ -126,13 +126,15 @@ export async function POST(request: NextRequest) {
           completionToken,
           transactionId: txn.data.transactionId,
         },
-        { status: 202 } // Accepted, not Created — no account exists yet
+        { status: 202 }
       );
     } catch (err) {
+      // Now logs the real PalPluss error body (bad auth, invalid phone,
+      // rate limit, etc.) instead of a bare generic failure.
       console.error("PalPluss STK Push failed for pending signup", pendingSignup.id, err);
       await db.pendingSignup.update({
         where: { id: pendingSignup.id },
-        data: { status: "FAILED", failureReason: "stk_initiation_failed" },
+        data: { status: "FAILED", failureReason: "We couldn't start the payment. Please try again." },
       });
       return NextResponse.json(
         { error: "Could not start payment. Please try again." },

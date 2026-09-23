@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Smartphone, XCircle } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { BUSINESS_TYPES, VERTICAL_PLANS, getBusinessCategory, formatPrice } from "@/lib/plans";
 
@@ -18,14 +18,73 @@ function getPlansForType(businessType: string) {
   }));
 }
 
+const POLL_INTERVAL_MS = 3000;
+
+type PaymentPhase = "idle" | "awaiting" | "failed";
+
 export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
   const [businessType, setBusinessType] = useState("RETAIL");
+  const [paymentPhase, setPaymentPhase] = useState<PaymentPhase>("idle");
+  const [failureReason, setFailureReason] = useState<string | null>(null);
+  const pollRef = useRef<{ pendingSignupId: string; completionToken: string } | null>(null);
+  const stopPollingRef = useRef(false);
 
   const plans = getPlansForType(businessType);
+
+  async function pollUntilResolved() {
+    const target = pollRef.current;
+    if (!target || stopPollingRef.current) return;
+
+    try {
+      const res = await fetch(`/api/auth/register/status/${target.pendingSignupId}`);
+      const data = await res.json();
+
+      if (res.ok && data.status === "COMPLETED") {
+        const loginRes = await fetch("/api/auth/complete-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            pendingSignupId: target.pendingSignupId,
+            completionToken: target.completionToken,
+          }),
+        });
+        const loginData = await loginRes.json();
+
+        if (loginRes.ok) {
+          router.push(`/${loginData.tenant.slug}/dashboard`);
+          router.refresh();
+        } else {
+          setPaymentPhase("failed");
+          setFailureReason(loginData.error ?? "Something went wrong finishing sign-in.");
+        }
+        return;
+      }
+
+      if (res.ok && data.status === "FAILED") {
+        setPaymentPhase("failed");
+        setFailureReason(data.failureReason ?? "Payment didn't go through.");
+        return;
+      }
+    } catch {
+      // A single failed status check isn't fatal — keep polling.
+    }
+
+    if (!stopPollingRef.current) {
+      setTimeout(pollUntilResolved, POLL_INTERVAL_MS);
+    }
+  }
+
+  function resetToForm() {
+    stopPollingRef.current = true;
+    pollRef.current = null;
+    setPaymentPhase("idle");
+    setFailureReason(null);
+    setStep(2);
+  }
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -56,18 +115,59 @@ export default function RegisterPage() {
         return;
       }
 
-      if (data.paymentUrl) {
-        window.location.href = data.paymentUrl;
-      } else {
-        router.push(`/${data.tenant.slug}/dashboard`);
-        router.refresh();
-      }
+      pollRef.current = {
+        pendingSignupId: data.pendingSignupId,
+        completionToken: data.completionToken,
+      };
+      stopPollingRef.current = false;
+      setPaymentPhase("awaiting");
+      pollUntilResolved();
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (paymentPhase === "awaiting") {
+    return (
+      <Card className="w-full max-w-lg">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gold/10 animate-pulse">
+              <Smartphone size={28} className="text-gold" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl">Check your phone</CardTitle>
+          <CardDescription>
+            We've sent an M-Pesa payment prompt to your device. Enter your M-Pesa PIN to
+            complete your subscription — this page will update automatically once it's confirmed.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (paymentPhase === "failed") {
+    return (
+      <Card className="w-full max-w-lg">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-500/10">
+              <XCircle size={28} className="text-red-400" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl">Payment didn't complete</CardTitle>
+          <CardDescription>{failureReason}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button size="lg" className="w-full" onClick={resetToForm}>
+            Try again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-lg">
@@ -79,7 +179,7 @@ export default function RegisterPage() {
         </div>
         <CardTitle className="text-2xl">Create Your Account</CardTitle>
         <CardDescription>
-          Get started today. No credit card required.
+          Get started with an M-Pesa payment.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -127,7 +227,7 @@ export default function RegisterPage() {
           <div className={step === 2 ? "space-y-4" : "hidden"}>
               <Input name="ownerName" label="Your Full Name" placeholder="John Doe" required />
               <Input name="email" label="Email Address" type="email" placeholder="john@business.co.ke" required />
-              <Input name="phone" label="Phone Number" type="tel" placeholder="+254 7XX XXX XXX" required />
+              <Input name="phone" label="Phone Number" type="tel" placeholder="0712345678" required />
               <Input name="password" label="Password" type="password" placeholder="Min 8 characters" required minLength={8} />
 
               <div className="flex gap-3">
@@ -136,7 +236,7 @@ export default function RegisterPage() {
                 </Button>
                 <Button type="submit" size="lg" className="flex-1" disabled={loading}>
                   <UserPlus className="h-4 w-4" />
-                  {loading ? "Creating..." : "Create Account"}
+                  {loading ? "Starting payment..." : "Continue to payment"}
                 </Button>
               </div>
           </div>

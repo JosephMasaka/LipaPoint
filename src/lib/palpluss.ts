@@ -8,13 +8,13 @@ function getSecretKey(): string {
   return key;
 }
 
-// PalPluss docs list auth as "HTTP Basic (API key)" and the homepage sample
-// sends the raw key as `Authorization: Basic <key>` (not base64 "user:pass").
-// PALPLUSS_AUTH_TOKEN isn't referenced anywhere in the docs, SDKs, or site —
-// left out here. Add it back in if support specifies a header/format for it.
+// Standard HTTP Basic Auth is base64("key:") — a raw key with a literal
+// "Basic " prefix (no encoding) is NOT valid Basic auth and would produce a
+// 401 from any spec-compliant server. This was the previous bug here.
 function headers(): HeadersInit {
+  const encoded = Buffer.from(`${getSecretKey()}:`).toString("base64");
   return {
-    Authorization: `Basic ${getSecretKey()}`,
+    Authorization: `Basic ${encoded}`,
     "Content-Type": "application/json",
   };
 }
@@ -28,11 +28,21 @@ async function request<T>(
     headers: { ...headers(), ...(init.headers ?? {}) },
   });
 
-  const payload = await response.json();
+  // A 401/403/5xx might not come back as JSON at all — don't let a failed
+  // .json() call mask the real status/error.
+  let payload: any;
+  const rawText = await response.text();
+  try {
+    payload = rawText ? JSON.parse(rawText) : {};
+  } catch {
+    throw new Error(
+      `PalPluss request failed [HTTP_${response.status}] Non-JSON response: ${rawText.slice(0, 300)}`
+    );
+  }
 
   if (!response.ok || payload.success === false) {
     const message = payload?.error?.message ?? response.statusText;
-    const code = payload?.error?.code ?? "UNKNOWN_ERROR";
+    const code = payload?.error?.code ?? `HTTP_${response.status}`;
     const requestId = payload?.requestId ?? "unknown";
     throw new Error(
       `PalPluss request failed [${code}] ${message} (requestId: ${requestId})`
@@ -49,6 +59,28 @@ function qs(params: Record<string, string | number | undefined>): string {
     entries.map(([k, v]) => [k, String(v)])
   );
   return `?${search.toString()}`;
+}
+
+/**
+ * PalPluss's docs show request bodies using local Kenyan format
+ * ("0712345678"), while the webhook payload's phone_number comes back in
+ * international format ("254712345678"). Normalize whatever the user typed
+ * (+254..., 254..., 0...) to the local format the request examples use,
+ * since that's the only confirmed-accepted input shape.
+ */
+export function normalizeKenyanPhone(input: string): string {
+  const digits = input.replace(/\D/g, "");
+  if (digits.startsWith("254") && digits.length === 12) {
+    return `0${digits.slice(3)}`;
+  }
+  if (digits.startsWith("0") && digits.length === 10) {
+    return digits;
+  }
+  if (digits.length === 9) {
+    // e.g. "712345678" with no leading 0/254
+    return `0${digits}`;
+  }
+  return digits; // best effort — let PalPluss validate/reject if still malformed
 }
 
 // --- Envelope types ---
@@ -78,10 +110,10 @@ export interface StkPushData {
 
 /**
  * Trigger an M-Pesa STK Push prompt to a customer's phone.
- * Amount is in KES, sent as-is (no cents conversion — PalPluss expects whole shillings).
+ * Amount is in KES, sent as-is (no cents conversion).
  */
 export async function initiateStkPush(params: {
-  phone: string; // e.g. "254712345678"
+  phone: string; // local format, e.g. "0712345678" — see normalizeKenyanPhone
   amount: number; // whole KES
   accountReference?: string;
   transactionDesc?: string;
@@ -108,16 +140,28 @@ export async function initiateStkPush(params: {
 
 // --- Transactions ---
 
+// NOTE: this shape is confirmed for the *webhook* payload (from PalPluss's
+// actual docs). The GET /transactions/{id} response shape itself hasn't
+// been separately confirmed — assumed to mirror the webhook's transaction
+// object since that's the only verified reference we have. Worth spot-
+// checking against the real API reference page for this endpoint.
 export interface TransactionData {
   id: string;
+  tenant_id: string;
   type: "STK" | "B2C";
-  status: "PENDING" | "SUCCESS" | "FAILED";
+  status: "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED";
   amount: number;
   currency: string;
-  phone: string;
-  reference: string | null;
-  createdAt: string;
-  completedAt: string | null;
+  phone_number: string;
+  external_reference: string | null;
+  provider: string;
+  provider_request_id: string;
+  provider_checkout_id: string;
+  mpesa_receipt: string | null;
+  result_code: string | null;
+  result_desc: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TransactionListData {
@@ -135,7 +179,7 @@ export async function getTransaction(
 
 export async function listTransactions(params?: {
   limit?: number;
-  status?: "PENDING" | "SUCCESS" | "FAILED";
+  status?: "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED";
   type?: "STK" | "B2C";
   cursor?: string;
 }): Promise<PalPlussResponse<TransactionListData>> {
@@ -155,20 +199,16 @@ export interface B2cPayoutData {
   status: "PENDING" | "SUCCESS" | "FAILED";
 }
 
-/**
- * Disburse funds directly to a customer's M-Pesa number.
- * Amount is in KES, sent as whole shillings.
- */
 export async function initiateB2cPayout(params: {
   phone: string;
   amount: number;
-  currency?: string; // defaults to KES
+  currency?: string;
   reference?: string;
   description?: string;
   channelId?: string;
   credentialId?: string;
   callbackUrl?: string;
-  idempotencyKey?: string; // recommended — retries are unsafe without this
+  idempotencyKey?: string;
 }): Promise<PalPlussResponse<B2cPayoutData>> {
   const body: Record<string, unknown> = {
     phone: params.phone,
