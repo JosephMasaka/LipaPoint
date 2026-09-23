@@ -87,7 +87,7 @@ export function welcomeEmail(name: string, businessName: string, tier: string, s
         <li>Start processing sales</li>
       </ul>
       <a href="${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/${slug}/dashboard" class="btn">Go to Dashboard</a>
-      <p style="color:#666;font-size:13px;">Your 14-day free trial has started. No charges until it ends.</p>
+      <p style="color:#666;font-size:13px;">Your first month is active — you're all set to start selling.</p>
     `,
   };
 }
