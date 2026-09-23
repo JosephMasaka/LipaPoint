@@ -44,7 +44,7 @@ export default function RegisterPage() {
       const data = await res.json();
 
       if (res.ok && data.status === "COMPLETED") {
-        const loginRes = await fetch("/api/auth/complete-login", {
+        const loginRes = await fetch("/api/auth/register/complete-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
