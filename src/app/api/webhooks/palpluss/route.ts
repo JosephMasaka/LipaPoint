@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { completeSignupFromTransaction } from "@/lib/signup-completion";
+import { completeUpgradeFromTransaction } from "@/lib/plan-upgrade";
 
 // PalPluss confirms payloads are signed but the security docs I've fetched
 // so far don't give the header name or algorithm. DO NOT deploy without
-// confirming that — this endpoint creates real accounts and subscriptions.
+// confirming that — this endpoint creates real accounts, subscriptions,
+// and now also upgrades existing tenants' plans.
 //
 //   const signature = request.headers.get("x-palpluss-signature");
 //   const expected = createHmac("sha256", process.env.PALPLUSS_WEBHOOK_SECRET!)
@@ -59,21 +61,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Malformed payload" }, { status: 400 });
   }
 
-  const pendingSignupId = transaction.external_reference;
-  if (!pendingSignupId) {
+  const externalReference = transaction.external_reference;
+  if (!externalReference) {
     console.error("PalPluss webhook: no external_reference on transaction", transaction.id);
     return NextResponse.json({ received: true });
   }
 
-  const pending = await db.pendingSignup.findUnique({ where: { id: pendingSignupId } });
-  if (!pending) {
-    console.error("PalPluss webhook: no pending signup for reference", pendingSignupId);
-    return NextResponse.json({ received: true });
-  }
-
-  // Idempotent — the status-poll fallback may have already resolved this
-  // before the webhook arrived, or PalPluss may retry the same delivery.
-  const result = await completeSignupFromTransaction(pending.id, {
+  const txnLike = {
     id: transaction.id,
     status: transaction.status,
     amount: transaction.amount,
@@ -82,11 +76,25 @@ export async function POST(request: NextRequest) {
     result_code: transaction.result_code,
     result_desc: transaction.result_desc,
     provider_request_id: transaction.provider_request_id,
-  });
+  };
 
-  if (!result.ok && result.reason === "pending_signup_not_found") {
-    console.error("PalPluss webhook: pending signup vanished mid-processing", pending.id);
+  // external_reference is either a PendingSignup.id (new account) or a
+  // Transaction.id (existing tenant's plan upgrade) — figure out which.
+  const pending = await db.pendingSignup.findUnique({ where: { id: externalReference } });
+  if (pending) {
+    await completeSignupFromTransaction(pending.id, txnLike);
+    return NextResponse.json({ received: true });
   }
 
+  const upgrade = await db.transaction.findUnique({ where: { id: externalReference } });
+  if (upgrade) {
+    await completeUpgradeFromTransaction(upgrade.id, txnLike);
+    return NextResponse.json({ received: true });
+  }
+
+  console.error(
+    "PalPluss webhook: external_reference matched neither a pending signup nor a transaction",
+    externalReference
+  );
   return NextResponse.json({ received: true });
 }

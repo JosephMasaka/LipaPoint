@@ -111,7 +111,10 @@ export async function POST(request: NextRequest) {
         phone: normalizedPhone,
         amount,
         accountReference: pendingSignup.id,
-        transactionDesc: `${tier} subscription — ${businessName}`,
+        // M-Pesa's underlying STK Push API is strict about this field —
+        // plain ASCII only (no em-dash/smart quotes), and traditionally
+        // capped around 13 characters. Keeping it short and safe.
+        transactionDesc: `${tier} Signup`.slice(0, 13),
         callbackUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/palpluss`,
       });
 

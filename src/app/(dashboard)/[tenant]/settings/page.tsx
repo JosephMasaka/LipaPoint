@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -29,8 +28,9 @@ interface TenantSettings {
   mpesaAccountName?: string;
 }
 
+const UPGRADE_POLL_INTERVAL_MS = 3000;
+
 export default function SettingsPage() {
-  const searchParams = useSearchParams();
   const [settings, setSettings] = useState<TenantSettings>({
     name: "",
     slug: "",
@@ -47,8 +47,10 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [activeTab, setActiveTab] = useState("general");
   const [upgradingTier, setUpgradingTier] = useState<string | null>(null);
+  const [pendingUpgrade, setPendingUpgrade] = useState<{ upgradeTransactionId: string; tier: string } | null>(null);
   const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
   const tierOrder = useMemo(() => ({ STARTER: 0, PROFESSIONAL: 1, ENTERPRISE: 2 }) as Record<string, number>, []);
+  const stopPollingRef = useRef(false);
 
   const notify = (type: string, message: string) => {
     setNotification({ type, message });
@@ -72,29 +74,6 @@ export default function SettingsPage() {
       })
       .finally(() => setLoading(false));
   }, []);
-
-  useEffect(() => {
-    const upgraded = searchParams.get("upgraded");
-    const reference = searchParams.get("reference") || searchParams.get("trxref");
-    if (upgraded && reference) {
-      setActiveTab("billing");
-      fetch(`/api/paystack/verify?reference=${encodeURIComponent(reference)}`)
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success) {
-            setSettings((s) => ({ ...s, tier: data.tier }));
-            notify("success", `Successfully upgraded to ${data.tier.toLowerCase()} plan!`);
-          } else {
-            notify("error", data.error || "Payment verification failed");
-          }
-        })
-        .catch(() => notify("error", "Failed to verify payment"))
-        .finally(() => window.history.replaceState({}, "", window.location.pathname));
-    } else if (upgraded) {
-      setActiveTab("billing");
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  }, [searchParams]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -124,6 +103,61 @@ export default function SettingsPage() {
       setSaving(false);
     }
   };
+
+  async function pollUpgradeStatus(upgradeTransactionId: string, tier: string) {
+    if (stopPollingRef.current) return;
+
+    try {
+      const res = await fetch(`/api/settings/billing/status/${upgradeTransactionId}`);
+      const data = await res.json();
+
+      if (res.ok && data.status === "COMPLETED") {
+        setSettings((s) => ({ ...s, tier }));
+        setPendingUpgrade(null);
+        setUpgradingTier(null);
+        notify("success", `Successfully upgraded to ${tier.toLowerCase()} plan!`);
+        return;
+      }
+
+      if (res.ok && data.status === "FAILED") {
+        setPendingUpgrade(null);
+        setUpgradingTier(null);
+        notify("error", data.failureReason || "Upgrade payment didn't go through.");
+        return;
+      }
+    } catch {
+      // A single failed status check isn't fatal — keep polling.
+    }
+
+    if (!stopPollingRef.current) {
+      setTimeout(() => pollUpgradeStatus(upgradeTransactionId, tier), UPGRADE_POLL_INTERVAL_MS);
+    }
+  }
+
+  async function handleUpgrade(planTier: string) {
+    setUpgradingTier(planTier);
+    try {
+      const res = await fetch("/api/palpluss/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tier: planTier }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        notify("error", data.error || "Failed to start upgrade");
+        setUpgradingTier(null);
+        return;
+      }
+
+      stopPollingRef.current = false;
+      setPendingUpgrade({ upgradeTransactionId: data.upgradeTransactionId, tier: planTier });
+      pollUpgradeStatus(data.upgradeTransactionId, planTier);
+    } catch {
+      notify("error", "Network error");
+      setUpgradingTier(null);
+    }
+  }
 
   const tabs = [
     { id: "general", label: "General", icon: Store },
@@ -330,6 +364,19 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {pendingUpgrade && (
+                <div className="flex items-center gap-3 rounded-lg border border-gold/30 bg-gold/5 p-4 mb-6">
+                  <Smartphone className="h-5 w-5 text-gold shrink-0 animate-pulse" />
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Check your phone</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      We sent an M-Pesa prompt to confirm your upgrade to {pendingUpgrade.tier.toLowerCase()}.
+                      This will update automatically once confirmed.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <div className="grid md:grid-cols-3 gap-4">
                 {Object.entries(VERTICAL_PLANS[getBusinessCategory(settings.type)]).map(([planTier, config]) => (
                   <div
@@ -356,27 +403,8 @@ export default function SettingsPage() {
                         size="sm"
                         variant={(tierOrder[planTier] || 0) > (tierOrder[settings.tier] || 0) ? "default" : "outline"}
                         className="w-full"
-                        disabled={upgradingTier === planTier}
-                        onClick={async () => {
-                          setUpgradingTier(planTier);
-                          try {
-                            const res = await fetch("/api/paystack/subscribe", {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ tier: planTier }),
-                            });
-                            const data = await res.json();
-                            if (data.url) {
-                              window.location.href = data.url;
-                            } else {
-                              notify("error", data.error || "Failed to initiate upgrade");
-                              setUpgradingTier(null);
-                            }
-                          } catch {
-                            notify("error", "Network error");
-                            setUpgradingTier(null);
-                          }
-                        }}
+                        disabled={upgradingTier === planTier || !!pendingUpgrade}
+                        onClick={() => handleUpgrade(planTier)}
                       >
                         {upgradingTier === planTier ? (
                           <Loader size="sm" />
@@ -546,7 +574,6 @@ function NotificationsTab({ notify }: { notify: (type: string, msg: string) => v
   }, []);
 
   const togglePref = async (key: string) => {
-    // If enabling and browser notifications not yet granted, request permission first
     if (!prefs[key] && !browserEnabled) {
       const granted = await requestBrowserPermission();
       if (!granted) {
