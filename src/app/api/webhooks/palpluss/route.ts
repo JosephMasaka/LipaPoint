@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { completeSignupFromTransaction } from "@/lib/signup-completion";
 import { completeUpgradeFromTransaction } from "@/lib/plan-upgrade";
+import { completeOrderPayment } from "@/lib/payment-gateways/order-completion";
 
 // PalPluss confirms payloads are signed but the security docs I've fetched
 // so far don't give the header name or algorithm. DO NOT deploy without
 // confirming that — this endpoint creates real accounts, subscriptions,
-// and now also upgrades existing tenants' plans.
+// AND completes real POS sales for tenants' own customers.
 //
 //   const signature = request.headers.get("x-palpluss-signature");
 //   const expected = createHmac("sha256", process.env.PALPLUSS_WEBHOOK_SECRET!)
@@ -15,6 +16,11 @@ import { completeUpgradeFromTransaction } from "@/lib/plan-upgrade";
 //   if (signature !== expected) return new NextResponse("Invalid signature", { status: 401 });
 //
 // Needs the raw body (before JSON parsing) to compute the HMAC correctly.
+//
+// This one endpoint serves three callers — platform subscription billing
+// (env-var key), tenant POS sales, and tenant plan upgrades (tenant's own
+// stored key) — all pointing their callbackUrl here. external_reference
+// disambiguates which record to resolve.
 
 interface PalPlussWebhookTransaction {
   id: string;
@@ -78,17 +84,34 @@ export async function POST(request: NextRequest) {
     provider_request_id: transaction.provider_request_id,
   };
 
-  // external_reference is either a PendingSignup.id (new account) or a
-  // Transaction.id (existing tenant's plan upgrade) — figure out which.
+  // 1. New account signup?
   const pending = await db.pendingSignup.findUnique({ where: { id: externalReference } });
   if (pending) {
     await completeSignupFromTransaction(pending.id, txnLike);
     return NextResponse.json({ received: true });
   }
 
-  const upgrade = await db.transaction.findUnique({ where: { id: externalReference } });
-  if (upgrade) {
-    await completeUpgradeFromTransaction(upgrade.id, txnLike);
+  // 2. Existing tenant's plan upgrade or POS sale — both are Transaction
+  // rows keyed by their own id as external_reference. orderId is set only
+  // for POS sales (see /api/orders' isPendingStk path) — plan upgrades
+  // never have one, which is what disambiguates them here.
+  const record = await db.transaction.findUnique({ where: { id: externalReference } });
+  if (record) {
+    if (record.orderId) {
+      await completeOrderPayment(record.id, {
+        status: transaction.status === "SUCCESS" ? "SUCCESS" : "FAILED",
+        receiptNumber: transaction.mpesa_receipt ?? undefined,
+        resultDesc: transaction.result_desc,
+      });
+    } else if (record.type.startsWith("UPGRADE:")) {
+      await completeUpgradeFromTransaction(record.id, txnLike);
+    } else {
+      console.error(
+        "PalPluss webhook: transaction matched but couldn't be classified",
+        record.id,
+        record.type
+      );
+    }
     return NextResponse.json({ received: true });
   }
 

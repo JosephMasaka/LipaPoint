@@ -11,8 +11,13 @@ function getSecretKey(): string {
 // Standard HTTP Basic Auth is base64("key:") — a raw key with a literal
 // "Basic " prefix (no encoding) is NOT valid Basic auth and would produce a
 // 401 from any spec-compliant server. This was the previous bug here.
-function headers(): HeadersInit {
-  const encoded = Buffer.from(`${getSecretKey()}:`).toString("base64");
+//
+// apiKeyOverride lets callers use a tenant's own PalPluss key (POS
+// payments) instead of the platform's PALPLUSS_SECRET_KEY (subscription
+// billing) — omit it to keep using the env var as before.
+function headers(apiKeyOverride?: string): HeadersInit {
+  const key = apiKeyOverride ?? getSecretKey();
+  const encoded = Buffer.from(`${key}:`).toString("base64");
   return {
     Authorization: `Basic ${encoded}`,
     "Content-Type": "application/json",
@@ -21,11 +26,12 @@ function headers(): HeadersInit {
 
 async function request<T>(
   path: string,
-  init: RequestInit = {}
+  init: RequestInit = {},
+  apiKeyOverride?: string
 ): Promise<PalPlussResponse<T>> {
   const response = await fetch(`${PALPLUSS_BASE_URL}${path}`, {
     ...init,
-    headers: { ...headers(), ...(init.headers ?? {}) },
+    headers: { ...headers(apiKeyOverride), ...(init.headers ?? {}) },
   });
 
   // A 401/403/5xx might not come back as JSON at all — don't let a failed
@@ -120,6 +126,7 @@ export async function initiateStkPush(params: {
   channelId?: string;
   callbackUrl?: string;
   credentialId?: string;
+  apiKey?: string; // tenant's own PalPluss key for POS use — omit for platform billing
 }): Promise<PalPlussResponse<StkPushData>> {
   const body: Record<string, unknown> = {
     phone: params.phone,
@@ -132,10 +139,11 @@ export async function initiateStkPush(params: {
   if (params.callbackUrl) body.callbackUrl = params.callbackUrl;
   if (params.credentialId) body.credentialId = params.credentialId;
 
-  return request<StkPushData>("/payments/stk", {
-    method: "POST",
-    body: JSON.stringify(body),
-  });
+  return request<StkPushData>(
+    "/payments/stk",
+    { method: "POST", body: JSON.stringify(body) },
+    params.apiKey
+  );
 }
 
 // --- Transactions ---
@@ -170,10 +178,13 @@ export interface TransactionListData {
 }
 
 export async function getTransaction(
-  transactionId: string
+  transactionId: string,
+  apiKey?: string
 ): Promise<PalPlussResponse<TransactionData>> {
   return request<TransactionData>(
-    `/transactions/${encodeURIComponent(transactionId)}`
+    `/transactions/${encodeURIComponent(transactionId)}`,
+    {},
+    apiKey
   );
 }
 
