@@ -66,6 +66,12 @@ interface CompletedOrder {
   user: { name: string };
 }
 
+interface ConnectedGateway {
+  provider: string;
+}
+
+const STK_POLL_INTERVAL_MS = 3000;
+
 export default function POSPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -81,6 +87,16 @@ export default function POSPage() {
   const [receiptFooter, setReceiptFooter] = useState("Thank you for shopping with us!");
   const [mpesaPaybill, setMpesaPaybill] = useState("");
   const [mpesaTill, setMpesaTill] = useState("");
+
+  // Connected STK gateways (DARAJA/PALPLUSS) — only shown as a payment
+  // option when at least one is active for this tenant.
+  const [stkGateways, setStkGateways] = useState<ConnectedGateway[]>([]);
+  const [stkModal, setStkModal] = useState(false);
+  const [stkPhone, setStkPhone] = useState("");
+  const [stkProvider, setStkProvider] = useState("");
+  const [stkPhase, setStkPhase] = useState<"idle" | "awaiting" | "failed">("idle");
+  const [stkFailReason, setStkFailReason] = useState("");
+  const stkPollStopRef = useRef(false);
 
   // UoM selector
   const [uomProduct, setUomProduct] = useState<Product | null>(null);
@@ -210,6 +226,13 @@ export default function POSPage() {
       if (data?.receiptFooter) setReceiptFooter(data.receiptFooter);
       if (data?.mpesaPaybill) setMpesaPaybill(data.mpesaPaybill);
       if (data?.mpesaTill) setMpesaTill(data.mpesaTill);
+      if (Array.isArray(data?.paymentGateways)) {
+        const active = data.paymentGateways.filter(
+          (g: { provider: string; isActive: boolean }) =>
+            g.isActive && (g.provider === "DARAJA" || g.provider === "PALPLUSS")
+        );
+        setStkGateways(active);
+      }
       try { localStorage.setItem("lipapoint-pos-settings", JSON.stringify({ receiptFooter: data.receiptFooter || "", mpesaPaybill: data.mpesaPaybill || "", mpesaTill: data.mpesaTill || "" })); } catch {}
     }).catch(() => {
       try { const c = localStorage.getItem("lipapoint-pos-settings"); if (c) { const d = JSON.parse(c); if (d.receiptFooter) setReceiptFooter(d.receiptFooter); if (d.mpesaPaybill) setMpesaPaybill(d.mpesaPaybill); if (d.mpesaTill) setMpesaTill(d.mpesaTill); } } catch {}
@@ -344,6 +367,104 @@ export default function POSPage() {
       setMpesaCode("");
     }
   };
+
+  // --- STK Push checkout ---
+  // Unlike the other methods, this creates the order in a PENDING state
+  // (see /api/orders' isPendingStk path) — nothing is committed until the
+  // customer actually confirms on their phone.
+  async function pollStkStatus(transactionId: string, orderSnapshot: CompletedOrder) {
+    if (stkPollStopRef.current) return;
+
+    try {
+      const res = await fetch(`/api/pos/payments/status/${transactionId}`);
+      const data = await res.json();
+
+      if (res.ok && data.status === "COMPLETED") {
+        setStkPhase("idle");
+        setProcessing(false);
+        setCompletedOrder(orderSnapshot);
+        setShowSuccess(true);
+        clearCart();
+        setCartOpen(false);
+        notifyOrderComplete(orderSnapshot.orderNo, formatCurrency(orderSnapshot.total));
+        return;
+      }
+
+      if (res.ok && data.status === "FAILED") {
+        setStkPhase("failed");
+        setStkFailReason(data.failureReason || "Payment didn't go through.");
+        setProcessing(false);
+        return;
+      }
+    } catch {
+      // keep polling — a single failed check isn't fatal
+    }
+
+    if (!stkPollStopRef.current) {
+      setTimeout(() => pollStkStatus(transactionId, orderSnapshot), STK_POLL_INTERVAL_MS);
+    }
+  }
+
+  async function handleStkCheckout() {
+    if (!stkPhone.trim() || !stkProvider) {
+      notify("error", "Enter a phone number");
+      return;
+    }
+    if (items.length === 0) return;
+
+    setStkModal(false);
+    setProcessing(true);
+
+    const orderData = {
+      items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price, productUomId: i.productUomId })),
+      paymentMethod: "MPESA_STK",
+      provider: stkProvider,
+      customerPhone: stkPhone.trim(),
+      subtotal: getSubtotal(),
+      taxAmount: getTax(taxRate),
+      total: getTotal(taxRate),
+    };
+
+    try {
+      const orderRes = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(orderData),
+      });
+      const order = await orderRes.json();
+
+      if (!orderRes.ok) {
+        notify("error", order.error || "Failed to create order");
+        setProcessing(false);
+        return;
+      }
+
+      const initRes = await fetch("/api/pos/payments/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId: order.id, provider: stkProvider, phone: stkPhone.trim() }),
+      });
+      const initData = await initRes.json();
+
+      if (!initRes.ok) {
+        notify("error", initData.error || "Could not start payment");
+        setProcessing(false);
+        return;
+      }
+
+      // order already matches CompletedOrder's shape (same include clause
+      // as the other payment methods use) — just relabel paymentMethod
+      // since the DB value is the enum, not a display label.
+      const orderSnapshot: CompletedOrder = { ...order, paymentMethod: "MPESA_STK" };
+
+      setStkPhase("awaiting");
+      stkPollStopRef.current = false;
+      pollStkStatus(initData.transactionId, orderSnapshot);
+    } catch {
+      notify("error", "Network error");
+      setProcessing(false);
+    }
+  }
 
   const handleOpenTab = async () => {
     if (items.length === 0 || !tabName.trim()) return;
@@ -602,6 +723,73 @@ export default function POSPage() {
             <div className="border-t border-border p-3">
               <Button variant="outline" className="w-full" onClick={() => setUomProduct(null)}>Cancel</Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* STK Push: phone entry */}
+      {stkModal && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setStkModal(false)} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-5 space-y-4">
+            <div>
+              <h3 className="font-semibold text-text-primary">Send M-Pesa Prompt</h3>
+              <p className="text-xs text-text-muted mt-1">
+                A payment prompt for {formatCurrency(getTotal(taxRate))} will be sent to the customer&apos;s phone.
+              </p>
+            </div>
+            {stkGateways.length > 1 && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-text-secondary">Gateway</label>
+                <select
+                  value={stkProvider}
+                  onChange={(e) => setStkProvider(e.target.value)}
+                  className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary"
+                >
+                  {stkGateways.map((g) => (
+                    <option key={g.provider} value={g.provider}>{g.provider}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <Input
+              placeholder="0712345678"
+              value={stkPhone}
+              onChange={(e) => setStkPhone(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setStkModal(false)}>Cancel</Button>
+              <Button className="flex-1" disabled={stkPhone.trim().length < 9} onClick={handleStkCheckout}>
+                Send Prompt
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* STK Push: awaiting confirmation */}
+      {stkPhase === "awaiting" && (
+        <div className="fixed inset-0 z-[96] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-3">
+            <Smartphone className="h-10 w-10 text-gold mx-auto animate-pulse" />
+            <h3 className="font-semibold text-text-primary">Check customer&apos;s phone</h3>
+            <p className="text-xs text-text-muted">Waiting for M-Pesa confirmation...</p>
+          </div>
+        </div>
+      )}
+
+      {/* STK Push: failed */}
+      {stkPhase === "failed" && (
+        <div className="fixed inset-0 z-[96] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setStkPhase("idle")} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center space-y-3">
+            <X className="h-10 w-10 text-red-400 mx-auto" />
+            <h3 className="font-semibold text-text-primary">Payment didn&apos;t complete</h3>
+            <p className="text-xs text-text-muted">{stkFailReason}</p>
+            <p className="text-[11px] text-text-muted">The cart has been kept — you can retry with a different method.</p>
+            <Button className="w-full" onClick={() => setStkPhase("idle")}>Dismiss</Button>
           </div>
         </div>
       )}
@@ -1042,6 +1230,7 @@ export default function POSPage() {
                     { id: "MPESA_MANUAL", icon: Smartphone, label: "M-Pesa" },
                     { id: "CARD", icon: CreditCard, label: "Card" },
                     { id: "PDQ", icon: Wifi, label: "PDQ" },
+                    ...(stkGateways.length > 0 ? [{ id: "MPESA_STK", icon: Smartphone, label: "STK Push" }] : []),
                   ].map((m) => (
                     <button
                       key={m.id}
@@ -1057,6 +1246,10 @@ export default function POSPage() {
                 <Button size="lg" className="w-full" disabled={items.length === 0 || processing} onClick={() => {
                   if (paymentMethod === "MPESA_MANUAL") {
                     setMpesaCodeModal(true);
+                  } else if (paymentMethod === "MPESA_STK") {
+                    setStkPhone("");
+                    setStkProvider(stkGateways[0]?.provider ?? "");
+                    setStkModal(true);
                   } else {
                     handleCheckout();
                   }

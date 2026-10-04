@@ -78,6 +78,10 @@ export async function POST(request: NextRequest) {
       registerId,
       discount,
       notes,
+      // NEW — presence of `provider` alongside paymentMethod "MPESA_STK"
+      // triggers the pending-payment path below. Omit both for every other
+      // method and behavior is byte-for-byte identical to before.
+      provider,
     } = body;
 
     if (!items || !items.length) {
@@ -157,60 +161,90 @@ export async function POST(request: NextRequest) {
     const orderNo = generateOrderNo();
     const txRef = `TXN-${orderNo.replace("ORD-", "")}`;
 
+    // STK Push takes a different path: the customer hasn't actually paid
+    // yet when this request is made (they confirm on their phone
+    // afterward, via /api/pos/payments/initiate). Stock is NOT decremented
+    // and the order/transaction are NOT marked complete here — that only
+    // happens once payment is confirmed, in completeOrderPayment(). Every
+    // other payment method keeps its original immediate-completion
+    // behavior, unchanged.
+    const isPendingStk = paymentMethod === "MPESA_STK" && !!provider;
+
     const order = await db.$transaction(async (tx) => {
-      for (let i = 0; i < orderItems.length; i++) {
-        const item = orderItems[i];
-        const product = productMap.get(item.productId)!;
+      if (!isPendingStk) {
+        for (let i = 0; i < orderItems.length; i++) {
+          const item = orderItems[i];
+          const product = productMap.get(item.productId)!;
 
-        if (product.trackStock) {
-          const stock = await tx.stock.findUnique({
-            where: {
-              productId_locationId: {
+          if (product.trackStock) {
+            const stock = await tx.stock.findUnique({
+              where: {
+                productId_locationId: {
+                  productId: product.id,
+                  locationId: resolvedLocationId,
+                },
+              },
+            });
+
+            if (!stock || stock.quantity < item.baseQuantity) {
+              throw new Error(`Insufficient stock for ${product.name}`);
+            }
+
+            await tx.stock.update({
+              where: {
+                productId_locationId: {
+                  productId: product.id,
+                  locationId: resolvedLocationId,
+                },
+              },
+              data: { quantity: { decrement: item.baseQuantity } },
+            });
+
+            await tx.stockMovement.create({
+              data: {
+                type: "GOODS_ISSUE",
+                quantity: item.baseQuantity,
                 productId: product.id,
                 locationId: resolvedLocationId,
+                reference: orderNo,
+                notes: `Sale - ${item.quantity} units`,
+                tenantId: user.tenantId,
+                userId: user.id,
               },
-            },
-          });
-
-          if (!stock || stock.quantity < item.baseQuantity) {
-            throw new Error(`Insufficient stock for ${product.name}`);
+            });
           }
-
-          await tx.stock.update({
-            where: {
-              productId_locationId: {
-                productId: product.id,
-                locationId: resolvedLocationId,
+        }
+      } else {
+        // Pending STK: confirm stock is available now so we don't accept an
+        // order we can't fulfill, but don't commit the decrement yet.
+        for (const item of orderItems) {
+          const product = productMap.get(item.productId)!;
+          if (product.trackStock) {
+            const stock = await tx.stock.findUnique({
+              where: {
+                productId_locationId: {
+                  productId: product.id,
+                  locationId: resolvedLocationId,
+                },
               },
-            },
-            data: { quantity: { decrement: item.baseQuantity } },
-          });
-
-          await tx.stockMovement.create({
-            data: {
-              type: "GOODS_ISSUE",
-              quantity: item.baseQuantity,
-              productId: product.id,
-              locationId: resolvedLocationId,
-              reference: orderNo,
-              notes: `Sale - ${item.quantity} units`,
-              tenantId: user.tenantId,
-              userId: user.id,
-            },
-          });
+            });
+            if (!stock || stock.quantity < item.baseQuantity) {
+              throw new Error(`Insufficient stock for ${product.name}`);
+            }
+          }
         }
       }
 
       const newOrder = await tx.order.create({
         data: {
           orderNo,
-          status: "COMPLETED",
+          status: isPendingStk ? "PENDING" : "COMPLETED",
           subtotal,
           taxAmount,
           discount: discountAmount,
           total,
           paymentMethod: paymentMethod || "CASH",
-          paymentStatus: "COMPLETED",
+          paymentStatus: isPendingStk ? "PENDING" : "COMPLETED",
           customerName: customerName || null,
           customerPhone: customerPhone || null,
           notes: notes || null,
@@ -240,13 +274,14 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      await tx.transaction.create({
+      const transaction = await tx.transaction.create({
         data: {
           type: "SALE",
           amount: total,
           method: paymentMethod || "CASH",
-          status: "COMPLETED",
-          reference: txRef,
+          status: isPendingStk ? "PENDING" : "COMPLETED",
+          reference: isPendingStk ? null : txRef,
+          provider: isPendingStk ? provider : undefined,
           description: `Sale ${orderNo}`,
           tenantId: user.tenantId,
           orderId: newOrder.id,
@@ -254,19 +289,22 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      return newOrder;
+      return { ...newOrder, transactionId: transaction.id };
     }, { timeout: 30000 });
 
-    // Return remaining stock for sold items so client can check thresholds
+    // Stock levels are only meaningful for the immediate-completion path —
+    // for pending STK orders nothing has moved yet.
     const stockLevels: { productName: string; remaining: number }[] = [];
-    for (const item of orderItems) {
-      const product = productMap.get(item.productId);
-      if (!product || !product.trackStock) continue;
-      const stock = await db.stock.findUnique({
-        where: { productId_locationId: { productId: product.id, locationId: resolvedLocationId } },
-      });
-      if (stock) {
-        stockLevels.push({ productName: product.name, remaining: stock.quantity });
+    if (!isPendingStk) {
+      for (const item of orderItems) {
+        const product = productMap.get(item.productId);
+        if (!product || !product.trackStock) continue;
+        const stock = await db.stock.findUnique({
+          where: { productId_locationId: { productId: product.id, locationId: resolvedLocationId } },
+        });
+        if (stock) {
+          stockLevels.push({ productName: product.name, remaining: stock.quantity });
+        }
       }
     }
 
