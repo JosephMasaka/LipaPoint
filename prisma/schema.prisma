@@ -362,6 +362,7 @@ model TenantPaymentGateway {
   isActive     Boolean         @default(false)
   apiKeyEnc    String?
   apiSecretEnc String?
+  credentialsEnc String?
   merchantRef  String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
@@ -383,6 +384,7 @@ model Transaction {
   mpesaPhone      String?
   cardLast4       String?
   description     String?
+  provider        PaymentProvider? // NEW — which gateway (DARAJA/PALPLUSS/etc) processed this, when applicable
   tenantId        String
   orderId         String?
   userId          String?
@@ -595,6 +597,7 @@ enum PaymentProvider {
   PESAPAL
   KOPOKOPO
   FLUTTERWAVE
+  PALPLUSS
 }
 
 enum PaymentStatus {
