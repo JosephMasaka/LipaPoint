@@ -8,10 +8,16 @@ import { Badge } from "@/components/ui/badge";
 import { Loader } from "@/components/ui/loader";
 import {
   Store, CreditCard, Bell, Shield,
-  Receipt, Save, CheckCircle, Check, Smartphone
+  Receipt, Save, CheckCircle, Check, Smartphone, X
 } from "lucide-react";
 import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
 import { getPlanPricing, getPlanLimits, formatPrice, getBusinessCategory, VERTICAL_PLANS, FEATURE_DISPLAY } from "@/lib/plans";
+
+interface GatewayStatus {
+  provider: string;
+  isActive: boolean;
+  merchantRef: string | null;
+}
 
 interface TenantSettings {
   name: string;
@@ -26,7 +32,53 @@ interface TenantSettings {
   mpesaPaybill?: string;
   mpesaTill?: string;
   mpesaAccountName?: string;
+  paymentGateways?: GatewayStatus[];
 }
+
+interface GatewayField {
+  key: string;
+  label: string;
+  type: "text" | "password" | "select";
+  optional?: boolean;
+  options?: string[];
+}
+
+interface GatewayDef {
+  id: string;
+  name: string;
+  desc: string;
+  implemented: boolean;
+  fields?: GatewayField[];
+}
+
+const GATEWAY_DEFS: GatewayDef[] = [
+  {
+    id: "PALPLUSS",
+    name: "PalPluss",
+    desc: "M-Pesa STK Push via PalPluss — your own PalPluss account, separate from LipaPoint's own billing",
+    implemented: true,
+    fields: [
+      { key: "secretKey", label: "PalPluss Secret Key", type: "password" },
+      { key: "channelId", label: "Channel ID (optional)", type: "text", optional: true },
+    ],
+  },
+  {
+    id: "DARAJA",
+    name: "Safaricom Daraja (Direct)",
+    desc: "Requires full business registration with Safaricom",
+    implemented: true,
+    fields: [
+      { key: "consumerKey", label: "Consumer Key", type: "text" },
+      { key: "consumerSecret", label: "Consumer Secret", type: "password" },
+      { key: "shortCode", label: "Business Shortcode", type: "text" },
+      { key: "passkey", label: "Passkey", type: "password" },
+      { key: "environment", label: "Environment", type: "select", options: ["sandbox", "production"] },
+    ],
+  },
+  { id: "INTASEND", name: "IntaSend", desc: "Fast signup, no Safaricom paperwork", implemented: false },
+  { id: "PESAPAL", name: "Pesapal", desc: "Popular with East African merchants", implemented: false },
+  { id: "KOPOKOPO", name: "Kopo Kopo", desc: "M-Pesa-native, Kenya-focused", implemented: false },
+];
 
 const UPGRADE_POLL_INTERVAL_MS = 3000;
 
@@ -52,20 +104,31 @@ export default function SettingsPage() {
   const tierOrder = useMemo(() => ({ STARTER: 0, PROFESSIONAL: 1, ENTERPRISE: 2 }) as Record<string, number>, []);
   const stopPollingRef = useRef(false);
 
+  // Gateway connect modal
+  const [connectingGateway, setConnectingGateway] = useState<GatewayDef | null>(null);
+  const [gatewayForm, setGatewayForm] = useState<Record<string, string>>({});
+  const [gatewayMerchantRef, setGatewayMerchantRef] = useState("");
+  const [gatewaySaving, setGatewaySaving] = useState(false);
+  const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
+
   const notify = (type: string, message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
   };
 
-  useEffect(() => {
-    fetch("/api/settings")
+  const refreshSettings = () => {
+    return fetch("/api/settings")
       .then((r) => r.json())
       .then((data) => {
         if (data && !data.error) {
           setSettings(data);
           try { localStorage.setItem("lipapoint-oc-settings", JSON.stringify({ data, timestamp: Date.now() })); } catch {}
         }
-      })
+      });
+  };
+
+  useEffect(() => {
+    refreshSettings()
       .catch(() => {
         try {
           const raw = localStorage.getItem("lipapoint-oc-settings");
@@ -73,6 +136,7 @@ export default function SettingsPage() {
         } catch {}
       })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSave = async () => {
@@ -159,6 +223,75 @@ export default function SettingsPage() {
     }
   }
 
+  function gatewayStatusFor(providerId: string): GatewayStatus | undefined {
+    return settings.paymentGateways?.find((g) => g.provider === providerId);
+  }
+
+  function openConnectModal(def: GatewayDef) {
+    setGatewayForm({});
+    setGatewayMerchantRef("");
+    setConnectingGateway(def);
+  }
+
+  async function handleGatewayConnect() {
+    if (!connectingGateway) return;
+    const def = connectingGateway;
+
+    const missing = def.fields?.filter((f) => !f.optional && !gatewayForm[f.key]?.trim());
+    if (missing && missing.length > 0) {
+      notify("error", `Fill in: ${missing.map((f) => f.label).join(", ")}`);
+      return;
+    }
+
+    setGatewaySaving(true);
+    try {
+      const res = await fetch("/api/settings/payment-gateways", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          provider: def.id,
+          credentials: gatewayForm,
+          merchantRef: gatewayMerchantRef || undefined,
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        notify("error", data.error || "Failed to connect");
+        return;
+      }
+
+      await refreshSettings();
+      setConnectingGateway(null);
+      notify("success", `${def.name} connected`);
+    } catch {
+      notify("error", "Network error");
+    } finally {
+      setGatewaySaving(false);
+    }
+  }
+
+  async function handleGatewayDisconnect(providerId: string) {
+    setDisconnectingProvider(providerId);
+    try {
+      const res = await fetch("/api/settings/payment-gateways", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: providerId }),
+      });
+      if (res.ok) {
+        await refreshSettings();
+        notify("success", "Disconnected");
+      } else {
+        notify("error", "Failed to disconnect");
+      }
+    } catch {
+      notify("error", "Network error");
+    } finally {
+      setDisconnectingProvider(null);
+    }
+  }
+
   const tabs = [
     { id: "general", label: "General", icon: Store },
     { id: "payments", label: "Payments", icon: Smartphone },
@@ -184,6 +317,72 @@ export default function SettingsPage() {
           <span className="text-sm font-medium">{notification.message}</span>
         </div>
       )}
+
+      {/* Gateway Connect Modal */}
+      {connectingGateway && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => !gatewaySaving && setConnectingGateway(null)} />
+          <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold text-text-primary">Connect {connectingGateway.name}</h3>
+                <p className="text-xs text-text-muted mt-0.5">{connectingGateway.desc}</p>
+              </div>
+              <button onClick={() => setConnectingGateway(null)} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-hover">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3">
+              {connectingGateway.fields?.map((field) => (
+                <div key={field.key}>
+                  {field.type === "select" ? (
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-medium text-text-secondary">{field.label}</label>
+                      <select
+                        value={gatewayForm[field.key] ?? field.options?.[0] ?? ""}
+                        onChange={(e) => setGatewayForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                        className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm text-text-primary"
+                      >
+                        {field.options?.map((opt) => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <Input
+                      label={field.label + (field.optional ? " (optional)" : "")}
+                      type={field.type}
+                      value={gatewayForm[field.key] ?? ""}
+                      onChange={(e) => setGatewayForm((f) => ({ ...f, [field.key]: e.target.value }))}
+                    />
+                  )}
+                </div>
+              ))}
+              <Input
+                label="Label (optional)"
+                value={gatewayMerchantRef}
+                onChange={(e) => setGatewayMerchantRef(e.target.value)}
+                placeholder="e.g. Main branch"
+              />
+            </div>
+
+            <p className="text-[11px] text-text-muted">
+              Credentials are encrypted before storage and never shown again after saving.
+            </p>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setConnectingGateway(null)} disabled={gatewaySaving}>
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={handleGatewayConnect} disabled={gatewaySaving}>
+                {gatewaySaving ? "Connecting..." : "Connect"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Settings</h1>
@@ -324,20 +523,44 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-3">
-              {[
-                { id: "INTASEND", name: "IntaSend", desc: "Fast signup, no Safaricom paperwork" },
-                { id: "PESAPAL", name: "Pesapal", desc: "Popular with East African merchants" },
-                { id: "KOPOKOPO", name: "Kopo Kopo", desc: "M-Pesa-native, Kenya-focused" },
-                { id: "DARAJA", name: "Safaricom Daraja (Direct)", desc: "Requires full business registration with Safaricom" },
-              ].map((gw) => (
-                <div key={gw.id} className="flex items-center justify-between rounded-lg border border-border p-4">
-                  <div>
-                    <p className="text-sm font-medium text-text-primary">{gw.name}</p>
-                    <p className="text-xs text-text-muted mt-0.5">{gw.desc}</p>
+              {GATEWAY_DEFS.map((gw) => {
+                const status = gatewayStatusFor(gw.id);
+                const connected = status?.isActive;
+                return (
+                  <div key={gw.id} className="flex items-center justify-between rounded-lg border border-border p-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-text-primary">{gw.name}</p>
+                        {connected && <Badge variant="success">Connected</Badge>}
+                        {!gw.implemented && <Badge variant="secondary">Coming soon</Badge>}
+                      </div>
+                      <p className="text-xs text-text-muted mt-0.5">
+                        {status?.merchantRef ? status.merchantRef : gw.desc}
+                      </p>
+                    </div>
+                    {connected ? (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-400 hover:text-red-300"
+                        disabled={disconnectingProvider === gw.id}
+                        onClick={() => handleGatewayDisconnect(gw.id)}
+                      >
+                        {disconnectingProvider === gw.id ? "..." : "Disconnect"}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!gw.implemented}
+                        onClick={() => openConnectModal(gw)}
+                      >
+                        Connect
+                      </Button>
+                    )}
                   </div>
-                  <Button variant="outline" size="sm">Connect</Button>
-                </div>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         </div>
