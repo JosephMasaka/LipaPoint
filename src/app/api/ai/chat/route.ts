@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getCurrentUser } from "@/lib/auth";
 import { canAccessFeature } from "@/lib/plans";
+import { generateAiReply } from "@/lib/ai/orchestrator";
+import { buildBusinessContext } from "@/lib/ai/business-context";
+import { AiRateLimitError } from "@/lib/ai/types";
 
-const SYSTEM_PROMPT = `You are LipaPoint AI, a smart business assistant for a POS system. You help business owners with: sales insights, inventory advice, pricing suggestions, customer trends, and general business tips. Be concise, actionable, and friendly. Keep responses under 200 words unless asked for detail. The business operates in Kenya with KES currency.`;
+const SYSTEM_PROMPT = `You are LipaPoint AI, an expert point-of-sale business assistant for small and medium businesses in Kenya. You help with: sales insights, inventory and restocking advice, pricing suggestions, customer retention, and general business tips. Ground your advice in the real sales and stock data provided below when it's relevant to the question — cite specific product names and numbers rather than generic advice when the data supports it. Be concise, actionable, and friendly. Keep responses under 200 words unless asked for detail. The business operates in Kenya with KES currency.`;
 
-// Simple in-memory rate limiting per tenant
+// App-level rate limit, separate from each provider's own limits. With two
+// providers now available via fallback, 15/min is conservative rather than
+// a hard ceiling matching a single provider's free tier — left as-is since
+// raising it depends on your actual Groq/Gemini plan limits, not something
+// to guess at.
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 15; // 15 requests per minute (matching Gemini free tier)
-const RATE_WINDOW = 60 * 1000; // 1 minute
+const RATE_LIMIT = 15;
+const RATE_WINDOW = 60 * 1000;
 
 function checkRateLimit(tenantId: string): boolean {
   const now = Date.now();
@@ -41,8 +47,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
+    if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) {
       return NextResponse.json(
         { error: "AI service is not configured" },
         { status: 500 }
@@ -66,27 +71,19 @@ export async function POST(request: Request) {
       );
     }
 
-    const businessContext = `\nBusiness name: ${user.tenant.name}. Business type: ${user.tenant.type}.`;
-    const fullSystemPrompt = SYSTEM_PROMPT + businessContext + (context ? `\nAdditional context: ${context}` : "");
+    const businessData = await buildBusinessContext(user.tenantId);
+    const fullSystemPrompt =
+      `${SYSTEM_PROMPT}\n\nBusiness name: ${user.tenant.name}. Business type: ${user.tenant.type}.\n\n${businessData}` +
+      (context ? `\nAdditional context: ${context}` : "");
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-1.5-flash",
-      systemInstruction: fullSystemPrompt,
-    });
-
-    const result = await model.generateContent(message);
-    const response = result.response;
-    const reply = response.text();
-    const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
+    const result = await generateAiReply(fullSystemPrompt, message);
 
     return NextResponse.json({
-      reply,
-      usage: { tokensUsed },
+      reply: result.reply,
+      usage: { tokensUsed: result.tokensUsed ?? 0, provider: result.provider },
     });
   } catch (error: unknown) {
-    const err = error as { status?: number; message?: string };
-    if (err.status === 429 || err.message?.includes("quota")) {
+    if (error instanceof AiRateLimitError) {
       return NextResponse.json(
         { error: "AI quota exceeded. Please try again later." },
         { status: 429 }
