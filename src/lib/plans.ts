@@ -27,47 +27,201 @@ export interface PlanConfig {
   pricing: PlanPricing;
 }
 
-export const VERTICAL_PLANS: Record<BusinessCategory, Record<string, PlanConfig>> = {
+export const VERTICAL_PLANS: Record<
+  BusinessCategory,
+  Record<string, PlanConfig>
+> = {
   RETAIL_GENERAL: {
     STARTER: {
-      limits: { products: 100, locations: 1, staff: 2, features: ["pos", "orders", "tabs", "inventory", "expenses", "customers"] },
-      pricing: { monthly: 2999, annual: 29990 },
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: [
+          "pos",
+          "orders",
+          "tabs",
+          "inventory",
+          "expenses",
+          "customers",
+        ],
+      },
+      pricing: { monthly: 999, annual: 9990 },
     },
+
     PROFESSIONAL: {
-      limits: { products: Infinity, locations: 3, staff: 10, features: ["pos", "orders", "tabs", "inventory", "expenses", "customers", "discounts", "analytics", "stock-records", "daily-summary", "ai-assistant"] },
-      pricing: { monthly: 7999, annual: 79990 },
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "pos",
+          "orders",
+          "tabs",
+          "inventory",
+          "expenses",
+          "customers",
+          "discounts",
+          "analytics",
+          "stock-records",
+          "daily-summary",
+          "ai-assistant",
+        ],
+      },
+      pricing: { monthly: 2499, annual: 24990 },
     },
+
     ENTERPRISE: {
-      limits: { products: Infinity, locations: Infinity, staff: Infinity, features: ["pos", "orders", "tabs", "inventory", "expenses", "customers", "discounts", "analytics", "stock-records", "daily-summary", "ai-assistant", "api-access", "custom-reports"] },
-      pricing: { monthly: 19999, annual: 199990 },
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "pos",
+          "orders",
+          "tabs",
+          "inventory",
+          "expenses",
+          "customers",
+          "discounts",
+          "analytics",
+          "stock-records",
+          "daily-summary",
+          "ai-assistant",
+          "api-access",
+          "custom-reports",
+        ],
+      },
+      pricing: { monthly: 5999, annual: 59990 },
     },
   },
+
   RESTAURANT_HOSPITALITY: {
     STARTER: {
-      limits: { products: 100, locations: 1, staff: 2, features: ["pos", "orders", "tabs", "table-management", "menu-management", "customers"] },
-      pricing: { monthly: 2999, annual: 29990 },
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: [
+          "pos",
+          "orders",
+          "tabs",
+          "table-management",
+          "menu-management",
+          "customers",
+        ],
+      },
+      pricing: { monthly: 1499, annual: 14990 },
     },
+
     PROFESSIONAL: {
-      limits: { products: Infinity, locations: 3, staff: 10, features: ["pos", "orders", "tabs", "table-management", "menu-management", "customers", "kitchen-display", "online-ordering", "ai-assistant", "analytics", "discounts"] },
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "pos",
+          "orders",
+          "tabs",
+          "table-management",
+          "menu-management",
+          "customers",
+          "kitchen-display",
+          "online-ordering",
+          "ai-assistant",
+          "analytics",
+          "discounts",
+        ],
+      },
+      pricing: { monthly: 3999, annual: 39990 },
+    },
+
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "pos",
+          "orders",
+          "tabs",
+          "table-management",
+          "menu-management",
+          "customers",
+          "kitchen-display",
+          "online-ordering",
+          "ai-assistant",
+          "analytics",
+          "discounts",
+          "delivery-management",
+          "api-access",
+          "custom-reports",
+        ],
+      },
       pricing: { monthly: 7999, annual: 79990 },
     },
-    ENTERPRISE: {
-      limits: { products: Infinity, locations: Infinity, staff: Infinity, features: ["pos", "orders", "tabs", "table-management", "menu-management", "customers", "kitchen-display", "online-ordering", "ai-assistant", "analytics", "discounts", "delivery-management", "api-access", "custom-reports"] },
-      pricing: { monthly: 19999, annual: 199990 },
-    },
   },
+
   BARBERSHOP_SALON: {
     STARTER: {
-      limits: { products: 100, locations: 1, staff: 2, features: ["pos", "orders", "appointments", "service-catalog", "queue-management", "customers"] },
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: [
+          "pos",
+          "orders",
+          "appointments",
+          "service-catalog",
+          "queue-management",
+          "customers",
+        ],
+      },
+      pricing: { monthly: 999, annual: 9990 },
+    },
+
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "pos",
+          "orders",
+          "appointments",
+          "service-catalog",
+          "queue-management",
+          "customers",
+          "staff-scheduling",
+          "ai-assistant",
+          "analytics",
+          "discounts",
+        ],
+      },
       pricing: { monthly: 1999, annual: 19990 },
     },
-    PROFESSIONAL: {
-      limits: { products: Infinity, locations: 3, staff: 10, features: ["pos", "orders", "appointments", "service-catalog", "queue-management", "customers", "staff-scheduling", "ai-assistant", "analytics", "discounts"] },
-      pricing: { monthly: 4999, annual: 49990 },
-    },
+
     ENTERPRISE: {
-      limits: { products: Infinity, locations: Infinity, staff: Infinity, features: ["pos", "orders", "appointments", "service-catalog", "queue-management", "customers", "staff-scheduling", "ai-assistant", "analytics", "discounts", "api-access", "custom-reports"] },
-      pricing: { monthly: 12999, annual: 129990 },
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "pos",
+          "orders",
+          "appointments",
+          "service-catalog",
+          "queue-management",
+          "customers",
+          "staff-scheduling",
+          "ai-assistant",
+          "analytics",
+          "discounts",
+          "api-access",
+          "custom-reports",
+        ],
+      },
+      pricing: { monthly: 4499, annual: 44990 },
     },
   },
 };
