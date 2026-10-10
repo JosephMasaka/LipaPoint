@@ -43,6 +43,7 @@ model Tenant {
   address          String?
   city             String?
   country          String                 @default("KE")
+  county           String?
   currency         String                 @default("KES")
   taxRate          Float                  @default(16.0)
   receiptHeader    String?
