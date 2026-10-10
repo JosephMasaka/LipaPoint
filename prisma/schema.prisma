@@ -16,16 +16,16 @@ model PendingSignup {
   email           String
   phone           String
   passwordHash    String
-  slug            String   // reserved slug, not yet claimed by a Tenant
+  slug            String
   amount          Float
-  status          String   @default("PENDING") // PENDING | COMPLETED | FAILED
-  failureReason   String?  // event_type / result_desc on FAILED
-  transactionId   String?  // PalPluss STK transaction id
-  completionToken String   @unique // one-time token binding the browser poll to session creation
-  tenantId        String?  // set once COMPLETED
-  userId          String?  // set once COMPLETED
-  createdAt       DateTime @default(now())
-  expiresAt       DateTime // e.g. createdAt + 30 minutes — stale pending signups should be cleaned up
+  status          String           @default("PENDING")
+  failureReason   String?
+  transactionId   String?
+  completionToken String           @unique
+  tenantId        String?
+  userId          String?
+  createdAt       DateTime         @default(now())
+  expiresAt       DateTime
 
   @@index([email])
   @@index([transactionId])
@@ -56,27 +56,27 @@ model Tenant {
   mpesaPaybill     String?
   mpesaTill        String?
   activityLogs     ActivityLog[]
+  appointments     Appointment[]
   categories       Category[]
+  customers        Customer[]
   dailySummaries   DailySummary[]
+  deliveryZones    DeliveryZone[]
+  discounts        Discount[]
   expenses         Expense[]
   locations        Location[]
   orders           Order[]
   products         Product[]
+  queueEntries     QueueEntry[]
   rolePermissions  RolePermission[]
+  services         Service[]
+  staffSchedules   StaffSchedule[]
   stockMovements   StockMovement[]
   stockRecords     StockRecord[]
+  tables           Table[]
   paymentGateways  TenantPaymentGateway[]
   transactions     Transaction[]
   unitsOfMeasure   UnitOfMeasure[]
   users            User[]
-  customers        Customer[]
-  discounts        Discount[]
-  tables           Table[]
-  deliveryZones    DeliveryZone[]
-  services         Service[]
-  appointments     Appointment[]
-  queueEntries     QueueEntry[]
-  staffSchedules   StaffSchedule[]
 
   @@index([slug])
   @@index([isActive])
@@ -95,17 +95,17 @@ model User {
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   activityLogs   ActivityLog[]
+  assignedAppts  Appointment[]
   dailySummaries DailySummary[]
   expenses       Expense[]
   orders         Order[]
   passwordResets PasswordReset[]
+  assignedQueue  QueueEntry[]
   sessions       Session[]
+  staffSchedules StaffSchedule[]
   stockMovements StockMovement[]
   transactions   Transaction[]
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  assignedAppts  Appointment[]
-  assignedQueue  QueueEntry[]
-  staffSchedules StaffSchedule[]
 
   @@index([tenantId])
   @@index([email])
@@ -317,12 +317,12 @@ model Order {
   deliveryFee     Float?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
+  customer        Customer?     @relation(fields: [customerId], references: [id])
   location        Location      @relation(fields: [locationId], references: [id])
   register        Register?     @relation(fields: [registerId], references: [id])
+  table           Table?        @relation(fields: [tableId], references: [id])
   tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   user            User          @relation(fields: [userId], references: [id])
-  table           Table?        @relation(fields: [tableId], references: [id])
-  customer        Customer?     @relation(fields: [customerId], references: [id])
   items           OrderItem[]
   transactions    Transaction[]
 
@@ -356,43 +356,43 @@ model OrderItem {
 }
 
 model TenantPaymentGateway {
-  id           String          @id @default(cuid())
-  tenantId     String
-  provider     PaymentProvider
-  isActive     Boolean         @default(false)
-  apiKeyEnc    String?
-  apiSecretEnc String?
+  id             String          @id @default(cuid())
+  tenantId       String
+  provider       PaymentProvider
+  isActive       Boolean         @default(false)
+  apiKeyEnc      String?
+  apiSecretEnc   String?
+  merchantRef    String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   credentialsEnc String?
-  merchantRef  String?
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, provider])
   @@index([tenantId])
 }
 
 model Transaction {
-  id              String        @id @default(cuid())
+  id              String           @id @default(cuid())
   type            String
   amount          Float
   method          PaymentMethod
-  status          PaymentStatus @default(PENDING)
-  reference       String?       @unique
+  status          PaymentStatus    @default(PENDING)
+  reference       String?          @unique
   gatewayRef      String?
   gatewayStatus   String?
   mpesaPhone      String?
   cardLast4       String?
   description     String?
-  provider        PaymentProvider? // NEW — which gateway (DARAJA/PALPLUSS/etc) processed this, when applicable
   tenantId        String
   orderId         String?
   userId          String?
-  createdAt       DateTime      @default(now())
-  enteredManually Boolean       @default(false)
-  order           Order?        @relation(fields: [orderId], references: [id])
-  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user            User?         @relation(fields: [userId], references: [id])
+  createdAt       DateTime         @default(now())
+  enteredManually Boolean          @default(false)
+  provider        PaymentProvider?
+  order           Order?           @relation(fields: [orderId], references: [id])
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user            User?            @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
   @@index([reference])
@@ -557,6 +557,165 @@ model Subscription {
   @@index([tenantId])
 }
 
+model Customer {
+  id            String    @id @default(cuid())
+  name          String
+  email         String?
+  phone         String?
+  address       String?
+  notes         String?
+  totalSpent    Float     @default(0)
+  visitCount    Int       @default(0)
+  lastVisit     DateTime?
+  loyaltyPoints Int       @default(0)
+  tenantId      String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders        Order[]
+
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+}
+
+model Discount {
+  id        String    @id @default(cuid())
+  name      String
+  code      String?
+  type      String
+  value     Float
+  minOrder  Float?
+  maxUses   Int?
+  usedCount Int       @default(0)
+  isActive  Boolean   @default(true)
+  startsAt  DateTime?
+  expiresAt DateTime?
+  tenantId  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+}
+
+model Table {
+  id         String      @id @default(cuid())
+  name       String
+  capacity   Int         @default(4)
+  status     TableStatus @default(AVAILABLE)
+  locationId String
+  tenantId   String
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  orders     Order[]
+  location   Location    @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@index([locationId])
+  @@index([status])
+}
+
+model DeliveryZone {
+  id            String   @id @default(cuid())
+  name          String
+  minOrder      Float    @default(0)
+  deliveryFee   Float    @default(0)
+  estimatedTime Int      @default(30)
+  isActive      Boolean  @default(true)
+  tenantId      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+}
+
+model Service {
+  id           String        @id @default(cuid())
+  name         String
+  description  String?
+  price        Float
+  duration     Int           @default(30)
+  isActive     Boolean       @default(true)
+  categoryId   String?
+  tenantId     String
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+  category     Category?     @relation(fields: [categoryId], references: [id])
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([categoryId])
+}
+
+model Appointment {
+  id          String            @id @default(cuid())
+  date        DateTime          @db.Date
+  startTime   String
+  endTime     String
+  status      AppointmentStatus @default(SCHEDULED)
+  notes       String?
+  clientName  String
+  clientPhone String?
+  serviceId   String
+  staffId     String?
+  tenantId    String
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  service     Service           @relation(fields: [serviceId], references: [id])
+  staff       User?             @relation(fields: [staffId], references: [id])
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([date])
+  @@index([staffId])
+  @@index([status])
+}
+
+model QueueEntry {
+  id          String      @id @default(cuid())
+  ticketNo    Int
+  clientName  String
+  clientPhone String?
+  serviceName String?
+  status      QueueStatus @default(WAITING)
+  staffId     String?
+  tenantId    String
+  createdAt   DateTime    @default(now())
+  servedAt    DateTime?
+  completedAt DateTime?
+  staff       User?       @relation(fields: [staffId], references: [id])
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model StaffSchedule {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  startTime String
+  endTime   String
+  isOff     Boolean  @default(false)
+  notes     String?
+  staffId   String
+  tenantId  String
+  createdAt DateTime @default(now())
+  staff     User     @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date])
+  @@index([tenantId])
+  @@index([date])
+  @@index([staffId])
+}
+
 enum SubscriptionTier {
   STARTER
   PROFESSIONAL
@@ -660,177 +819,4 @@ enum KitchenItemStatus {
   PREPARING
   READY
   SERVED
-}
-
-// --- Customer & Discount ---
-
-model Customer {
-  id            String    @id @default(cuid())
-  name          String
-  email         String?
-  phone         String?
-  address       String?
-  notes         String?
-  totalSpent    Float     @default(0)
-  visitCount    Int       @default(0)
-  lastVisit     DateTime?
-  loyaltyPoints Int       @default(0)
-  tenantId      String
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  orders        Order[]
-
-  @@unique([tenantId, phone])
-  @@index([tenantId])
-}
-
-model Discount {
-  id        String    @id @default(cuid())
-  name      String
-  code      String?
-  type      String
-  value     Float
-  minOrder  Float?
-  maxUses   Int?
-  usedCount Int       @default(0)
-  isActive  Boolean   @default(true)
-  startsAt  DateTime?
-  expiresAt DateTime?
-  tenantId  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, code])
-  @@index([tenantId])
-}
-
-// --- Restaurant: Tables ---
-
-model Table {
-  id         String      @id @default(cuid())
-  name       String
-  capacity   Int         @default(4)
-  status     TableStatus @default(AVAILABLE)
-  locationId String
-  tenantId   String
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  location   Location    @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  tenant     Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  orders     Order[]
-
-  @@unique([tenantId, name])
-  @@index([tenantId])
-  @@index([locationId])
-  @@index([status])
-}
-
-// --- Restaurant: Delivery ---
-
-model DeliveryZone {
-  id            String   @id @default(cuid())
-  name          String
-  minOrder      Float    @default(0)
-  deliveryFee   Float    @default(0)
-  estimatedTime Int      @default(30)
-  isActive      Boolean  @default(true)
-  tenantId      String
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, name])
-  @@index([tenantId])
-}
-
-// --- Barbershop: Services ---
-
-model Service {
-  id           String        @id @default(cuid())
-  name         String
-  description  String?
-  price        Float
-  duration     Int           @default(30)
-  isActive     Boolean       @default(true)
-  categoryId   String?
-  tenantId     String
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  category     Category?     @relation(fields: [categoryId], references: [id])
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  appointments Appointment[]
-
-  @@index([tenantId])
-  @@index([categoryId])
-}
-
-// --- Barbershop: Appointments ---
-
-model Appointment {
-  id          String            @id @default(cuid())
-  date        DateTime          @db.Date
-  startTime   String
-  endTime     String
-  status      AppointmentStatus @default(SCHEDULED)
-  notes       String?
-  clientName  String
-  clientPhone String?
-  serviceId   String
-  staffId     String?
-  tenantId    String
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-  service     Service           @relation(fields: [serviceId], references: [id])
-  staff       User?             @relation(fields: [staffId], references: [id])
-  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@index([date])
-  @@index([staffId])
-  @@index([status])
-}
-
-// --- Barbershop: Queue ---
-
-model QueueEntry {
-  id          String      @id @default(cuid())
-  ticketNo    Int
-  clientName  String
-  clientPhone String?
-  serviceName String?
-  status      QueueStatus @default(WAITING)
-  staffId     String?
-  tenantId    String
-  createdAt   DateTime    @default(now())
-  servedAt    DateTime?
-  completedAt DateTime?
-  staff       User?       @relation(fields: [staffId], references: [id])
-  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@index([tenantId])
-  @@index([status])
-  @@index([createdAt])
-}
-
-// --- Barbershop: Staff Scheduling ---
-
-model StaffSchedule {
-  id        String   @id @default(cuid())
-  date      DateTime @db.Date
-  startTime String
-  endTime   String
-  isOff     Boolean  @default(false)
-  notes     String?
-  staffId   String
-  tenantId  String
-  createdAt DateTime @default(now())
-  staff     User     @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([staffId, date])
-  @@index([tenantId])
-  @@index([date])
-  @@index([staffId])
 }
