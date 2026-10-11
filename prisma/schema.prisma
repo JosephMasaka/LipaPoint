@@ -81,7 +81,6 @@ model Tenant {
 
   @@index([slug])
   @@index([isActive])
-  @@index([type, county])
 }
 
 model User {
