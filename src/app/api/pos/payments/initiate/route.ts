@@ -74,15 +74,37 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ transactionId: transaction.id }, { status: 202 });
   } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
     console.error("POS payment initiation failed for order", order.id, err);
     await db.transaction.update({
       where: { id: transaction.id },
-      data: { status: "FAILED", gatewayStatus: "Payment initiation failed" },
+      // The provider's message contains a code and request id, never credentials.
+      data: { status: "FAILED", gatewayStatus: `Initiation failed: ${detail.slice(0, 180)}` },
     });
     await db.order.update({
       where: { id: order.id },
       data: { status: "CANCELLED", paymentStatus: "FAILED" },
     });
-    return NextResponse.json({ error: "Could not start payment. Please try again." }, { status: 502 });
+    return NextResponse.json({ error: describeGatewayError(detail) }, { status: 502 });
   }
+}
+
+/**
+ * Turns a provider failure into something a cashier can act on, instead of a
+ * generic message. Pattern-matching on the message is a heuristic: anything
+ * unrecognised falls through to the generic text plus the provider's
+ * request id, which is what their support will ask for.
+ */
+function describeGatewayError(message: string): string {
+  if (/HTTP_40[13]|INVALID_API_KEY|UNAUTHORI[SZ]ED/i.test(message)) {
+    return "The payment provider rejected the saved credentials. Reconnect it in Settings > Payments.";
+  }
+  if (/channel/i.test(message)) {
+    return "The payment provider didn't accept the Channel ID. Check it in Settings > Payments, or leave it blank to use your default channel.";
+  }
+  if (/wallet|balance|insufficient/i.test(message)) {
+    return "The payment provider reports a wallet or balance problem. Check your provider account.";
+  }
+  const requestId = message.match(/requestId: ([\w-]+)/)?.[1];
+  return `Could not start payment.${requestId ? ` Reference: ${requestId}.` : ""} Please try again.`;
 }
