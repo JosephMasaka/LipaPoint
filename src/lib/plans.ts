@@ -46,7 +46,7 @@ export const VERTICAL_PLANS: Record<
           "customers",
         ],
       },
-      pricing: { monthly: 999, annual: 9990 },
+      pricing: { monthly: 5, annual: 9990 },
     },
 
     PROFESSIONAL: {
