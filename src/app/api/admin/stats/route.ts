@@ -19,12 +19,12 @@ export async function GET() {
     thisMonthTenants,
     lastMonthTenants,
   ] = await Promise.all([
-    db.tenant.count(),
-    db.tenant.count({ where: { isActive: true } }),
+    db.tenant.count({ where: { type: { not: "PLATFORM" } } }),
+    db.tenant.count({ where: { isActive: true, type: { not: "PLATFORM" } } }),
     db.order.count({ where: { status: "COMPLETED" } }),
     db.subscription.findMany({ where: { status: "active" } }),
-    db.tenant.count({ where: { createdAt: { gte: monthStart } } }),
-    db.tenant.count({ where: { createdAt: { gte: lastMonthStart, lt: monthStart } } }),
+    db.tenant.count({ where: { createdAt: { gte: monthStart }, type: { not: "PLATFORM" } } }),
+    db.tenant.count({ where: { createdAt: { gte: lastMonthStart, lt: monthStart }, type: { not: "PLATFORM" } } }),
   ]);
 
   const totalRevenue = subscriptions.reduce((sum, sub) => sum + sub.amount, 0);

@@ -17,6 +17,9 @@ export async function GET(request: Request) {
 
   const where: Record<string, unknown> = {};
 
+  // The platform's own tenant (super-admin home) isn't a customer.
+  where.type = { not: "PLATFORM" };
+
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
@@ -25,7 +28,8 @@ export async function GET(request: Request) {
     ];
   }
 
-  if (type) where.type = type;
+  // A specific type filter narrows further, but PLATFORM never surfaces.
+  if (type && type !== "PLATFORM") where.type = type;
   if (tier) where.tier = tier;
 
   const [tenants, total] = await Promise.all([
