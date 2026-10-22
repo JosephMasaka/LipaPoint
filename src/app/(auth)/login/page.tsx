@@ -37,7 +37,14 @@ export default function LoginPage() {
         return;
       }
 
-      router.push(`/${data.tenant.slug}/dashboard`);
+      const role = data.user?.role as string | undefined;
+      if (role === "SUPER_ADMIN") {
+        router.push("/admin");
+      } else if (role === "RESELLER") {
+        router.push("/reseller");
+      } else {
+        router.push(`/${data.tenant.slug}/dashboard`);
+      }
       router.refresh();
     } catch {
       setError("Something went wrong. Please try again.");
