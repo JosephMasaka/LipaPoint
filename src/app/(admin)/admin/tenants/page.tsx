@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronLeft, ChevronRight, X, Eye, Power, Trash2 } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, X, Eye, Power, Trash2, LogIn } from "lucide-react";
 
 interface Tenant {
   id: string;
@@ -76,6 +76,21 @@ export default function TenantsPage() {
     if (res.ok) {
       const data = await res.json();
       setTenantDetails(data);
+    }
+  };
+
+  const handleImpersonate = async (tenant: Tenant) => {
+    if (!confirm(`Open ${tenant.name} as one of its users? You can exit anytime from the banner.`)) return;
+    const res = await fetch("/api/admin/impersonate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId: tenant.id }),
+    });
+    const data = await res.json();
+    if (res.ok && data.redirect) {
+      window.location.href = data.redirect;
+    } else {
+      alert(data.error || "Couldn't open this tenant");
     }
   };
 
@@ -175,6 +190,13 @@ export default function TenantsPage() {
                             <Eye className="h-4 w-4" />
                           </button>
                           <button
+                            onClick={() => handleImpersonate(tenant)}
+                            className="p-1.5 rounded-lg hover:bg-surface-hover text-gold hover:text-gold"
+                            title="Open this tenant (impersonate)"
+                          >
+                            <LogIn className="h-4 w-4" />
+                          </button>
+                          <button
                             onClick={() => handleToggleActive(tenant)}
                             className={`p-1.5 rounded-lg hover:bg-surface-hover ${tenant.isActive ? "text-amber-500" : "text-green-500"}`}
                             title={tenant.isActive ? "Deactivate" : "Activate"}
@@ -255,6 +277,15 @@ export default function TenantsPage() {
                       {(tenantDetails as Record<string, unknown>).isActive ? "Active" : "Inactive"}
                     </Badge>
                   </div>
+                </div>
+                <div className="border-t border-border pt-4">
+                  <Button
+                    size="sm"
+                    className="w-full"
+                    onClick={() => { const t = selectedTenant; setSelectedTenant(null); setTenantDetails(null); handleImpersonate(t); }}
+                  >
+                    <LogIn className="h-4 w-4" /> Open this tenant
+                  </Button>
                 </div>
                 <div className="border-t border-border pt-4">
                   <h3 className="text-sm font-medium text-text-primary mb-2">Usage Stats</h3>
