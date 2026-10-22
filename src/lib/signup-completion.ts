@@ -1,5 +1,7 @@
 import { db } from "@/lib/db";
 import { sendEmail, welcomeEmail } from "@/lib/email";
+import { getPlanPricing } from "@/lib/plans";
+import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
 
 function generateSlug(name: string): string {
   return name
@@ -69,6 +71,7 @@ export async function completeSignupFromTransaction(
         where: { id: pending.id },
         data: { status: "FAILED", failureReason: message },
       });
+      await releaseCouponUse(pending.couponCode);
       console.error(
         "Signup completion: payment succeeded but email was claimed before completion",
         pending.email
@@ -84,6 +87,17 @@ export async function completeSignupFromTransaction(
       slug = `${generateSlug(pending.businessName)}-${Date.now().toString(36)}`;
     }
 
+    // Re-verify the reseller is still active before linking the new tenant
+    // (it may have been deactivated while payment was in flight).
+    let resellerId: string | null = null;
+    if (pending.resellerCode) {
+      const reseller = await db.reseller.findFirst({
+        where: { code: pending.resellerCode, isActive: true },
+        select: { id: true },
+      });
+      resellerId = reseller?.id ?? null;
+    }
+
     const tenant = await db.tenant.create({
       data: {
         name: pending.businessName,
@@ -92,6 +106,7 @@ export async function completeSignupFromTransaction(
         tier: pending.tier,
         email: pending.email,
         phone: pending.phone,
+        resellerId,
         trialEndsAt: null, // paid immediately — no trial
         locations: {
           create: {
@@ -138,6 +153,19 @@ export async function completeSignupFromTransaction(
       },
     });
 
+    // Coupon use was reserved at signup initiation — record the final
+    // redemption against the new tenant now that payment succeeded.
+    if (pending.couponCode) {
+      const listPrice = getPlanPricing(pending.tier, pending.businessType).monthly;
+      await recordCouponRedemption({
+        code: pending.couponCode,
+        tenantId: tenant.id,
+        context: "SIGNUP",
+        amount: listPrice,
+        paidAmount: pending.amount,
+      });
+    }
+
     await db.transaction.create({
       data: {
         type: "SUBSCRIPTION",
@@ -177,5 +205,6 @@ export async function completeSignupFromTransaction(
     where: { id: pending.id },
     data: { status: "FAILED", failureReason: message, transactionId: txn.id },
   });
+  await releaseCouponUse(pending.couponCode);
   return { ok: false, reason: message };
 }

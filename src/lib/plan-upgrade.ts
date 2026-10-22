@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import { describeFailure, type PalPlussTransactionLike } from "@/lib/signup-completion";
 import { sendEmail, planUpgradeEmail } from "@/lib/email";
+import { getPlanPricing } from "@/lib/plans";
+import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
+
+const TIER_ORDER = ["STARTER", "PROFESSIONAL", "ENTERPRISE"];
 
 type UpgradeResult =
   | { ok: true; alreadyProcessed?: true }
@@ -51,11 +55,33 @@ export async function completeUpgradeFromTransaction(
       return { ok: true };
     }
 
+    const previous = await db.tenant.findUnique({
+      where: { id: record.tenantId },
+      select: { tier: true, type: true },
+    });
+
     const tenant = await db.tenant.update({
       where: { id: record.tenantId },
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: { tier: targetTier as any },
     });
+
+    // Coupon use was reserved when the payment was initiated — record the
+    // redemption now that the money actually moved.
+    if (record.couponCode && previous) {
+      const listPrice = getPlanPricing(targetTier, previous.type).monthly;
+      const context =
+        TIER_ORDER.indexOf(targetTier) > TIER_ORDER.indexOf(previous.tier)
+          ? "UPGRADE"
+          : "RENEWAL";
+      await recordCouponRedemption({
+        code: record.couponCode,
+        tenantId: tenant.id,
+        context,
+        amount: listPrice,
+        paidAmount: record.amount,
+      });
+    }
 
     const existingSub = await db.subscription.findFirst({ where: { tenantId: tenant.id } });
     const subData = {
@@ -100,5 +126,6 @@ export async function completeUpgradeFromTransaction(
     where: { id: record.id },
     data: { status: "FAILED", gatewayStatus: message, reference: txn.id },
   });
+  await releaseCouponUse(record.couponCode);
   return { ok: false, reason: message };
 }
