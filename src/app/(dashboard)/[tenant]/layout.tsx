@@ -1,10 +1,11 @@
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, isImpersonating } from "@/lib/auth";
 import { Sidebar } from "@/components/sidebar";
 import { DashboardMain } from "@/components/dashboard-main";
 import { Tour } from "@/components/tour";
 import { PlanProvider } from "@/components/plan-guard";
 import { AIAssistant } from "@/components/ai-assistant";
+import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { canAccessFeature } from "@/lib/plans";
 
 export default async function DashboardLayout({
@@ -26,10 +27,12 @@ export default async function DashboardLayout({
   }
 
   const showAI = canAccessFeature(user.tenant.tier, "ai-assistant", user.tenant.type);
+  const impersonating = await isImpersonating();
 
   return (
     <PlanProvider tenantSlug={tenantSlug}>
       <div className="min-h-screen bg-surface">
+        {impersonating && <ImpersonationBanner tenantName={user.tenant.name} />}
         <Sidebar tenantSlug={tenantSlug} user={user} />
         <DashboardMain>{children}</DashboardMain>
         <Tour />
