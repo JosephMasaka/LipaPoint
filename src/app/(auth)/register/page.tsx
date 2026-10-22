@@ -28,12 +28,58 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
   const [businessType, setBusinessType] = useState("RETAIL");
+  const [selectedPlan, setSelectedPlan] = useState("STARTER");
+  const [couponInput, setCouponInput] = useState("");
+  const [couponInfo, setCouponInfo] = useState<{
+    code: string;
+    name: string | null;
+    type: "PERCENT" | "FIXED";
+    value: number;
+  } | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [couponChecking, setCouponChecking] = useState(false);
+  const [resellerInput, setResellerInput] = useState("");
   const [paymentPhase, setPaymentPhase] = useState<PaymentPhase>("idle");
   const [failureReason, setFailureReason] = useState<string | null>(null);
   const pollRef = useRef<{ pendingSignupId: string; completionToken: string } | null>(null);
   const stopPollingRef = useRef(false);
 
   const plans = getPlansForType(businessType);
+
+  const monthlyPrice =
+    VERTICAL_PLANS[getBusinessCategory(businessType)]?.[selectedPlan]?.pricing.monthly ?? 0;
+  const discount = couponInfo
+    ? couponInfo.type === "PERCENT"
+      ? (monthlyPrice * Math.min(couponInfo.value, 100)) / 100
+      : Math.min(couponInfo.value, monthlyPrice)
+    : 0;
+  const discountedPrice = Math.round((monthlyPrice - discount) * 100) / 100;
+
+  async function handleApplyCoupon() {
+    const code = couponInput.trim();
+    if (!code) return;
+    setCouponChecking(true);
+    setCouponError("");
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCouponInfo(null);
+        setCouponError(data.error || "That coupon code isn't valid.");
+        return;
+      }
+      setCouponInfo(data);
+    } catch {
+      setCouponInfo(null);
+      setCouponError("Couldn't check the coupon — please try again.");
+    } finally {
+      setCouponChecking(false);
+    }
+  }
 
   async function pollUntilResolved() {
     const target = pollRef.current;
@@ -105,6 +151,8 @@ export default function RegisterPage() {
           email: form.get("email"),
           phone: form.get("phone"),
           password: form.get("password"),
+          couponCode: couponInput.trim() || undefined,
+          resellerCode: resellerInput.trim() || undefined,
         }),
       });
 
@@ -212,6 +260,8 @@ export default function RegisterPage() {
                 <select
                   name="plan"
                   required
+                  value={selectedPlan}
+                  onChange={(e) => setSelectedPlan(e.target.value)}
                   className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
                 >
                   {plans.map((p) => (
@@ -229,6 +279,53 @@ export default function RegisterPage() {
               <Input name="email" label="Email Address" type="email" placeholder="john@business.co.ke" required />
               <Input name="phone" label="Phone Number" type="tel" placeholder="0712345678" required />
               <Input name="password" label="Password" type="password" placeholder="Min 8 characters" required minLength={8} />
+
+              <div className="rounded-lg border border-border bg-surface p-3 space-y-3">
+                <p className="text-xs font-medium text-text-muted uppercase tracking-widest">
+                  Coupons & Referrals (optional)
+                </p>
+                <div>
+                  <div className="flex gap-2">
+                    <Input
+                      label="Coupon Code"
+                      placeholder="e.g. WELCOME10"
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value);
+                        setCouponInfo(null);
+                        setCouponError("");
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="self-end h-10 px-4"
+                      disabled={couponChecking || !couponInput.trim()}
+                      onClick={handleApplyCoupon}
+                    >
+                      {couponChecking ? "Checking..." : "Apply"}
+                    </Button>
+                  </div>
+                  {couponError && (
+                    <p className="text-xs text-red-400 mt-1.5">{couponError}</p>
+                  )}
+                  {couponInfo && (
+                    <div className="mt-1.5 rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs text-green-500">
+                      {couponInfo.name ? `${couponInfo.name} — ` : ""}
+                      {couponInfo.type === "PERCENT" ? `${couponInfo.value}% off` : `${formatPrice(couponInfo.value)} off`} of your first payment{" "}
+                      (<span className="line-through opacity-70">{formatPrice(monthlyPrice)}</span>{" "}
+                      → <span className="font-semibold">{formatPrice(discountedPrice)}</span>)
+                    </div>
+                  )}
+                </div>
+                <Input
+                  label="Reseller Code (optional)"
+                  placeholder="e.g. JOHN2026"
+                  value={resellerInput}
+                  onChange={(e) => setResellerInput(e.target.value)}
+                />
+              </div>
 
               <div className="flex gap-3">
                 <Button type="button" variant="secondary" size="lg" className="flex-1" onClick={() => setStep(1)}>
