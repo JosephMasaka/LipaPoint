@@ -101,6 +101,16 @@ export default function SettingsPage() {
   const [upgradingTier, setUpgradingTier] = useState<string | null>(null);
   const [pendingUpgrade, setPendingUpgrade] = useState<{ upgradeTransactionId: string; tier: string } | null>(null);
   const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
+  // Platform coupon applied to the next renewal/upgrade payment
+  const [couponInput, setCouponInput] = useState("");
+  const [couponInfo, setCouponInfo] = useState<{
+    code: string;
+    name: string | null;
+    type: "PERCENT" | "FIXED";
+    value: number;
+  } | null>(null);
+  const [couponError, setCouponError] = useState("");
+  const [couponChecking, setCouponChecking] = useState(false);
   const tierOrder = useMemo(() => ({ STARTER: 0, PROFESSIONAL: 1, ENTERPRISE: 2 }) as Record<string, number>, []);
   const stopPollingRef = useRef(false);
 
@@ -198,13 +208,43 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleApplyCoupon() {
+    const code = couponInput.trim();
+    if (!code) return;
+    setCouponChecking(true);
+    setCouponError("");
+    try {
+      const res = await fetch("/api/coupons/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setCouponInfo(null);
+        setCouponError(data.error || "That coupon code isn't valid.");
+        return;
+      }
+      setCouponInfo(data);
+      notify("success", `Coupon ${data.code} applied`);
+    } catch {
+      setCouponInfo(null);
+      setCouponError("Couldn't check the coupon — please try again.");
+    } finally {
+      setCouponChecking(false);
+    }
+  }
+
   async function handleUpgrade(planTier: string) {
     setUpgradingTier(planTier);
     try {
       const res = await fetch("/api/palpluss/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: planTier }),
+        body: JSON.stringify({
+          tier: planTier,
+          couponCode: couponInfo?.code || couponInput.trim() || undefined,
+        }),
       });
       const data = await res.json();
 
@@ -587,6 +627,45 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {!pendingUpgrade && (
+                <div className="rounded-lg border border-border bg-surface-elevated/50 p-4 mb-6 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-text-secondary">Have a coupon code?</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      Applied to this renewal or upgrade payment.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="e.g. WELCOME10"
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value);
+                        setCouponInfo(null);
+                        setCouponError("");
+                      }}
+                      className="flex-1"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="h-10 px-4"
+                      disabled={couponChecking || !couponInput.trim()}
+                      onClick={handleApplyCoupon}
+                    >
+                      {couponChecking ? "Checking..." : "Apply"}
+                    </Button>
+                  </div>
+                  {couponError && <p className="text-xs text-red-400">{couponError}</p>}
+                  {couponInfo && (
+                    <div className="rounded-lg border border-green-500/20 bg-green-500/10 px-3 py-2 text-xs text-green-500">
+                      {couponInfo.name ? `${couponInfo.name} — ` : ""}
+                      {couponInfo.type === "PERCENT" ? `${couponInfo.value}% off` : `${formatPrice(couponInfo.value)} off`} will be applied when you choose a plan below.
+                    </div>
+                  )}
+                </div>
+              )}
+
               {pendingUpgrade && (
                 <div className="flex items-center gap-3 rounded-lg border border-gold/30 bg-gold/5 p-4 mb-6">
                   <Smartphone className="h-5 w-5 text-gold shrink-0 animate-pulse" />
@@ -611,6 +690,19 @@ export default function SettingsPage() {
                       <p className="text-lg font-bold text-gold">
                         {formatPrice(config.pricing.monthly)}<span className="text-xs text-text-muted font-normal">/mo</span>
                       </p>
+                      {couponInfo &&
+                        (() => {
+                          const d =
+                            couponInfo.type === "PERCENT"
+                              ? (config.pricing.monthly * Math.min(couponInfo.value, 100)) / 100
+                              : Math.min(couponInfo.value, config.pricing.monthly);
+                          const finalAmt = Math.round((config.pricing.monthly - d) * 100) / 100;
+                          return (
+                            <p className="text-xs text-green-500">
+                              With coupon: {formatPrice(finalAmt)}/mo
+                            </p>
+                          );
+                        })()}
                     </div>
                     <ul className="space-y-1.5">
                       {config.limits.features.slice(0, 5).map((f) => (
