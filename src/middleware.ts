@@ -65,6 +65,13 @@ export async function middleware(request: NextRequest) {
       try {
         const secret = new TextEncoder().encode(process.env.JWT_SECRET);
         const { payload } = await jwtVerify(token, secret);
+        const role = payload.role as string;
+        if (role === "SUPER_ADMIN") {
+          return NextResponse.redirect(new URL("/admin", request.url));
+        }
+        if (role === "RESELLER") {
+          return NextResponse.redirect(new URL("/reseller", request.url));
+        }
         const slug = payload.tenantSlug as string;
         if (slug) {
           return NextResponse.redirect(new URL(`/${slug}/dashboard`, request.url));
@@ -96,6 +103,33 @@ export async function middleware(request: NextRequest) {
       const userRole = (payload.role as string) || "";
 
       if (userRole !== "SUPER_ADMIN") {
+        return NextResponse.redirect(new URL("/login", request.url));
+      }
+
+      return NextResponse.next();
+    } catch {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // Reseller portal routes - require RESELLER role
+  if (pathname.startsWith("/reseller")) {
+    const token = request.cookies.get(COOKIE_NAME)?.value;
+
+    if (!token) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("callbackUrl", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    try {
+      const secret = new TextEncoder().encode(process.env.JWT_SECRET);
+      const { payload } = await jwtVerify(token, secret);
+      const userRole = (payload.role as string) || "";
+
+      if (userRole !== "RESELLER") {
         return NextResponse.redirect(new URL("/login", request.url));
       }
 

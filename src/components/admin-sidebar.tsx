@@ -7,7 +7,7 @@ import { useTheme } from "@/components/theme-provider";
 import {
   LayoutDashboard, Building2, Activity, CreditCard,
   MessageSquare, Settings, Menu, X, Sun, Moon,
-  PanelLeftClose, PanelLeftOpen, LogOut,
+  PanelLeftClose, PanelLeftOpen, LogOut, Ticket, Handshake,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -16,6 +16,8 @@ const navItems = [
   { icon: Building2, label: "Tenants", href: "/admin/tenants" },
   { icon: Activity, label: "Activity", href: "/admin/activity" },
   { icon: CreditCard, label: "Subscriptions", href: "/admin/subscriptions" },
+  { icon: Ticket, label: "Coupons", href: "/admin/coupons" },
+  { icon: Handshake, label: "Resellers", href: "/admin/resellers" },
   { icon: MessageSquare, label: "Demo Requests", href: "/admin/demo-requests" },
   { icon: Settings, label: "Settings", href: "/admin/settings" },
 ];
