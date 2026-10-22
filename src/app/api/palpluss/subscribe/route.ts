@@ -3,6 +3,12 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { initiateStkPush, normalizeKenyanPhone } from "@/lib/palpluss";
 import { getPlanPricing } from "@/lib/plans";
+import {
+  claimCouponUse,
+  quoteCoupon,
+  releaseCouponUse,
+  validateCouponCode,
+} from "@/lib/coupons";
 
 const VALID_TIERS = ["STARTER", "PROFESSIONAL", "ENTERPRISE"] as const;
 
@@ -14,6 +20,7 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const tier = body?.tier;
+  const couponCode: string | undefined = body?.couponCode;
 
   if (!VALID_TIERS.includes(tier)) {
     return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
@@ -52,7 +59,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const amount = getPlanPricing(tier, currentUser.tenant.type).monthly;
+  const listPrice = getPlanPricing(tier, currentUser.tenant.type).monthly;
+  let amount = listPrice;
+
+  // Optional platform coupon for renewal/upgrade — reserve one use before
+  // the payment prompt so concurrent payments can't oversell the quota.
+  let appliedCouponCode: string | null = null;
+  if (typeof couponCode === "string" && couponCode.trim() !== "") {
+    const validation = await validateCouponCode(couponCode);
+    if (!validation.ok) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+    const claimed = await claimCouponUse(couponCode);
+    if (!claimed) {
+      return NextResponse.json(
+        { error: "That coupon has reached its usage limit." },
+        { status: 400 }
+      );
+    }
+    appliedCouponCode = claimed.code;
+    const quote = quoteCoupon(claimed, listPrice);
+    // M-Pesa STK Push won't charge less than KES 1.
+    amount = Math.max(1, quote.finalAmount);
+  }
 
   // type carries "UPGRADE:<TIER>" so the webhook/poll-fallback can recover
   // the target tier without a schema change — see plan-upgrade.ts.
@@ -62,7 +91,10 @@ export async function POST(request: NextRequest) {
       amount,
       method: "MPESA_STK",
       status: "PENDING",
-      description: `Upgrade to ${tier} — ${currentUser.tenant.name}`,
+      description:
+        `Upgrade to ${tier} — ${currentUser.tenant.name}` +
+        (appliedCouponCode ? ` (coupon ${appliedCouponCode})` : ""),
+      couponCode: appliedCouponCode,
       tenantId: currentUser.tenantId,
       userId: currentUser.id,
     },
@@ -89,16 +121,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       { upgradeTransactionId: transaction.id, tier },
       { status: 202 }
-    );
-  } catch (err) {
+    );  } catch (err) {
     console.error("PalPluss STK Push failed for plan upgrade", transaction.id, err);
     await db.transaction.update({
       where: { id: transaction.id },
       data: { status: "FAILED", gatewayStatus: "STK initiation failed" },
     });
-    return NextResponse.json(
-      { error: "Could not start payment. Please try again." },
-      { status: 502 }
-    );
+    await releaseCouponUse(appliedCouponCode);
+    return NextResponse.json({ error: "Could not start payment. Please try again." }, { status: 502 });
   }
 }

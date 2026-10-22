@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { finalizeSubscriptionCoupon } from "@/lib/coupons";
 import crypto from "crypto";
 
 export async function POST(request: NextRequest) {
@@ -26,6 +27,13 @@ export async function POST(request: NextRequest) {
         const tier = metadata?.tier;
 
         if (tenantId) {
+          // Capture the tenant's current plan before it's overwritten so a
+          // coupon redemption can be classified as renewal vs. upgrade.
+          const tenantRecord = await db.tenant.findUnique({
+            where: { id: tenantId },
+            select: { tier: true, type: true },
+          });
+
           await db.transaction.create({
             data: {
               type: "SUBSCRIPTION_PAYMENT",
@@ -35,6 +43,7 @@ export async function POST(request: NextRequest) {
               reference,
               gatewayRef: reference,
               tenantId,
+              couponCode: typeof metadata?.couponCode === "string" ? metadata.couponCode : null,
               description: `Subscription payment - ${tier || "plan"}`,
             },
           });
@@ -51,6 +60,17 @@ export async function POST(request: NextRequest) {
             where: { id: tenantId },
             data: updateData,
           });
+
+          if (tier && tenantRecord) {
+            await finalizeSubscriptionCoupon({
+              code: typeof metadata?.couponCode === "string" ? metadata.couponCode : null,
+              tenantId,
+              targetTier: tier,
+              currentTier: tenantRecord.tier,
+              tenantType: tenantRecord.type,
+              paidAmount: amount / 100,
+            });
+          }
         }
         break;
       }

@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { initializeTransaction } from "@/lib/paystack";
 import { db } from "@/lib/db";
 import { getPlanPricing, VERTICAL_PLANS, getBusinessCategory } from "@/lib/plans";
+import { quoteCoupon, validateCouponCode } from "@/lib/coupons";
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Only owners/admins can change plans" }, { status: 403 });
     }
 
-    const { tier } = await request.json();
+    const { tier, couponCode } = await request.json();
 
     const category = getBusinessCategory(user.tenant.type);
     if (!tier || !(tier in VERTICAL_PLANS[category])) {
@@ -26,7 +27,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Already on this plan" }, { status: 400 });
     }
 
-    const amount = getPlanPricing(tier, user.tenant.type).monthly;
+    const listPrice = getPlanPricing(tier, user.tenant.type).monthly;
+    let amount = listPrice;
+
+    // Validate the coupon up-front so the user finds out before being
+    // redirected to checkout. Quota is claimed at completion (there's no
+    // failure callback for an abandoned checkout) — see verify/webhook.
+    let appliedCouponCode: string | null = null;
+    if (typeof couponCode === "string" && couponCode.trim() !== "") {
+      const validation = await validateCouponCode(couponCode);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      appliedCouponCode = validation.coupon.code;
+      amount = quoteCoupon(validation.coupon, listPrice).finalAmount;
+    }
+
     const origin = request.headers.get("origin") || request.nextUrl.origin;
 
     const result = await initializeTransaction({
@@ -37,6 +53,7 @@ export async function POST(request: NextRequest) {
         tenantId: user.tenantId,
         tier,
         type: "subscription_upgrade",
+        ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
       },
     });
 

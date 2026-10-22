@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { verifyTransaction } from "@/lib/paystack";
 import { sendEmail, planUpgradeEmail } from "@/lib/email";
+import { finalizeSubscriptionCoupon } from "@/lib/coupons";
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,8 +46,20 @@ export async function GET(request: NextRequest) {
           reference,
           gatewayRef: reference,
           tenantId,
+          couponCode: typeof metadata?.couponCode === "string" ? metadata.couponCode : null,
           description: `Plan upgrade to ${tier}`,
         },
+      });
+
+      // Payment succeeded — claim the coupon quota now (Paystack has no
+      // initiation-side claim) and record the redemption.
+      await finalizeSubscriptionCoupon({
+        code: typeof metadata?.couponCode === "string" ? metadata.couponCode : null,
+        tenantId,
+        targetTier: tier,
+        currentTier: user.tenant.tier,
+        tenantType: user.tenant.type,
+        paidAmount: result.data.amount / 100,
       });
     }
 

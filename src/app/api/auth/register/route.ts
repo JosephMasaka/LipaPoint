@@ -4,6 +4,13 @@ import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { initiateStkPush, normalizeKenyanPhone } from "@/lib/palpluss";
 import { getPlanPricing } from "@/lib/plans";
+import {
+  claimCouponUse,
+  quoteCoupon,
+  releaseCouponUse,
+  resolveResellerCode,
+  validateCouponCode,
+} from "@/lib/coupons";
 
 const VALID_BUSINESS_TYPES = [
   "RETAIL",
@@ -32,7 +39,7 @@ const PENDING_SIGNUP_TTL_MS = 30 * 60 * 1000; // 30 minutes
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { businessName, businessType, plan, ownerName, email, phone, password } = body;
+    const { businessName, businessType, plan, ownerName, email, phone, password, couponCode, resellerCode } = body;
 
     if (!businessName || !businessType || !ownerName || !email || !phone || !password) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
@@ -86,7 +93,41 @@ export async function POST(request: NextRequest) {
     }
 
     const hashedPassword = await hashPassword(password);
-    const amount = getPlanPricing(tier, businessType as TenantType).monthly;
+    const listPrice = getPlanPricing(tier, businessType as TenantType).monthly;
+    let amount = listPrice;
+
+    // Optional platform coupon — validate up-front so the user gets a clear
+    // error before any payment prompt, then atomically reserve one use.
+    const wantsCoupon = typeof couponCode === "string" && couponCode.trim() !== "";
+    if (wantsCoupon) {
+      const validation = await validateCouponCode(couponCode);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      const claimed = await claimCouponUse(couponCode);
+      if (!claimed) {
+        return NextResponse.json(
+          { error: "That coupon has reached its usage limit." },
+          { status: 400 }
+        );
+      }
+      const quote = quoteCoupon(claimed, listPrice);
+      // M-Pesa STK Push won't charge less than KES 1.
+      amount = Math.max(1, quote.finalAmount);
+    }
+
+    // Optional reseller referral code — attaches the new tenant to the
+    // reseller who referred them (checked again at completion time).
+    let appliedResellerCode: string | null = null;
+    if (typeof resellerCode === "string" && resellerCode.trim() !== "") {
+      const resolved = await resolveResellerCode(resellerCode);
+      if (!resolved.ok) {
+        if (wantsCoupon) await releaseCouponUse(couponCode);
+        return NextResponse.json({ error: resolved.error }, { status: 400 });
+      }
+      appliedResellerCode = resolved.reseller.code;
+    }
+
     const completionToken = randomBytes(32).toString("hex");
 
     const pendingSignup = await db.pendingSignup.create({
@@ -100,6 +141,8 @@ export async function POST(request: NextRequest) {
         passwordHash: hashedPassword,
         slug,
         amount,
+        couponCode: wantsCoupon ? couponCode.trim().toUpperCase().replace(/\s+/g, "") : null,
+        resellerCode: appliedResellerCode,
         status: "PENDING",
         completionToken,
         expiresAt: new Date(Date.now() + PENDING_SIGNUP_TTL_MS),
@@ -135,6 +178,7 @@ export async function POST(request: NextRequest) {
       // Now logs the real PalPluss error body (bad auth, invalid phone,
       // rate limit, etc.) instead of a bare generic failure.
       console.error("PalPluss STK Push failed for pending signup", pendingSignup.id, err);
+      await releaseCouponUse(pendingSignup.couponCode);
       await db.pendingSignup.update({
         where: { id: pendingSignup.id },
         data: { status: "FAILED", failureReason: "We couldn't start the payment. Please try again." },
