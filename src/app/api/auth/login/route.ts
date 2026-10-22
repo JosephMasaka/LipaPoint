@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { comparePassword, createSession } from "@/lib/auth";
+import { comparePassword, createSession, createResellerSession } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,12 +10,34 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Email and password are required" }, { status: 400 });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     const user = await db.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+      where: { email: normalizedEmail },
       include: { tenant: true },
     });
 
-    if (!user || !user.isActive) {
+    if (!user) {
+      // Not a tenant user — check the reseller portal.
+      const reseller = await db.reseller.findUnique({ where: { email: normalizedEmail } });
+      if (!reseller || !reseller.isActive) {
+        return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+      }
+
+      const validReseller = await comparePassword(password, reseller.password);
+      if (!validReseller) {
+        return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+      }
+
+      await createResellerSession({ id: reseller.id });
+
+      return NextResponse.json({
+        user: { id: reseller.id, name: reseller.name, email: reseller.email, role: "RESELLER" },
+        reseller: { id: reseller.id, name: reseller.name, code: reseller.code },
+      });
+    }
+
+    if (!user.isActive) {
       return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
