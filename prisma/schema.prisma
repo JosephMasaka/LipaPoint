@@ -18,6 +18,8 @@ model PendingSignup {
   passwordHash    String
   slug            String
   amount          Float
+  couponCode      String?
+  resellerCode    String?
   status          String           @default("PENDING")
   failureReason   String?
   transactionId   String?
@@ -56,6 +58,8 @@ model Tenant {
   mpesaAccountName String?
   mpesaPaybill     String?
   mpesaTill        String?
+  resellerId       String?
+  reseller         Reseller?       @relation(fields: [resellerId], references: [id], onDelete: SetNull)
   activityLogs     ActivityLog[]
   appointments     Appointment[]
   categories       Category[]
@@ -113,15 +117,68 @@ model User {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  token      String    @unique
+  userId     String?
+  resellerId String?
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reseller   Reseller? @relation(fields: [resellerId], references: [id], onDelete: Cascade)
 
   @@index([token])
   @@index([userId])
+  @@index([resellerId])
+}
+
+model Reseller {
+  id                String    @id @default(cuid())
+  name              String
+  email             String    @unique
+  phone             String?
+  password          String
+  code              String    @unique
+  commissionPercent Float     @default(10.0)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  tenants           Tenant[]
+  sessions          Session[]
+
+  @@index([code])
+}
+
+model Coupon {
+  id          String              @id @default(cuid())
+  code        String              @unique
+  name        String?
+  type        CouponType
+  value       Float
+  maxUses     Int?
+  usedCount   Int                 @default(0)
+  isActive    Boolean             @default(true)
+  startsAt    DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  redemptions CouponRedemption[]
+
+  @@index([isActive])
+}
+
+model CouponRedemption {
+  id         String   @id @default(cuid())
+  couponId   String
+  tenantId   String
+  context    String
+  amount     Float
+  discount   Float
+  paidAmount Float
+  createdAt  DateTime @default(now())
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([tenantId])
 }
 
 model Location {
@@ -385,6 +442,7 @@ model Transaction {
   mpesaPhone      String?
   cardLast4       String?
   description     String?
+  couponCode      String?
   tenantId        String
   orderId         String?
   userId          String?
@@ -724,6 +782,7 @@ enum SubscriptionTier {
 }
 
 enum TenantType {
+  PLATFORM
   RETAIL
   RESTAURANT
   BAR
@@ -768,12 +827,19 @@ enum PaymentStatus {
 }
 
 enum UserRole {
+  SUPER_ADMIN
+  RESELLER
   OWNER
   ADMIN
   MANAGER
   CASHIER
   STOCK_KEEPER
   KITCHEN
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
 }
 
 enum DemoRequestStatus {
