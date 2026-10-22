@@ -23,40 +23,90 @@ function dateOnly(d: Date): Date {
 
 async function main() {
   console.log("🌱 Seeding LipaPoint database (SAP structure)...\n");
+  await resetDatabase();
 
-  await prisma.staffSchedule.deleteMany();
-  await prisma.queueEntry.deleteMany();
-  await prisma.appointment.deleteMany();
-  await prisma.service.deleteMany();
-  await prisma.deliveryZone.deleteMany();
-  await prisma.discount.deleteMany();
-  await prisma.orderItem.deleteMany();
-  await prisma.transaction.deleteMany();
-  await prisma.order.deleteMany();
-  await prisma.table.deleteMany();
-  await prisma.customer.deleteMany();
-  await prisma.stockMovement.deleteMany();
-  await prisma.stockRecord.deleteMany();
-  await prisma.dailySummary.deleteMany();
-  await prisma.stock.deleteMany();
-  await prisma.productUoM.deleteMany();
-  await prisma.product.deleteMany();
-  await prisma.unitConversion.deleteMany();
-  await prisma.unitOfMeasure.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.expense.deleteMany();
-  await prisma.rolePermission.deleteMany();
-  await prisma.passwordReset.deleteMany();
-  await prisma.register.deleteMany();
-  await prisma.location.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.activityLog.deleteMany();
-  await prisma.demoRequest.deleteMany();
-  await prisma.subscription.deleteMany();
-  await prisma.user.deleteMany();
-  await prisma.tenant.deleteMany();
+  async function resetDatabase() {
+    const tables = await prisma.$queryRaw<Array<{ tablename: string }>>`
+      SELECT tablename FROM pg_tables WHERE schemaname = 'public'
+    `;
+    const names = tables
+      .map((t) => t.tablename)
+      .filter((n) => n !== "_prisma_migrations")
+      .map((n) => `"public"."${n}"`)
+      .join(", ");
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${names} RESTART IDENTITY CASCADE;`);
+  }
 
   const hash = await bcrypt.hash("password123", 10);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PLATFORM: super-admin account + demo reseller + demo coupons
+  // ═══════════════════════════════════════════════════════════════════════════
+  const platformTenant = await prisma.tenant.create({
+    data: {
+      name: "LipaPoint Platform",
+      slug: "platform",
+      type: "PLATFORM",
+      tier: "ENTERPRISE",
+      email: "platform@lipapoint.co.ke",
+      currency: "KES",
+      receiptHeader: "LIPAPOINT PLATFORM",
+    },
+  });
+
+  await prisma.user.create({
+    data: {
+      email: "superadmin@lipapoint.co.ke",
+      name: "Platform Admin",
+      phone: "+254 700 000 000",
+      password: hash,
+      role: "SUPER_ADMIN",
+      tenantId: platformTenant.id,
+    },
+  });
+
+  const demoReseller = await prisma.reseller.create({
+    data: {
+      name: "Jane Doe Distributors",
+      email: "reseller@lipapoint.co.ke",
+      phone: "+254 711 222 333",
+      password: hash,
+      code: "JANE2026",
+      commissionPercent: 12.5,
+    },
+  });
+
+  await prisma.coupon.createMany({
+    data: [
+      {
+        code: "WELCOME10",
+        name: "Welcome offer",
+        type: "PERCENT",
+        value: 10,
+        maxUses: 100,
+        isActive: true,
+      },
+      {
+        code: "LAUNCH500",
+        name: "Launch promo",
+        type: "FIXED",
+        value: 500,
+        maxUses: 50,
+        isActive: true,
+        expiresAt: new Date(new Date().getFullYear(), 11, 31, 23, 59, 59),
+      },
+      {
+        code: "EXPIRED20",
+        name: "Expired promo (demo of expiry)",
+        type: "PERCENT",
+        value: 20,
+        isActive: true,
+        expiresAt: daysAgo(7),
+      },
+    ],
+  });
+
+  console.log("  ✓ Platform tenant, super admin, demo reseller + coupons\n");
 
   // ═══════════════════════════════════════════════════════════════════════════
   // TENANT 1: DUKA KUU WHOLESALE & RETAIL (Supermarket)
@@ -95,20 +145,19 @@ async function main() {
   await prisma.register.create({ data: { name: "Register 2", locationId: dukaLocation.id } });
 
   // Units of Measure
-  const dukaUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Dozen", abbreviation: "dz", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Carton", abbreviation: "ctn", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Kilogram", abbreviation: "kg", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Gram", abbreviation: "g", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Litre", abbreviation: "L", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Millilitre", abbreviation: "ml", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Packet", abbreviation: "pkt", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Bale", abbreviation: "bale", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Bag", abbreviation: "bag", tenantId: duka.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Box", abbreviation: "box", tenantId: duka.id } }),
-  ]);
+  const dukaUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Dozen", abbreviation: "dz", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Carton", abbreviation: "ctn", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Kilogram", abbreviation: "kg", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Gram", abbreviation: "g", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Litre", abbreviation: "L", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Millilitre", abbreviation: "ml", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Packet", abbreviation: "pkt", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Bale", abbreviation: "bale", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Bag", abbreviation: "bag", tenantId: duka.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Box", abbreviation: "box", tenantId: duka.id } }) ];
   const [pc, dz, crt, ctn, kg, g, L, ml, pkt, bale, bag, box] = dukaUnits;
 
   // Conversions
@@ -125,15 +174,14 @@ async function main() {
   });
 
   // Categories
-  const dukaCats = await Promise.all([
-    prisma.category.create({ data: { name: "Beverages", color: "#f59e0b", tenantId: duka.id } }),
-    prisma.category.create({ data: { name: "Cooking & Baking", color: "#ef4444", tenantId: duka.id } }),
-    prisma.category.create({ data: { name: "Dairy & Fresh", color: "#10b981", tenantId: duka.id } }),
-    prisma.category.create({ data: { name: "Grains & Cereals", color: "#8b5cf6", tenantId: duka.id } }),
-    prisma.category.create({ data: { name: "Personal Care", color: "#ec4899", tenantId: duka.id } }),
-    prisma.category.create({ data: { name: "Snacks", color: "#f97316", tenantId: duka.id } }),
-    prisma.category.create({ data: { name: "Household", color: "#06b6d4", tenantId: duka.id } }),
-  ]);
+  const dukaCats = [ 
+    await prisma.category.create({ data: { name: "Beverages", color: "#f59e0b", tenantId: duka.id } }),
+    await prisma.category.create({ data: { name: "Cooking & Baking", color: "#ef4444", tenantId: duka.id } }),
+    await prisma.category.create({ data: { name: "Dairy & Fresh", color: "#10b981", tenantId: duka.id } }),
+    await prisma.category.create({ data: { name: "Grains & Cereals", color: "#8b5cf6", tenantId: duka.id } }),
+    await prisma.category.create({ data: { name: "Personal Care", color: "#ec4899", tenantId: duka.id } }),
+    await prisma.category.create({ data: { name: "Snacks", color: "#f97316", tenantId: duka.id } }),
+    await prisma.category.create({ data: { name: "Household", color: "#06b6d4", tenantId: duka.id } }) ];
   const [beverages, cooking, dairy, grains, personalCare, snacks, household] = dukaCats;
 
   // Products with images and UoM pricing (dimensions of pay)
@@ -289,16 +337,15 @@ async function main() {
   await prisma.register.create({ data: { name: "Bar Counter", locationId: mzingaLocation.id } });
 
   // Bar-specific units
-  const mzingaUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: mzinga.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Tot", abbreviation: "tot", tenantId: mzinga.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Double", abbreviation: "dbl", tenantId: mzinga.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: mzinga.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Jug", abbreviation: "jug", tenantId: mzinga.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: mzinga.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: mzinga.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Pitcher", abbreviation: "pch", tenantId: mzinga.id } }),
-  ]);
+  const mzingaUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: mzinga.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Tot", abbreviation: "tot", tenantId: mzinga.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Double", abbreviation: "dbl", tenantId: mzinga.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: mzinga.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Jug", abbreviation: "jug", tenantId: mzinga.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: mzinga.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: mzinga.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Pitcher", abbreviation: "pch", tenantId: mzinga.id } }) ];
   const [mBtl, mTot, mDbl, mGls, mJug, mCrt, mPc, mPch] = mzingaUnits;
 
   await prisma.unitConversion.createMany({
@@ -309,13 +356,12 @@ async function main() {
     ],
   });
 
-  const mzingaCats = await Promise.all([
-    prisma.category.create({ data: { name: "Beers", color: "#f59e0b", tenantId: mzinga.id } }),
-    prisma.category.create({ data: { name: "Spirits", color: "#8b5cf6", tenantId: mzinga.id } }),
-    prisma.category.create({ data: { name: "Soft Drinks", color: "#10b981", tenantId: mzinga.id } }),
-    prisma.category.create({ data: { name: "Wines", color: "#ec4899", tenantId: mzinga.id } }),
-    prisma.category.create({ data: { name: "Snacks", color: "#f97316", tenantId: mzinga.id } }),
-  ]);
+  const mzingaCats = [ 
+    await prisma.category.create({ data: { name: "Beers", color: "#f59e0b", tenantId: mzinga.id } }),
+    await prisma.category.create({ data: { name: "Spirits", color: "#8b5cf6", tenantId: mzinga.id } }),
+    await prisma.category.create({ data: { name: "Soft Drinks", color: "#10b981", tenantId: mzinga.id } }),
+    await prisma.category.create({ data: { name: "Wines", color: "#ec4899", tenantId: mzinga.id } }),
+    await prisma.category.create({ data: { name: "Snacks", color: "#f97316", tenantId: mzinga.id } }) ];
   const [mBeers, mSpirits, mSoft, mWines, mSnacks] = mzingaCats;
 
   const mzingaProducts = [
@@ -447,26 +493,24 @@ async function main() {
   await prisma.register.create({ data: { name: "VIP Bar", locationId: savannaVIP.id } });
 
   // Savanna units
-  const savannaUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: savanna.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Tot", abbreviation: "tot", tenantId: savanna.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Double", abbreviation: "dbl", tenantId: savanna.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: savanna.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: savanna.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Portion", abbreviation: "ptn", tenantId: savanna.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Plate", abbreviation: "plt", tenantId: savanna.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: savanna.id } }),
-  ]);
+  const savannaUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: savanna.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Tot", abbreviation: "tot", tenantId: savanna.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Double", abbreviation: "dbl", tenantId: savanna.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: savanna.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: savanna.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Portion", abbreviation: "ptn", tenantId: savanna.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Plate", abbreviation: "plt", tenantId: savanna.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: savanna.id } }) ];
   const [sBtl, sTot, sDbl, sGls, sPc, sPtn, sPlt, sCrt] = savannaUnits;
 
-  const savannaCats = await Promise.all([
-    prisma.category.create({ data: { name: "Premium Spirits", color: "#8b5cf6", tenantId: savanna.id } }),
-    prisma.category.create({ data: { name: "Beers & Ciders", color: "#f59e0b", tenantId: savanna.id } }),
-    prisma.category.create({ data: { name: "Cocktails", color: "#ec4899", tenantId: savanna.id } }),
-    prisma.category.create({ data: { name: "Wines", color: "#dc2626", tenantId: savanna.id } }),
-    prisma.category.create({ data: { name: "Food", color: "#10b981", tenantId: savanna.id } }),
-    prisma.category.create({ data: { name: "Soft Drinks", color: "#06b6d4", tenantId: savanna.id } }),
-  ]);
+  const savannaCats = [ 
+    await prisma.category.create({ data: { name: "Premium Spirits", color: "#8b5cf6", tenantId: savanna.id } }),
+    await prisma.category.create({ data: { name: "Beers & Ciders", color: "#f59e0b", tenantId: savanna.id } }),
+    await prisma.category.create({ data: { name: "Cocktails", color: "#ec4899", tenantId: savanna.id } }),
+    await prisma.category.create({ data: { name: "Wines", color: "#dc2626", tenantId: savanna.id } }),
+    await prisma.category.create({ data: { name: "Food", color: "#10b981", tenantId: savanna.id } }),
+    await prisma.category.create({ data: { name: "Soft Drinks", color: "#06b6d4", tenantId: savanna.id } }) ];
   const [sPremium, sBeers, sCocktails, sWines, sFood, sSoft] = savannaCats;
 
   const savannaProducts = [
@@ -622,15 +666,14 @@ async function main() {
   await prisma.register.create({ data: { name: "Bar Counter", locationId: chairLocation.id } });
 
   // Units of Measure for a bar
-  const chairUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: chairman.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Tot", abbreviation: "tot", tenantId: chairman.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Double", abbreviation: "dbl", tenantId: chairman.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Can", abbreviation: "can", tenantId: chairman.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: chairman.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: chairman.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Jug", abbreviation: "jug", tenantId: chairman.id } }),
-  ]);
+  const chairUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: chairman.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Tot", abbreviation: "tot", tenantId: chairman.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Double", abbreviation: "dbl", tenantId: chairman.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Can", abbreviation: "can", tenantId: chairman.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: chairman.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Crate", abbreviation: "crt", tenantId: chairman.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Jug", abbreviation: "jug", tenantId: chairman.id } }) ];
   const [cBtl, cTot, cDbl, cCan, cGls, cCrt, cJug] = chairUnits;
 
   await prisma.unitConversion.createMany({
@@ -642,20 +685,19 @@ async function main() {
   });
 
   // Categories
-  const chairCats = await Promise.all([
-    prisma.category.create({ data: { name: "Beers", color: "#f59e0b", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Ciders & RTD", color: "#84cc16", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Spirits - Vodka", color: "#6366f1", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Spirits - Whiskey", color: "#a855f7", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Spirits - Gin", color: "#06b6d4", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Spirits - Brandy", color: "#dc2626", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Spirits - Rum", color: "#ea580c", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Spirits - Cream & Liqueur", color: "#d946ef", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Wines", color: "#be123c", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Mixers & Energy", color: "#0ea5e9", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Soft Drinks & Water", color: "#14b8a6", tenantId: chairman.id } }),
-    prisma.category.create({ data: { name: "Keg", color: "#78716c", tenantId: chairman.id } }),
-  ]);
+  const chairCats = [ 
+    await prisma.category.create({ data: { name: "Beers", color: "#f59e0b", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Ciders & RTD", color: "#84cc16", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Spirits - Vodka", color: "#6366f1", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Spirits - Whiskey", color: "#a855f7", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Spirits - Gin", color: "#06b6d4", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Spirits - Brandy", color: "#dc2626", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Spirits - Rum", color: "#ea580c", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Spirits - Cream & Liqueur", color: "#d946ef", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Wines", color: "#be123c", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Mixers & Energy", color: "#0ea5e9", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Soft Drinks & Water", color: "#14b8a6", tenantId: chairman.id } }),
+    await prisma.category.create({ data: { name: "Keg", color: "#78716c", tenantId: chairman.id } }) ];
   const [catBeers, catCiders, catVodka, catWhiskey, catGin, catBrandy, catRum, catCream, catWines, catMixers, catSoft, catKeg] = chairCats;
 
   // ─── ALL 117 PRODUCTS FROM CLUB CHAIRMAN STOCK SHEET ──────────────────────
@@ -1004,6 +1046,7 @@ async function main() {
       taxRate: 0,
       receiptHeader: "MAMA NJERI'S SHOP",
       receiptFooter: "Asante sana! Karibu tena.",
+      resellerId: demoReseller.id, // referred by the demo reseller
     },
   });
 
@@ -1019,24 +1062,22 @@ async function main() {
   });
   await prisma.register.create({ data: { name: "Counter 1", locationId: mnLocation.id } });
 
-  const mnUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: mamaNjeri.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Packet", abbreviation: "pkt", tenantId: mamaNjeri.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Kilogram", abbreviation: "kg", tenantId: mamaNjeri.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Dozen", abbreviation: "dz", tenantId: mamaNjeri.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Litre", abbreviation: "L", tenantId: mamaNjeri.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Box", abbreviation: "box", tenantId: mamaNjeri.id } }),
-  ]);
+  const mnUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: mamaNjeri.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Packet", abbreviation: "pkt", tenantId: mamaNjeri.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Kilogram", abbreviation: "kg", tenantId: mamaNjeri.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Dozen", abbreviation: "dz", tenantId: mamaNjeri.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Litre", abbreviation: "L", tenantId: mamaNjeri.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Box", abbreviation: "box", tenantId: mamaNjeri.id } }) ];
   const [mnPc, mnPkt, mnKg, mnDz, mnL, mnBox] = mnUnits;
 
-  const mnCats = await Promise.all([
-    prisma.category.create({ data: { name: "Groceries", color: "#10b981", tenantId: mamaNjeri.id } }),
-    prisma.category.create({ data: { name: "Beverages", color: "#f59e0b", tenantId: mamaNjeri.id } }),
-    prisma.category.create({ data: { name: "Household", color: "#6366f1", tenantId: mamaNjeri.id } }),
-    prisma.category.create({ data: { name: "Snacks & Sweets", color: "#f97316", tenantId: mamaNjeri.id } }),
-    prisma.category.create({ data: { name: "Stationery", color: "#8b5cf6", tenantId: mamaNjeri.id } }),
-    prisma.category.create({ data: { name: "Mobile & Airtime", color: "#ec4899", tenantId: mamaNjeri.id } }),
-  ]);
+  const mnCats = [ 
+    await prisma.category.create({ data: { name: "Groceries", color: "#10b981", tenantId: mamaNjeri.id } }),
+    await prisma.category.create({ data: { name: "Beverages", color: "#f59e0b", tenantId: mamaNjeri.id } }),
+    await prisma.category.create({ data: { name: "Household", color: "#6366f1", tenantId: mamaNjeri.id } }),
+    await prisma.category.create({ data: { name: "Snacks & Sweets", color: "#f97316", tenantId: mamaNjeri.id } }),
+    await prisma.category.create({ data: { name: "Stationery", color: "#8b5cf6", tenantId: mamaNjeri.id } }),
+    await prisma.category.create({ data: { name: "Mobile & Airtime", color: "#ec4899", tenantId: mamaNjeri.id } }) ];
   const [mnGrocery, mnBev, mnHouse, mnSnack, mnStation, mnMobile] = mnCats;
 
   const mnProducts = [
@@ -1161,24 +1202,22 @@ async function main() {
   await prisma.register.create({ data: { name: "POS 1", locationId: sfLocation.id } });
 
   // Restaurant units
-  const sfUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Plate", abbreviation: "plt", tenantId: safari.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Portion", abbreviation: "ptn", tenantId: safari.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: safari.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: safari.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Cup", abbreviation: "cup", tenantId: safari.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: safari.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Jug", abbreviation: "jug", tenantId: safari.id } }),
-  ]);
+  const sfUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Plate", abbreviation: "plt", tenantId: safari.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Portion", abbreviation: "ptn", tenantId: safari.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Glass", abbreviation: "gls", tenantId: safari.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: safari.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Cup", abbreviation: "cup", tenantId: safari.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: safari.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Jug", abbreviation: "jug", tenantId: safari.id } }) ];
   const [sfPlt, sfPtn, sfGls, sfBtl, sfCup, sfPc, sfJug] = sfUnits;
 
-  const sfCats = await Promise.all([
-    prisma.category.create({ data: { name: "Main Dishes", color: "#ef4444", tenantId: safari.id } }),
-    prisma.category.create({ data: { name: "Breakfast", color: "#f59e0b", tenantId: safari.id } }),
-    prisma.category.create({ data: { name: "Sides & Starters", color: "#10b981", tenantId: safari.id } }),
-    prisma.category.create({ data: { name: "Beverages", color: "#6366f1", tenantId: safari.id } }),
-    prisma.category.create({ data: { name: "Desserts", color: "#ec4899", tenantId: safari.id } }),
-  ]);
+  const sfCats = [ 
+    await prisma.category.create({ data: { name: "Main Dishes", color: "#ef4444", tenantId: safari.id } }),
+    await prisma.category.create({ data: { name: "Breakfast", color: "#f59e0b", tenantId: safari.id } }),
+    await prisma.category.create({ data: { name: "Sides & Starters", color: "#10b981", tenantId: safari.id } }),
+    await prisma.category.create({ data: { name: "Beverages", color: "#6366f1", tenantId: safari.id } }),
+    await prisma.category.create({ data: { name: "Desserts", color: "#ec4899", tenantId: safari.id } }) ];
   const [sfMain, sfBreakfast, sfSides, sfDrinks, sfDessert] = sfCats;
 
   const sfProducts = [
@@ -1226,16 +1265,15 @@ async function main() {
   }
 
   // Restaurant Tables
-  const sfTables = await Promise.all([
-    prisma.table.create({ data: { name: "Table 1", capacity: 4, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
-    prisma.table.create({ data: { name: "Table 2", capacity: 4, status: "OCCUPIED", locationId: sfLocation.id, tenantId: safari.id } }),
-    prisma.table.create({ data: { name: "Table 3", capacity: 6, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
-    prisma.table.create({ data: { name: "Table 4", capacity: 2, status: "RESERVED", locationId: sfLocation.id, tenantId: safari.id } }),
-    prisma.table.create({ data: { name: "Table 5", capacity: 8, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
-    prisma.table.create({ data: { name: "Outdoor 1", capacity: 4, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
-    prisma.table.create({ data: { name: "Outdoor 2", capacity: 6, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
-    prisma.table.create({ data: { name: "VIP Room", capacity: 10, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
-  ]);
+  const sfTables = [ 
+    await prisma.table.create({ data: { name: "Table 1", capacity: 4, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
+    await prisma.table.create({ data: { name: "Table 2", capacity: 4, status: "OCCUPIED", locationId: sfLocation.id, tenantId: safari.id } }),
+    await prisma.table.create({ data: { name: "Table 3", capacity: 6, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
+    await prisma.table.create({ data: { name: "Table 4", capacity: 2, status: "RESERVED", locationId: sfLocation.id, tenantId: safari.id } }),
+    await prisma.table.create({ data: { name: "Table 5", capacity: 8, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
+    await prisma.table.create({ data: { name: "Outdoor 1", capacity: 4, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
+    await prisma.table.create({ data: { name: "Outdoor 2", capacity: 6, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }),
+    await prisma.table.create({ data: { name: "VIP Room", capacity: 10, status: "AVAILABLE", locationId: sfLocation.id, tenantId: safari.id } }) ];
 
   // Delivery Zones
   await prisma.deliveryZone.createMany({
@@ -1373,25 +1411,23 @@ async function main() {
   });
   await prisma.register.create({ data: { name: "Dispensary Counter", locationId: afLocation.id } });
 
-  const afUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: afya.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Strip", abbreviation: "str", tenantId: afya.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Box", abbreviation: "box", tenantId: afya.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: afya.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Packet", abbreviation: "pkt", tenantId: afya.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Tube", abbreviation: "tube", tenantId: afya.id } }),
-  ]);
+  const afUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: afya.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Strip", abbreviation: "str", tenantId: afya.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Box", abbreviation: "box", tenantId: afya.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: afya.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Packet", abbreviation: "pkt", tenantId: afya.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Tube", abbreviation: "tube", tenantId: afya.id } }) ];
   const [afPc, afStr, afBox, afBtl, afPkt, afTube] = afUnits;
 
-  const afCats = await Promise.all([
-    prisma.category.create({ data: { name: "Pain & Fever", color: "#ef4444", tenantId: afya.id } }),
-    prisma.category.create({ data: { name: "Cough & Cold", color: "#f59e0b", tenantId: afya.id } }),
-    prisma.category.create({ data: { name: "Antibiotics", color: "#8b5cf6", tenantId: afya.id } }),
-    prisma.category.create({ data: { name: "Vitamins & Supplements", color: "#10b981", tenantId: afya.id } }),
-    prisma.category.create({ data: { name: "First Aid", color: "#ec4899", tenantId: afya.id } }),
-    prisma.category.create({ data: { name: "Personal Care", color: "#06b6d4", tenantId: afya.id } }),
-    prisma.category.create({ data: { name: "Baby Care", color: "#d946ef", tenantId: afya.id } }),
-  ]);
+  const afCats = [ 
+    await prisma.category.create({ data: { name: "Pain & Fever", color: "#ef4444", tenantId: afya.id } }),
+    await prisma.category.create({ data: { name: "Cough & Cold", color: "#f59e0b", tenantId: afya.id } }),
+    await prisma.category.create({ data: { name: "Antibiotics", color: "#8b5cf6", tenantId: afya.id } }),
+    await prisma.category.create({ data: { name: "Vitamins & Supplements", color: "#10b981", tenantId: afya.id } }),
+    await prisma.category.create({ data: { name: "First Aid", color: "#ec4899", tenantId: afya.id } }),
+    await prisma.category.create({ data: { name: "Personal Care", color: "#06b6d4", tenantId: afya.id } }),
+    await prisma.category.create({ data: { name: "Baby Care", color: "#d946ef", tenantId: afya.id } }) ];
   const [afPain, afCough, afAnti, afVitamin, afFirstAid, afCare, afBaby] = afCats;
 
   const afProducts = [
@@ -1519,29 +1555,27 @@ async function main() {
   });
   await prisma.register.create({ data: { name: "Counter 1", locationId: jgLocation.id } });
 
-  const jgUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: jengo.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Bag", abbreviation: "bag", tenantId: jengo.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Sheet", abbreviation: "sht", tenantId: jengo.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Metre", abbreviation: "m", tenantId: jengo.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Kilogram", abbreviation: "kg", tenantId: jengo.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Litre", abbreviation: "L", tenantId: jengo.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Roll", abbreviation: "roll", tenantId: jengo.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Box", abbreviation: "box", tenantId: jengo.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Pair", abbreviation: "pair", tenantId: jengo.id } }),
-  ]);
+  const jgUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: jengo.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Bag", abbreviation: "bag", tenantId: jengo.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Sheet", abbreviation: "sht", tenantId: jengo.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Metre", abbreviation: "m", tenantId: jengo.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Kilogram", abbreviation: "kg", tenantId: jengo.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Litre", abbreviation: "L", tenantId: jengo.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Roll", abbreviation: "roll", tenantId: jengo.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Box", abbreviation: "box", tenantId: jengo.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Pair", abbreviation: "pair", tenantId: jengo.id } }) ];
   const [jgPc, jgBag, jgSht, jgM, jgKg, jgL, jgRoll, jgBox, jgPair] = jgUnits;
 
-  const jgCats = await Promise.all([
-    prisma.category.create({ data: { name: "Cement & Concrete", color: "#78716c", tenantId: jengo.id } }),
-    prisma.category.create({ data: { name: "Iron & Steel", color: "#6366f1", tenantId: jengo.id } }),
-    prisma.category.create({ data: { name: "Paint & Finishes", color: "#f59e0b", tenantId: jengo.id } }),
-    prisma.category.create({ data: { name: "Plumbing", color: "#06b6d4", tenantId: jengo.id } }),
-    prisma.category.create({ data: { name: "Electrical", color: "#ef4444", tenantId: jengo.id } }),
-    prisma.category.create({ data: { name: "Tools", color: "#10b981", tenantId: jengo.id } }),
-    prisma.category.create({ data: { name: "Timber & Wood", color: "#92400e", tenantId: jengo.id } }),
-    prisma.category.create({ data: { name: "Nails & Fasteners", color: "#8b5cf6", tenantId: jengo.id } }),
-  ]);
+  const jgCats = [ 
+    await prisma.category.create({ data: { name: "Cement & Concrete", color: "#78716c", tenantId: jengo.id } }),
+    await prisma.category.create({ data: { name: "Iron & Steel", color: "#6366f1", tenantId: jengo.id } }),
+    await prisma.category.create({ data: { name: "Paint & Finishes", color: "#f59e0b", tenantId: jengo.id } }),
+    await prisma.category.create({ data: { name: "Plumbing", color: "#06b6d4", tenantId: jengo.id } }),
+    await prisma.category.create({ data: { name: "Electrical", color: "#ef4444", tenantId: jengo.id } }),
+    await prisma.category.create({ data: { name: "Tools", color: "#10b981", tenantId: jengo.id } }),
+    await prisma.category.create({ data: { name: "Timber & Wood", color: "#92400e", tenantId: jengo.id } }),
+    await prisma.category.create({ data: { name: "Nails & Fasteners", color: "#8b5cf6", tenantId: jengo.id } }) ];
   const [jgCement, jgIron, jgPaint, jgPlumb, jgElec, jgTools, jgTimber, jgNails] = jgCats;
 
   const jgProducts = [
@@ -1686,33 +1720,30 @@ async function main() {
   });
   await prisma.register.create({ data: { name: "Reception", locationId: scLocation.id } });
 
-  const scUnits = await Promise.all([
-    prisma.unitOfMeasure.create({ data: { name: "Service", abbreviation: "svc", tenantId: sharp.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: sharp.id } }),
-    prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: sharp.id } }),
-  ]);
+  const scUnits = [ 
+    await prisma.unitOfMeasure.create({ data: { name: "Service", abbreviation: "svc", tenantId: sharp.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Piece", abbreviation: "pc", tenantId: sharp.id } }),
+    await prisma.unitOfMeasure.create({ data: { name: "Bottle", abbreviation: "btl", tenantId: sharp.id } }) ];
   const [scSvc, scPc, scBtl] = scUnits;
 
-  const scCats = await Promise.all([
-    prisma.category.create({ data: { name: "Haircuts", color: "#6366f1", tenantId: sharp.id } }),
-    prisma.category.create({ data: { name: "Shaving", color: "#ef4444", tenantId: sharp.id } }),
-    prisma.category.create({ data: { name: "Grooming Products", color: "#10b981", tenantId: sharp.id } }),
-    prisma.category.create({ data: { name: "Treatments", color: "#f59e0b", tenantId: sharp.id } }),
-  ]);
+  const scCats = [ 
+    await prisma.category.create({ data: { name: "Haircuts", color: "#6366f1", tenantId: sharp.id } }),
+    await prisma.category.create({ data: { name: "Shaving", color: "#ef4444", tenantId: sharp.id } }),
+    await prisma.category.create({ data: { name: "Grooming Products", color: "#10b981", tenantId: sharp.id } }),
+    await prisma.category.create({ data: { name: "Treatments", color: "#f59e0b", tenantId: sharp.id } }) ];
   const [scHaircut, scShave, scProducts, scTreatment] = scCats;
 
   // Barbershop Services
-  const scServices = await Promise.all([
-    prisma.service.create({ data: { name: "Regular Haircut", description: "Standard men's haircut with clippers", price: 200, duration: 20, tenantId: sharp.id, categoryId: scHaircut.id } }),
-    prisma.service.create({ data: { name: "Skin Fade", description: "Clean skin fade with blend", price: 350, duration: 30, tenantId: sharp.id, categoryId: scHaircut.id } }),
-    prisma.service.create({ data: { name: "Dreadlock Maintenance", description: "Retwist and styling", price: 500, duration: 45, tenantId: sharp.id, categoryId: scHaircut.id } }),
-    prisma.service.create({ data: { name: "Kids Haircut", description: "Children under 12", price: 150, duration: 15, tenantId: sharp.id, categoryId: scHaircut.id } }),
-    prisma.service.create({ data: { name: "Clean Shave", description: "Hot towel clean shave", price: 200, duration: 20, tenantId: sharp.id, categoryId: scShave.id } }),
-    prisma.service.create({ data: { name: "Beard Trim & Shape", description: "Beard lineup and shaping", price: 150, duration: 15, tenantId: sharp.id, categoryId: scShave.id } }),
-    prisma.service.create({ data: { name: "Haircut + Beard Combo", description: "Full haircut with beard trim", price: 400, duration: 35, tenantId: sharp.id, categoryId: scShave.id } }),
-    prisma.service.create({ data: { name: "Hot Towel Treatment", description: "Relaxing hot towel facial", price: 300, duration: 20, tenantId: sharp.id, categoryId: scTreatment.id } }),
-    prisma.service.create({ data: { name: "Scalp Massage", description: "Deep scalp massage with oils", price: 250, duration: 15, tenantId: sharp.id, categoryId: scTreatment.id } }),
-  ]);
+  const scServices = [ 
+    await prisma.service.create({ data: { name: "Regular Haircut", description: "Standard men's haircut with clippers", price: 200, duration: 20, tenantId: sharp.id, categoryId: scHaircut.id } }),
+    await prisma.service.create({ data: { name: "Skin Fade", description: "Clean skin fade with blend", price: 350, duration: 30, tenantId: sharp.id, categoryId: scHaircut.id } }),
+    await prisma.service.create({ data: { name: "Dreadlock Maintenance", description: "Retwist and styling", price: 500, duration: 45, tenantId: sharp.id, categoryId: scHaircut.id } }),
+    await prisma.service.create({ data: { name: "Kids Haircut", description: "Children under 12", price: 150, duration: 15, tenantId: sharp.id, categoryId: scHaircut.id } }),
+    await prisma.service.create({ data: { name: "Clean Shave", description: "Hot towel clean shave", price: 200, duration: 20, tenantId: sharp.id, categoryId: scShave.id } }),
+    await prisma.service.create({ data: { name: "Beard Trim & Shape", description: "Beard lineup and shaping", price: 150, duration: 15, tenantId: sharp.id, categoryId: scShave.id } }),
+    await prisma.service.create({ data: { name: "Haircut + Beard Combo", description: "Full haircut with beard trim", price: 400, duration: 35, tenantId: sharp.id, categoryId: scShave.id } }),
+    await prisma.service.create({ data: { name: "Hot Towel Treatment", description: "Relaxing hot towel facial", price: 300, duration: 20, tenantId: sharp.id, categoryId: scTreatment.id } }),
+    await prisma.service.create({ data: { name: "Scalp Massage", description: "Deep scalp massage with oils", price: 250, duration: 15, tenantId: sharp.id, categoryId: scTreatment.id } }) ];
 
   // Grooming products for retail sale
   const scProductList = [
@@ -1849,6 +1880,16 @@ async function main() {
   console.log("═══════════════════════════════════════════════════");
   console.log("  LOGIN CREDENTIALS (all use password123 unless noted)");
   console.log("═══════════════════════════════════════════════════");
+  console.log("");
+  console.log("  PLATFORM ADMIN (/admin)");
+  console.log("    Super Admin: superadmin@lipapoint.co.ke");
+  console.log("");
+  console.log("  RESELLER PORTAL (/reseller)");
+  console.log("    Reseller:    reseller@lipapoint.co.ke (code: JANE2026, 12.5% commission)");
+  console.log("");
+  console.log("  COUPONS (usable at registration & renewal)");
+  console.log("    WELCOME10  - 10% off (max 100 uses)");
+  console.log("    LAUNCH500  - KSh 500 off (max 50 uses, expires 31 Dec)");
   console.log("");
   console.log("  SUPERMARKET - Duka Kuu (/duka-kuu)");
   console.log("    Owner:       admin@dukakuu.co.ke");
