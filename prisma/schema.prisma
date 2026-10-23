@@ -82,6 +82,19 @@ model Tenant {
   transactions     Transaction[]
   unitsOfMeasure   UnitOfMeasure[]
   users            User[]
+  tenantModules    TenantModule[]
+  chartOfAccounts  ChartOfAccount[]
+  journalEntries   JournalEntry[]
+  bankAccounts     BankAccount[]
+  bankTransactions BankTransaction[]
+  suppliers        Supplier[]
+  purchaseOrders   PurchaseOrder[]
+  grns             GoodsReceivedNote[]
+  supplierInvoices SupplierInvoice[]
+  supplierPayments SupplierPayment[]
+  creditNotes      CreditNote[]
+  debitNotes       DebitNote[]
+  etimsInvoices    EtimsInvoice[]
 
   @@index([slug])
   @@index([isActive])
@@ -110,6 +123,9 @@ model User {
   staffSchedules StaffSchedule[]
   stockMovements StockMovement[]
   transactions   Transaction[]
+  journalEntries JournalEntry[] @relation("JournalPostedBy")
+  poCreated      PurchaseOrder[] @relation("POCreatedBy")
+  grnsReceived   GoodsReceivedNote[] @relation("GRNReceivedBy")
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -197,7 +213,10 @@ model Location {
   stocks         Stock[]
   stockMovements StockMovement[]
   stockRecords   StockRecord[]
-  tables         Table[]
+  tables          Table[]
+  journalEntries  JournalEntry[]
+  purchaseOrders  PurchaseOrder[]
+  grns            GoodsReceivedNote[]
 
   @@index([tenantId])
 }
@@ -284,6 +303,8 @@ model Product {
   stocks         Stock[]
   stockMovements StockMovement[]
   stockRecords   StockRecord[]
+  purchaseOrderItems PurchaseOrderItem[]
+  grnItems       GoodsReceivedNoteItem[]
 
   @@unique([tenantId, sku])
   @@index([tenantId])
@@ -463,9 +484,12 @@ model Transaction {
 model ActivityLog {
   id        String   @id @default(cuid())
   action    String
+  module    String?  // pos | finance | procurement | payroll | ... (inferred from action prefix unless set)
   entity    String
   entityId  String?
   details   String?
+  before    Json?
+  after     Json?
   tenantId  String
   userId    String?
   createdAt DateTime @default(now())
@@ -474,6 +498,368 @@ model ActivityLog {
 
   @@index([tenantId])
   @@index([createdAt])
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// ERP Phase 0 — Foundation
+// Per-module entitlement gating + the Finance general-ledger skeleton that
+// every other module (POS sales, payroll, depreciation, procurement) posts
+// through. See lipapoint-erp-spec.md §3/§8.
+// ═════════════════════════════════════════════════════════════════════
+
+model TenantModule {
+  id         String    @id @default(cuid())
+  tenantId   String
+  moduleKey  String    // "pos" | "inventory" | "finance" | "payroll" | "assets" | "procurement" | "crm" | "etims"
+  enabled    Boolean   @default(false)
+  planTier   String    // SubscriptionTier the entitlement was granted at ("ADDON" for paid add-ons)
+  source     String    @default("tier") // tier (re-synced on tier change) | addon | manual (both survive re-syncs)
+  enabledAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, moduleKey])
+  @@index([tenantId])
+}
+
+model ChartOfAccount {
+  id             String            @id @default(cuid())
+  tenantId       String
+  code           String            // e.g. "4000"
+  name           String
+  type           String            // asset | liability | equity | income | expense
+  parentId       String?
+  isSystem       Boolean           @default(false) // seeded accounts, non-deletable
+  isActive       Boolean           @default(true)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  tenant         Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent         ChartOfAccount?   @relation("COATree", fields: [parentId], references: [id])
+  children       ChartOfAccount[]  @relation("COATree")
+  journalLines   JournalLine[]
+  bankAccounts   BankAccount[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@index([type])
+}
+
+model JournalEntry {
+  id             String        @id @default(cuid())
+  tenantId       String
+  locationId     String?
+  date           DateTime
+  reference      String        // e.g. SALE-0001, PAY-0003, PO-0002
+  sourceModule   String        // pos | payroll | procurement | manual | ...
+  sourceId       String?
+  description    String?
+  // Nullable: system jobs (depreciation runs, payroll filing) post without a user.
+  postedBy       String?
+  createdAt      DateTime      @default(now())
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location       Location?     @relation(fields: [locationId], references: [id])
+  postedByUser   User?         @relation("JournalPostedBy", fields: [postedBy], references: [id])
+  lines          JournalLine[]
+
+  @@index([tenantId])
+  @@index([tenantId, date])
+  @@index([sourceModule, sourceId])
+  supplierInvoices SupplierInvoice[]
+  supplierPayments SupplierPayment[]
+  creditNotes      CreditNote[]
+  debitNotes       DebitNote[]
+}
+
+model JournalLine {
+  id             String        @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  // Decimal, not Float: a trial balance must sum to exactly zero and
+  // float drift breaks that. Source amounts from Float columns are
+  // rounded to cents before posting (see src/lib/journal.ts).
+  debit          Decimal       @default(0)
+  credit         Decimal       @default(0)
+  description    String?
+  journalEntry   JournalEntry  @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account        ChartOfAccount @relation(fields: [accountId], references: [id])
+  matchedBankTransactions BankTransaction[]
+
+  @@index([journalEntryId])
+  @@index([accountId])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ERP Phase 1 — Finance (bank/cash, credit/debit notes) + Procurement
+// (supplier, PO → GRN → invoice → payment). See lipapoint-erp-spec.md §4.3/§4.6.
+// ═══════════════════════════════════════════════════════════════════
+
+model BankAccount {
+  id             String   @id @default(cuid())
+  tenantId       String
+  name           String
+  type           String   // bank | mpesa_till | mpesa_paybill | cash
+  accountNumber  String?
+  openingBalance Float    @default(0)
+  // GL account this bank/cash wallet posts into (defaults by type:
+  // cash→1010, mpesa_till→1020, mpesa_paybill→1030, bank→1040).
+  coaAccountId   String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  coaAccount     ChartOfAccount? @relation(fields: [coaAccountId], references: [id])
+  transactions   BankTransaction[]
+  supplierPayments SupplierPayment[]
+
+  @@index([tenantId])
+}
+
+model BankTransaction {
+  id             String   @id @default(cuid())
+  tenantId       String
+  bankAccountId  String
+  date           DateTime
+  amount         Float
+  direction      String   // in | out
+  description    String?
+  reference      String?
+  reconciled     Boolean  @default(false)
+  reconciledAt   DateTime?
+  matchedJournalLineId String?
+  createdAt      DateTime @default(now())
+  bankAccount    BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  matchedJournalLine JournalLine? @relation(fields: [matchedJournalLineId], references: [id])
+
+  @@index([tenantId])
+  @@index([bankAccountId])
+  @@index([reconciled])
+}
+
+model Supplier {
+  id             String   @id @default(cuid())
+  tenantId       String
+  name           String
+  kraPin         String?
+  email          String?
+  phone          String?
+  address        String?
+  paymentTerms   String?  // e.g. "Net 30"
+  balance        Float    @default(0) // amount owed to supplier
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchaseOrders PurchaseOrder[]
+  invoices       SupplierInvoice[]
+  payments       SupplierPayment[]
+  debitNotes     DebitNote[]
+
+  @@index([tenantId])
+  @@index([name])
+}
+
+model PurchaseOrder {
+  id             String   @id @default(cuid())
+  tenantId       String
+  supplierId     String
+  poNumber       String
+  status         String   @default("draft") // draft | sent | partially_received | received | closed | cancelled
+  locationId     String?
+  expectedDate   DateTime?
+  subtotal       Float    @default(0)
+  total          Float    @default(0)
+  notes          String?
+  createdBy      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplier       Supplier @relation(fields: [supplierId], references: [id])
+  location       Location? @relation(fields: [locationId], references: [id])
+  createdByUser  User?    @relation("POCreatedBy", fields: [createdBy], references: [id])
+  items          PurchaseOrderItem[]
+  grns           GoodsReceivedNote[]
+  invoices       SupplierInvoice[]
+
+  @@unique([tenantId, poNumber])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model PurchaseOrderItem {
+  id             String   @id @default(cuid())
+  purchaseOrderId String
+  productId      String?
+  description    String
+  quantity       Int
+  unitCost       Float
+  // Running total of quantities already received across all GRNs — the
+  // source of partially_received vs received, not a trust-the-PO flag.
+  receivedQty    Int      @default(0)
+  purchaseOrder  PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  product        Product? @relation(fields: [productId], references: [id])
+  grnItems       GoodsReceivedNoteItem[]
+
+  @@index([purchaseOrderId])
+}
+
+model GoodsReceivedNote {
+  id             String   @id @default(cuid())
+  tenantId       String
+  purchaseOrderId String
+  grnNumber      String
+  receivedDate   DateTime
+  locationId     String?
+  receivedBy     String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  purchaseOrder  PurchaseOrder @relation(fields: [purchaseOrderId], references: [id])
+  location       Location? @relation(fields: [locationId], references: [id])
+  receivedByUser User?    @relation("GRNReceivedBy", fields: [receivedBy], references: [id])
+  items          GoodsReceivedNoteItem[]
+
+  @@unique([tenantId, grnNumber])
+  @@index([tenantId])
+}
+
+model GoodsReceivedNoteItem {
+  id             String   @id @default(cuid())
+  grnId          String
+  poItemId       String?
+  productId      String?
+  description    String
+  quantity       Int
+  unitCost       Float
+  grn            GoodsReceivedNote @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  poItem         PurchaseOrderItem? @relation(fields: [poItemId], references: [id])
+  product        Product? @relation(fields: [productId], references: [id])
+
+  @@index([grnId])
+}
+
+model SupplierInvoice {
+  id             String   @id @default(cuid())
+  tenantId       String
+  supplierId     String
+  poId           String?
+  invoiceNumber  String
+  amount         Float
+  paidAmount     Float    @default(0)
+  dueDate        DateTime?
+  status         String   @default("unpaid") // unpaid | partial | paid
+  etimsValidated Boolean  @default(false)
+  journalEntryId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplier       Supplier @relation(fields: [supplierId], references: [id])
+  purchaseOrder  PurchaseOrder? @relation(fields: [poId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  payments       SupplierPayment[]
+  debitNotes     DebitNote[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model SupplierPayment {
+  id             String   @id @default(cuid())
+  tenantId       String
+  supplierId     String
+  invoiceId      String?
+  bankAccountId  String?
+  amount         Float
+  method         String   // cash | mpesa | bank | cheque
+  reference      String?
+  paidAt         DateTime
+  journalEntryId String?
+  createdBy      String?
+  createdAt      DateTime @default(now())
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplier       Supplier @relation(fields: [supplierId], references: [id])
+  invoice        SupplierInvoice? @relation(fields: [invoiceId], references: [id])
+  bankAccount    BankAccount? @relation(fields: [bankAccountId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@index([tenantId])
+  @@index([supplierId])
+  @@index([invoiceId])
+}
+
+model CreditNote {
+  id             String   @id @default(cuid())
+  tenantId       String
+  customerId     String
+  creditNoteNumber String
+  amount         Float
+  reason         String
+  status         String   @default("draft") // draft | approved | void
+  journalEntryId String?
+  createdBy      String?
+  approvedBy     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer       Customer @relation(fields: [customerId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([tenantId, creditNoteNumber])
+  @@index([tenantId])
+  @@index([status])
+}
+
+model DebitNote {
+  id             String   @id @default(cuid())
+  tenantId       String
+  supplierId     String
+  invoiceId      String?
+  debitNoteNumber String
+  amount         Float
+  reason         String
+  status         String   @default("draft") // draft | approved | void
+  journalEntryId String?
+  createdBy      String?
+  approvedBy     String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  supplier       Supplier @relation(fields: [supplierId], references: [id])
+  invoice        SupplierInvoice? @relation(fields: [invoiceId], references: [id])
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id])
+
+  @@unique([tenantId, debitNoteNumber])
+  @@index([tenantId])
+  @@index([status])
+}
+
+// eTIMS / KRA OSCU invoice submissions (LipaPoint ERP spec §4.8).
+// One row per source document (sale | credit_note | supplier_invoice),
+// unique per tenant so re-hooks and retries can never double-submit.
+model EtimsInvoice {
+  id                 String    @id @default(cuid())
+  tenantId           String
+  sourceType         String    // sale | credit_note | supplier_invoice
+  sourceId           String
+  sourceRef          String?   // orderNo / creditNoteNumber / invoiceNumber
+  status             String    @default("pending") // pending | submitted | accepted | rejected
+  totalAmount        Float     @default(0)
+  taxAmount          Float     @default(0)
+  kraInvoiceNumber   String?
+  qrCodeUrl          String?
+  attempts           Int       @default(0)
+  lastError          String?
+  submittedAt        DateTime?
+  rawResponse        Json?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  tenant             Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, sourceType, sourceId])
+  @@index([tenantId, status])
+  @@index([tenantId, createdAt])
 }
 
 model StockRecord {
@@ -632,6 +1018,7 @@ model Customer {
   updatedAt     DateTime  @updatedAt
   tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   orders        Order[]
+  creditNotes   CreditNote[]
 
   @@unique([tenantId, phone])
   @@index([tenantId])

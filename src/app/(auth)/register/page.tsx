@@ -188,8 +188,8 @@ export default function RegisterPage() {
           </div>
           <CardTitle className="text-2xl">Check your phone</CardTitle>
           <CardDescription>
-            We've sent an M-Pesa payment prompt to your device. Enter your M-Pesa PIN to
-            complete your subscription — this page will update automatically once it's confirmed.
+            We&apos;ve sent an M-Pesa payment prompt to your device. Enter your M-Pesa PIN to
+            complete your subscription — this page will update automatically once it&apos;s confirmed.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -205,7 +205,7 @@ export default function RegisterPage() {
               <XCircle size={28} className="text-red-400" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Payment didn't complete</CardTitle>
+          <CardTitle className="text-2xl">Payment didn&apos;t complete</CardTitle>
           <CardDescription>{failureReason}</CardDescription>
         </CardHeader>
         <CardContent>

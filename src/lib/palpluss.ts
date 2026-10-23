@@ -35,8 +35,10 @@ async function request<T>(
   });
 
   // A 401/403/5xx might not come back as JSON at all — don't let a failed
-  // .json() call mask the real status/error.
-  let payload: any;
+  // .json() call mask the real status/error. The body may be either the
+  // success envelope or the error envelope (or neither, for proxies/HTML
+  // error pages), so read it as both, partially.
+  let payload: Partial<PalPlussResponse<T>> & Partial<PalPlussErrorPayload>;
   const rawText = await response.text();
   try {
     payload = rawText ? JSON.parse(rawText) : {};
@@ -55,7 +57,7 @@ async function request<T>(
     );
   }
 
-  return payload;
+  return payload as PalPlussResponse<T>;
 }
 
 function qs(params: Record<string, string | number | undefined>): string {

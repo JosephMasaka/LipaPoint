@@ -10,14 +10,18 @@ import {
   Settings, TrendingUp, Users, LogOut, Receipt,
   Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin, WifiOff, Download,
   UserCircle, Tag, UtensilsCrossed, ChefHat, BookOpen, Globe, Truck, Calendar, Scissors, ListOrdered, CalendarDays,
+  FileText, Landmark, Calculator,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { getBusinessCategory, canAccessFeature, type BusinessCategory } from "@/lib/plans";
+import type { ModuleKey } from "@/lib/modules";
 import { useState, useEffect } from "react";
 
 interface SidebarProps {
   tenantSlug: string;
   user: { name: string; role: string; tenant: { name: string; tier: string; type: string } };
+  /** Enabled ERP module keys for this tenant (from the dashboard layout). */
+  modules: string[];
 }
 
 interface NavItem {
@@ -26,6 +30,8 @@ interface NavItem {
   href: string;
   roles: string[];
   feature: string | null;
+  /** Gate on an enabled ERP module (TenantModule) instead of a plan feature. */
+  module?: ModuleKey;
 }
 
 const baseNavItems: NavItem[] = [
@@ -59,6 +65,15 @@ const categoryNavItems: Record<BusinessCategory, NavItem[]> = {
   ],
 };
 
+// ERP back-office links (Phase 1): shown only when the tenant's module
+// rows enable them, so a pure-POS customer never sees Finance/Procurement.
+const erpNavItems: NavItem[] = [
+  { icon: Truck, label: "Suppliers", href: "/suppliers", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "procurement" },
+  { icon: FileText, label: "Purchase Orders", href: "/purchase-orders", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "procurement" },
+  { icon: Landmark, label: "Banking", href: "/banking", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "finance" },
+  { icon: Calculator, label: "Finance", href: "/finance", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "finance" },
+];
+
 const suffixNavItems: NavItem[] = [
   { icon: UserCircle, label: "Customers", href: "/customers", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null },
   { icon: Tag, label: "Discounts", href: "/discounts", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "discounts" },
@@ -68,16 +83,21 @@ const suffixNavItems: NavItem[] = [
   { icon: Settings, label: "Settings", href: "/settings", roles: ["OWNER", "ADMIN"], feature: null },
 ];
 
-function getNavItems(tenantType: string, tier: string): NavItem[] {
+function getNavItems(tenantType: string, tier: string, modules: string[]): NavItem[] {
   const category = getBusinessCategory(tenantType);
   return [
     ...baseNavItems,
     ...categoryNavItems[category],
+    ...erpNavItems,
     ...suffixNavItems,
-  ].filter(item => !item.feature || canAccessFeature(tier, item.feature, tenantType));
+  ].filter(
+    (item) =>
+      (!item.feature || canAccessFeature(tier, item.feature, tenantType)) &&
+      (!item.module || modules.includes(item.module))
+  );
 }
 
-export function Sidebar({ tenantSlug, user }: SidebarProps) {
+export function Sidebar({ tenantSlug, user, modules }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
@@ -103,7 +123,7 @@ export function Sidebar({ tenantSlug, user }: SidebarProps) {
   };
 
   const { isOnline, canInstall, installApp } = usePWA();
-  const allNav = getNavItems(user.tenant.type, user.tenant.tier);
+  const allNav = getNavItems(user.tenant.type, user.tenant.tier, modules);
   const filteredNav = allNav.filter((item) => item.roles.includes(user.role));
 
   const sidebarContent = (

@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Commission must be between 0 and 100 percent" }, { status: 400 });
   }
 
-  let code = typeof body.code === "string" && body.code.trim()
+  const code = typeof body.code === "string" && body.code.trim()
     ? body.code.trim().toUpperCase().replace(/\s+/g, "")
     : generateResellerCode(name);
   if (!/^[A-Z0-9_-]{3,32}$/.test(code)) {

@@ -1,5 +1,7 @@
 import { PrismaClient, Product } from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { provisionTenantModules } from "../src/lib/modules";
+import { seedChartOfAccounts } from "../src/lib/coa";
 
 const prisma = new PrismaClient();
 
@@ -1874,6 +1876,20 @@ async function main() {
   });
 
   console.log("  ✓ Sharp Cuts Barbershop: 6 products, 9 services, 4 users, appointments, queue, schedules\n");
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ERP Phase 0: provision tier-entitled modules + default chart of accounts
+  // ═════════════════════════════════════════════════════════════════════
+  const allTenants = await prisma.tenant.findMany({
+    select: { id: true, name: true, tier: true },
+  });
+  for (const t of allTenants) {
+    await provisionTenantModules(t.id, t.tier);
+    await seedChartOfAccounts(t.id);
+  }
+  console.log(
+    `  ✓ ERP foundation: modules + chart of accounts provisioned for ${allTenants.length} tenants\n`
+  );
 
   // ═══════════════════════════════════════════════════════════════════════════
   console.log("\n✅ Seed complete!\n");

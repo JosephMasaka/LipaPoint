@@ -3,6 +3,7 @@ import { describeFailure, type PalPlussTransactionLike } from "@/lib/signup-comp
 import { sendEmail, planUpgradeEmail } from "@/lib/email";
 import { getPlanPricing } from "@/lib/plans";
 import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
+import { provisionTenantModules } from "@/lib/modules";
 
 const TIER_ORDER = ["STARTER", "PROFESSIONAL", "ENTERPRISE"];
 
@@ -65,6 +66,10 @@ export async function completeUpgradeFromTransaction(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: { tier: targetTier as any },
     });
+
+    // ERP module entitlements are additive: re-sync TenantModule rows so
+    // newly-included modules switch on without re-onboarding.
+    await provisionTenantModules(tenant.id, targetTier);
 
     // Coupon use was reserved when the payment was initiated — record the
     // redemption now that the money actually moved.

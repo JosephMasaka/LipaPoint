@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { sendEmail, welcomeEmail } from "@/lib/email";
 import { getPlanPricing } from "@/lib/plans";
 import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
+import { provisionTenantModules } from "@/lib/modules";
+import { seedChartOfAccounts } from "@/lib/coa";
 
 function generateSlug(name: string): string {
   return name
@@ -128,6 +130,11 @@ export async function completeSignupFromTransaction(
     });
 
     const user = tenant.users[0];
+
+    // ERP Phase 0 foundation: grant tier-entitled modules and seed the
+    // default chart of accounts so Finance has somewhere to post from day one.
+    await provisionTenantModules(tenant.id, tenant.tier);
+    await seedChartOfAccounts(tenant.id);
 
     await db.activityLog.create({
       data: {
