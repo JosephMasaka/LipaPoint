@@ -35,6 +35,11 @@ export interface EtimsItemLine {
 export interface EtimsSubmissionPayload {
   /** orderNo / creditNoteNumber — our traceable reference. */
   internalRef: string;
+  /**
+   * Our EtimsInvoice.id, echoed back by OSCU's async confirmation so the
+   * callback can resolve the row without guessing on internalRef alone.
+   */
+  submissionId?: string;
   documentType: EtimsDocumentType;
   issuedAt: Date;
   currency: string;
@@ -137,6 +142,7 @@ export class OscuProvider implements EtimsProvider {
       csid: this.config.csid,
       sellerName: this.config.sellerName,
       internalReference: payload.internalRef,
+      submissionId: payload.submissionId,
       documentType: payload.documentType,
       issuedAt: payload.issuedAt.toISOString(),
       currency: payload.currency,

@@ -333,6 +333,9 @@ export async function submitEtimsInvoice(
     branch: process.env.ETIMS_SELLER_BRANCH?.trim() || "",
     name: tenant.name,
   };
+  // Echoed to OSCU so an async confirmation can resolve this exact row
+  // (see src/lib/etims/callback.ts) instead of matching on internalRef.
+  payload.submissionId = row.id;
 
   const provider = getEtimsProvider();
   let outcome;
