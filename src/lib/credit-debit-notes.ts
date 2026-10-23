@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { postJournalEntry } from "./journal";
 import { writeAuditLog, AUDIT_ACTIONS } from "./audit";
+import { submitCreditNoteForEtims } from "./etims/submission";
 
 /**
  * Credit & debit notes (LipaPoint ERP spec §4.3).
@@ -96,7 +97,7 @@ export async function approveCreditNote(
     throw new NoteError(`Credit note is already ${note.status}`);
   }
 
-  return db.$transaction(async (tx) => {
+  const approved = await db.$transaction(async (tx) => {
     const entry = await postJournalEntry(
       {
         tenantId,
@@ -134,6 +135,13 @@ export async function approveCreditNote(
     },
     { timeout: 20000 }
   );
+
+  // eTIMS: a credit note is a KRA-reportable document (spec §4.8) —
+  // submit after the approval commits, never inside the transaction
+  // (the provider does network I/O). Never throws back into the caller.
+  await submitCreditNoteForEtims(tenantId, approved.id, { userId: approvedBy });
+
+  return approved;
 }
 
 export interface CreateDebitNoteInput {

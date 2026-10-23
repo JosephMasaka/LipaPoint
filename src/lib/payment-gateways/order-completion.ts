@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { submitOrderForEtims } from "@/lib/etims/submission";
 
 interface OrderPaymentResult {
   status: "SUCCESS" | "FAILED";
@@ -88,6 +89,13 @@ export async function completeOrderPayment(
         },
       });
     }, { timeout: 30000 });
+
+    // eTIMS: STK sales only become real invoices once payment clears, so
+    // KRA submission happens here rather than at order creation. Runs after
+    // the transaction commits and never throws back into the webhook.
+    await submitOrderForEtims(record.tenantId, record.orderId!, {
+      userId: record.userId,
+    });
 
     return { ok: true };
   }

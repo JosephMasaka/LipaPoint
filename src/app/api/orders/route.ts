@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateOrderNo } from "@/lib/utils";
+import { submitOrderForEtims } from "@/lib/etims/submission";
 
 export async function GET(request: NextRequest) {
   try {
@@ -308,7 +309,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ...order, stockLevels }, { status: 201 });
+    // eTIMS: real-time KRA submission for completed sales (spec §4.8).
+    // Pending STK orders are submitted later, from completeOrderPayment(),
+    // once payment actually clears. A provider problem never fails the
+    // sale — the row stays `pending` for the dashboard's retry queue.
+    const etims = isPendingStk
+      ? null
+      : await submitOrderForEtims(user.tenantId, order.id, { userId: user.id });
+
+    return NextResponse.json(
+      {
+        ...order,
+        stockLevels,
+        etims: etims
+          ? {
+              status: etims.status,
+              kraInvoiceNumber: etims.kraInvoiceNumber,
+              qrCodeUrl: etims.qrCodeUrl,
+            }
+          : null,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("POST /api/orders error:", error);
     const message =
