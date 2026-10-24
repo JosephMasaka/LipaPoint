@@ -10,7 +10,7 @@ import {
   Settings, TrendingUp, Users, LogOut, Receipt,
   Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin, WifiOff, Download,
   UserCircle, Tag, UtensilsCrossed, ChefHat, BookOpen, Globe, Truck, Calendar, Scissors, ListOrdered, CalendarDays,
-  FileText, Landmark, Calculator, ShieldCheck, Contact, Banknote,
+  FileText, Landmark, Calculator, ShieldCheck, Contact, Banknote, Boxes,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { getBusinessCategory, canAccessFeature, type BusinessCategory } from "@/lib/plans";
@@ -75,6 +75,7 @@ const erpNavItems: NavItem[] = [
   { icon: ShieldCheck, label: "eTIMS", href: "/etims", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "etims" },
   { icon: Contact, label: "HR", href: "/hr", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll" },
   { icon: Banknote, label: "Payroll", href: "/payroll", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll" },
+  { icon: Boxes, label: "Assets", href: "/assets", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "assets" },
 ];
 
 const suffixNavItems: NavItem[] = [

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -538,9 +539,19 @@ export default function HrPage() {
                             <Badge variant={emp.active ? "success" : "secondary"}>{emp.active ? "active" : "archived"}</Badge>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <Button variant="ghost" size="sm" onClick={() => handleToggleActive(emp)}>
-                              {emp.active ? "Archive" : "Reactivate"}
-                            </Button>
+                            <div className="flex justify-end items-center gap-1">
+                              <Link
+                                href={`/print/p9/${emp.id}`}
+                                target="_blank"
+                                title={`Print P9 for ${emp.firstName} ${emp.lastName}`}
+                                className="px-2 py-1 rounded text-xs text-text-secondary hover:text-gold"
+                              >
+                                P9
+                              </Link>
+                              <Button variant="ghost" size="sm" onClick={() => handleToggleActive(emp)}>
+                                {emp.active ? "Archive" : "Reactivate"}
+                              </Button>
+                            </div>
                           </td>
                         </tr>
                       ))}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { Header } from "@/components/header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +12,7 @@ import { Pagination } from "@/components/pagination";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   Plus, X, CheckCircle, AlertCircle, Play, FileCheck2, Trash2,
-  Download, ScrollText, Landmark, AlertTriangle,
+  Download, ScrollText, Landmark, AlertTriangle, Printer,
 } from "lucide-react";
 
 type Tab = "runs" | "rates";
@@ -76,6 +77,7 @@ interface RateVersion {
   label: string;
   effectiveFrom: string;
   isDefault: boolean;
+  scope: "platform" | "tenant";
   payeBands: PayeBand[];
   personalRelief: number;
   nssfRateEmployee: number;
@@ -146,6 +148,22 @@ export default function PayrollPage() {
   // Rates
   const [rates, setRates] = useState<RatesResponse | null>(null);
   const [ratesLoading, setRatesLoading] = useState(true);
+  const [showRateForm, setShowRateForm] = useState(false);
+  const [rateFormError, setRateFormError] = useState("");
+  const [rateForm, setRateForm] = useState<{
+    label: string;
+    effectiveFrom: string;
+    bands: { upTo: string; rate: string }[];
+    personalRelief: number;
+    nssfRateEmployee: number;
+    nssfRateEmployer: number;
+    nssfTier1Cap: number;
+    nssfTier2Cap: number;
+    shifRate: number;
+    shifMinimum: number;
+    housingLevyRate: number;
+    nitaLevyPerEmployee: number;
+  } | null>(null);
 
   const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
   const notify = (type: string, message: string) => {
@@ -210,15 +228,90 @@ export default function PayrollPage() {
   }, [showPayForm, bankAccounts.length]);
 
   // ── Rates ──
-  useEffect(() => {
-    if (tab !== "rates") return;
+  const fetchRates = useCallback(async () => {
     setRatesLoading(true);
-    fetch("/api/payroll/rates")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setRates(d))
-      .catch(() => {})
-      .finally(() => setRatesLoading(false));
-  }, [tab]);
+    try {
+      const res = await fetch("/api/payroll/rates");
+      if (res.ok) setRates(await res.json());
+    } catch {
+      // silent fail
+    } finally {
+      setRatesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "rates") fetchRates();
+  }, [tab, fetchRates]);
+
+  // Prefill the version form from the rates currently in force.
+  const openRateForm = () => {
+    const cur = rates?.current;
+    setRateFormError("");
+    setRateForm({
+      label: `Kenya statutory correction — ${new Date().toLocaleDateString("en-KE", { month: "long", year: "numeric" })}`,
+      effectiveFrom: "",
+      bands: cur
+        ? cur.payeBands.map((b) => ({
+            upTo: b.upTo === null ? "" : String(b.upTo),
+            rate: String(b.rate),
+          }))
+        : [{ upTo: "", rate: "" }],
+      personalRelief: cur?.personalRelief ?? 2400,
+      nssfRateEmployee: cur?.nssfRateEmployee ?? 6,
+      nssfRateEmployer: cur?.nssfRateEmployer ?? 6,
+      nssfTier1Cap: cur?.nssfTier1Cap ?? 8000,
+      nssfTier2Cap: cur?.nssfTier2Cap ?? 108000,
+      shifRate: cur?.shifRate ?? 2.75,
+      shifMinimum: cur?.shifMinimum ?? 300,
+      housingLevyRate: cur?.housingLevyRate ?? 1.5,
+      nitaLevyPerEmployee: cur?.nitaLevyPerEmployee ?? 50,
+    });
+    setShowRateForm(true);
+  };
+
+  const submitRateVersion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rateForm) return;
+    setRateFormError("");
+    try {
+      const payload = {
+        label: rateForm.label,
+        effectiveFrom: rateForm.effectiveFrom,
+        payeBands: rateForm.bands.map((b) => ({
+          upTo: b.upTo.trim() === "" ? null : Number(b.upTo),
+          rate: Number(b.rate),
+        })),
+        personalRelief: Number(rateForm.personalRelief),
+        nssfRateEmployee: Number(rateForm.nssfRateEmployee),
+        nssfRateEmployer: Number(rateForm.nssfRateEmployer),
+        nssfTier1Cap: Number(rateForm.nssfTier1Cap),
+        nssfTier2Cap: Number(rateForm.nssfTier2Cap),
+        shifRate: Number(rateForm.shifRate),
+        shifMinimum: Number(rateForm.shifMinimum),
+        housingLevyRate: Number(rateForm.housingLevyRate),
+        nitaLevyPerEmployee: Number(rateForm.nitaLevyPerEmployee),
+      };
+      const res = await fetch("/api/payroll/rates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const d = await res.json();
+      if (!res.ok) {
+        setRateFormError(d.error || "Failed to add rate version");
+        return;
+      }
+      setShowRateForm(false);
+      notify(
+        "success",
+        `Rate version effective ${payload.effectiveFrom} added — future runs only, past payslips keep their original rates`
+      );
+      fetchRates();
+    } catch {
+      setRateFormError("Network error");
+    }
+  };
 
   // ── Actions ──
   const handleCreateRun = async (e: React.FormEvent) => {
@@ -507,6 +600,7 @@ export default function PayrollPage() {
                             <th className="px-3 py-2 text-right text-text-secondary uppercase">PAYE</th>
                             <th className="px-3 py-2 text-right text-text-secondary uppercase">Other ded.</th>
                             <th className="px-3 py-2 text-right text-text-secondary uppercase">Net pay</th>
+                            <th className="px-3 py-2 text-right text-text-secondary uppercase w-8" />
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -524,6 +618,16 @@ export default function PayrollPage() {
                               <td className="px-3 py-2 text-right text-text-secondary">{formatCurrency(p.payePayable)}</td>
                               <td className="px-3 py-2 text-right text-text-secondary">{formatCurrency(p.otherDeductions)}</td>
                               <td className="px-3 py-2 text-right text-text-primary font-medium">{formatCurrency(p.netPay)}</td>
+                              <td className="px-3 py-2 text-right">
+                                <Link
+                                  href={`/print/payslip/${p.id}`}
+                                  target="_blank"
+                                  title="Print payslip (Save as PDF)"
+                                  className="text-text-muted hover:text-gold"
+                                >
+                                  <Printer className="h-3.5 w-3.5 inline" />
+                                </Link>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -616,6 +720,16 @@ export default function PayrollPage() {
               </span>
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-text-muted">
+                Rate versions are scoped to this business: your overrides layer on top of the shared
+                platform default and never change another tenant&apos;s payroll.
+              </p>
+              <Button size="sm" className="gap-2" onClick={openRateForm}>
+                <Plus className="h-4 w-4" /> New Rate Version
+              </Button>
+            </div>
+
             {ratesLoading ? (
               <Card><CardContent className="p-8"><Loader label="Loading statutory rates..." className="py-4" /></CardContent></Card>
             ) : current ? (
@@ -699,6 +813,7 @@ export default function PayrollPage() {
                           <tr className="border-b border-border bg-surface-elevated/50">
                             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">Effective from</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">Label</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">Source</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase">Relief</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase">SHIF</th>
                             <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase">NSSF cap</th>
@@ -712,6 +827,11 @@ export default function PayrollPage() {
                                 {new Date(v.effectiveFrom).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" })}
                               </td>
                               <td className="px-4 py-3 text-text-secondary">{v.label}</td>
+                              <td className="px-4 py-3">
+                                <Badge variant={v.scope === "tenant" ? "default" : "secondary"}>
+                                  {v.scope === "tenant" ? "your override" : "platform default"}
+                                </Badge>
+                              </td>
                               <td className="px-4 py-3 text-right text-text-secondary">{formatCurrency(v.personalRelief)}</td>
                               <td className="px-4 py-3 text-right text-text-secondary">{v.shifRate}%</td>
                               <td className="px-4 py-3 text-right text-text-secondary">{formatCurrency(v.nssfTier2Cap)}</td>
@@ -725,6 +845,196 @@ export default function PayrollPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* ── New rate version ── */}
+                {showRateForm && rateForm && (
+                  <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowRateForm(false)} />
+                    <div className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+                      <div className="flex items-center justify-between p-4 border-b border-border">
+                        <h3 className="text-lg font-bold text-text-primary">New Statutory Rate Version</h3>
+                        <button onClick={() => setShowRateForm(false)} className="h-8 w-8 rounded-lg flex items-center justify-center hover:bg-surface-hover text-text-muted">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <form onSubmit={submitRateVersion} className="p-4 space-y-4 max-h-[75vh] overflow-y-auto">
+                        {rateFormError && (
+                          <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                            {rateFormError}
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <Input
+                            label="Label"
+                            value={rateForm.label}
+                            onChange={(e) => setRateForm({ ...rateForm, label: e.target.value })}
+                            required
+                          />
+                          <Input
+                            label="Effective from"
+                            type="date"
+                            value={rateForm.effectiveFrom}
+                            onChange={(e) => setRateForm({ ...rateForm, effectiveFrom: e.target.value })}
+                            required
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-text-secondary mb-1.5 block">PAYE bands (monthly)</label>
+                          <div className="space-y-2">
+                            {rateForm.bands.map((b, i) => (
+                              <div key={i} className="flex items-center gap-2">
+                                <span className="text-xs text-text-muted w-6 text-right">{i + 1}.</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  placeholder={i === rateForm.bands.length - 1 ? "open-ended" : "up to"}
+                                  value={b.upTo}
+                                  onChange={(e) =>
+                                    setRateForm({
+                                      ...rateForm,
+                                      bands: rateForm.bands.map((x, j) => (j === i ? { ...x, upTo: e.target.value } : x)),
+                                    })
+                                  }
+                                  className="flex-1"
+                                />
+                                <span className="text-xs text-text-muted">at</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  max="100"
+                                  step="0.1"
+                                  value={b.rate}
+                                  onChange={(e) =>
+                                    setRateForm({
+                                      ...rateForm,
+                                      bands: rateForm.bands.map((x, j) => (j === i ? { ...x, rate: e.target.value } : x)),
+                                    })
+                                  }
+                                  className="w-24"
+                                />
+                                <span className="text-xs text-text-muted">%</span>
+                                {rateForm.bands.length > 1 && (
+                                  <button
+                                    type="button"
+                                    aria-label="Remove band"
+                                    onClick={() =>
+                                      setRateForm({ ...rateForm, bands: rateForm.bands.filter((_, j) => j !== i) })
+                                    }
+                                    className="h-8 w-8 rounded-lg flex items-center justify-center text-text-muted hover:text-red-400"
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex items-center justify-between mt-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setRateForm({ ...rateForm, bands: [...rateForm.bands, { upTo: "", rate: "" }] })
+                              }
+                              className="text-xs text-gold hover:underline"
+                            >
+                              + Add band
+                            </button>
+                            <p className="text-[11px] text-text-muted">
+                              Leave the cap empty on the last band for the open-ended top band.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-3">
+                          <Input
+                            label="Personal relief"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={rateForm.personalRelief}
+                            onChange={(e) => setRateForm({ ...rateForm, personalRelief: Number(e.target.value) })}
+                          />
+                          <Input
+                            label="NSSF EE %"
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={rateForm.nssfRateEmployee}
+                            onChange={(e) => setRateForm({ ...rateForm, nssfRateEmployee: Number(e.target.value) })}
+                          />
+                          <Input
+                            label="NSSF ER %"
+                            type="number"
+                            min="0"
+                            step="0.1"
+                            value={rateForm.nssfRateEmployer}
+                            onChange={(e) => setRateForm({ ...rateForm, nssfRateEmployer: Number(e.target.value) })}
+                          />
+                          <Input
+                            label="Tier I cap"
+                            type="number"
+                            min="0"
+                            value={rateForm.nssfTier1Cap}
+                            onChange={(e) => setRateForm({ ...rateForm, nssfTier1Cap: Number(e.target.value) })}
+                          />
+                          <Input
+                            label="Tier II cap"
+                            type="number"
+                            min="0"
+                            value={rateForm.nssfTier2Cap}
+                            onChange={(e) => setRateForm({ ...rateForm, nssfTier2Cap: Number(e.target.value) })}
+                          />
+                          <Input
+                            label="SHIF %"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={rateForm.shifRate}
+                            onChange={(e) => setRateForm({ ...rateForm, shifRate: Number(e.target.value) })}
+                          />
+                          <Input
+                            label="SHIF min"
+                            type="number"
+                            min="0"
+                            value={rateForm.shifMinimum}
+                            onChange={(e) => setRateForm({ ...rateForm, shifMinimum: Number(e.target.value) })}
+                          />
+                          <Input
+                            label="Housing Levy %"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={rateForm.housingLevyRate}
+                            onChange={(e) => setRateForm({ ...rateForm, housingLevyRate: Number(e.target.value) })}
+                          />
+                          <Input
+                            label="NITA /yr"
+                            type="number"
+                            min="0"
+                            value={rateForm.nitaLevyPerEmployee}
+                            onChange={(e) => setRateForm({ ...rateForm, nitaLevyPerEmployee: Number(e.target.value) })}
+                          />
+                        </div>
+
+                        <p className="text-[11px] text-text-muted">
+                          Takes effect for runs whose period starts on or after the effective date.
+                          Payslips already computed keep the row they were calculated with, and other
+                          businesses on the platform are unaffected. Verify against KRA / NSSF / SHA
+                          notices before relying on it for filing.
+                        </p>
+
+                        <div className="flex gap-3 pt-2">
+                          <Button type="button" variant="outline" className="flex-1" onClick={() => setShowRateForm(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" className="flex-1">Add Version</Button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                )}
               </>
             ) : (
               <Card><CardContent className="p-8 text-center text-text-muted">No statutory rate table found.</CardContent></Card>

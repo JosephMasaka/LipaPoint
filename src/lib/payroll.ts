@@ -94,9 +94,12 @@ const DEFAULT_RATES = {
   isDefault: true,
 };
 
-/** Creates the default rate row if the table is empty (idempotent). */
+/**
+ * Seeds the shared (platform) default rate row if none exists (idempotent).
+ * Tenant overrides are never seeded — they only exist when a tenant adds one.
+ */
 export async function ensureStatutoryRates(): Promise<void> {
-  const count = await db.statutoryRateTable.count();
+  const count = await db.statutoryRateTable.count({ where: { tenantId: null } });
   if (count > 0) return;
   await db.statutoryRateTable.create({ data: DEFAULT_RATES });
   console.log("  ✓ seeded default statutory rate table");
@@ -104,21 +107,33 @@ export async function ensureStatutoryRates(): Promise<void> {
 
 /**
  * Rates in force for a period ("2026-11"): the latest row whose
- * effectiveFrom is on or before the period start. Self-healing — seeds the
- * default first if nothing exists, so no call path can crash on an empty
- * table (signup, backfill, direct API use).
+ * effectiveFrom is on or before the period start — a tenant's own override
+ * row wins over the shared platform default for that tenant, so a tenant's
+ * rate correction never leaks into another tenant's payslips.
+ * Self-healing — seeds the default first if nothing exists, so no call path
+ * can crash on an empty table (signup, backfill, direct API use).
  */
-export async function getRatesForPeriod(period: string): Promise<StatutoryRates> {
+export async function getRatesForPeriod(period: string, tenantId?: string | null): Promise<StatutoryRates> {
   await ensureStatutoryRates();
   const monthStart = periodStart(period);
-  const row = await db.statutoryRateTable.findFirst({
-    where: { effectiveFrom: { lte: monthStart } },
-    orderBy: { effectiveFrom: "desc" },
-  });
+
+  const override = tenantId
+    ? await db.statutoryRateTable.findFirst({
+        where: { tenantId, effectiveFrom: { lte: monthStart } },
+        orderBy: { effectiveFrom: "desc" },
+      })
+    : null;
+  const row =
+    override ??
+    (await db.statutoryRateTable.findFirst({
+      where: { tenantId: null, effectiveFrom: { lte: monthStart } },
+      orderBy: { effectiveFrom: "desc" },
+    }));
   if (!row) {
-    // Only reachable if every row is future-dated — fall back to the
+    // Only reachable if every shared row is future-dated — fall back to the
     // earliest available rather than refusing to run payroll.
     const earliest = await db.statutoryRateTable.findFirst({
+      where: { tenantId: null },
       orderBy: { effectiveFrom: "asc" },
     });
     if (!earliest) throw new PayrollError("No statutory rate table rows found", 500);
@@ -314,7 +329,7 @@ async function buildPayslips(tx: Db, run: { id: string; tenantId: string; period
     throw new PayrollError("No active employees to pay for this period");
   }
 
-  const rates = await getRatesForPeriod(run.period);
+  const rates = await getRatesForPeriod(run.period, run.tenantId);
 
   const rows: PayslipCalculation[] = [];
   for (const emp of employees) {
@@ -714,20 +729,79 @@ export function bankBatchCsv(run: PayrollRunWithPayslips): string {
 }
 
 /**
+ * Per-month P9 figures for one employee (tax-year summary backing the
+ * printable P9 view). Keyed off the run's period, not payslip creation
+ * time: a December run approved in January still belongs to December's
+ * tax year.
+ */
+export interface P9MonthRow {
+  period: string;
+  grossPay: number;
+  nssf: number;
+  shif: number;
+  payeBeforeRelief: number;
+  personalRelief: number;
+  payeAfterRelief: number;
+}
+
+export async function p9EmployeeSummary(tenantId: string, year: number, employeeId: string) {
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+    throw new PayrollError(`Invalid year ${year}`);
+  }
+  const employee = await db.employee.findFirst({
+    where: { id: employeeId, tenantId },
+    select: {
+      id: true, staffNumber: true, firstName: true, lastName: true,
+      jobTitle: true, kraPin: true, nssfNumber: true, shaNumber: true,
+    },
+  });
+  if (!employee) throw new PayrollError("Employee not found", 404);
+
+  const slips = await db.payslip.findMany({
+    where: { tenantId, employeeId, payrollRun: { period: { startsWith: `${year}-` } } },
+    include: { payrollRun: { select: { period: true } } },
+    orderBy: { payrollRun: { period: "asc" } },
+  });
+
+  const months: P9MonthRow[] = slips.map((s) => ({
+    period: s.payrollRun.period,
+    grossPay: s.grossPay,
+    nssf: s.nssfEmployee,
+    shif: s.shif,
+    payeBeforeRelief: s.paye,
+    personalRelief: s.personalRelief,
+    payeAfterRelief: s.payePayable,
+  }));
+  const sum = (pick: (r: P9MonthRow) => number) => toCents(months.reduce((acc, r) => acc + pick(r), 0));
+
+  return {
+    employee,
+    year,
+    months,
+    totals: {
+      grossPay: sum((r) => r.grossPay),
+      nssf: sum((r) => r.nssf),
+      shif: sum((r) => r.shif),
+      payeBeforeRelief: sum((r) => r.payeBeforeRelief),
+      personalRelief: sum((r) => r.personalRelief),
+      payeAfterRelief: sum((r) => r.payeAfterRelief),
+    },
+  };
+}
+
+/**
  * P9 extract (annual): YTD gross, tax before/after relief per employee.
  * The full statutory P9 form layout is an export-format concern — this is
  * the filing data, ready to paste into the KRA form or a payroll bureau's
- * template.
+ * template. Rows are keyed off each run's period (tax year = period
+ * year), so a December run approved in January stays in December.
  */
 export async function p9Csv(tenantId: string, year: number): Promise<string> {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) {
     throw new PayrollError(`Invalid year ${year}`);
   }
   const slips = await db.payslip.findMany({
-    where: {
-      tenantId,
-      createdAt: { gte: new Date(Date.UTC(year, 0, 1)), lt: new Date(Date.UTC(year + 1, 0, 1)) },
-    },
+    where: { tenantId, payrollRun: { period: { startsWith: `${year}-` } } },
     include: { employee: true },
     orderBy: { createdAt: "asc" },
   });

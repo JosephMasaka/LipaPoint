@@ -63,6 +63,7 @@ export const DEFAULT_CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: "6500", name: "Depreciation Expense", type: "expense" },
   { code: "6600", name: "Bank & M-Pesa Charges", type: "expense" },
   { code: "6700", name: "Marketing & Advertising", type: "expense" },
+  { code: "6800", name: "Loss on Asset Disposal", type: "expense" },
 ];
 
 /**

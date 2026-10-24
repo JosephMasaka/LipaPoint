@@ -61,6 +61,9 @@ model Tenant {
   resellerId       String?
   reseller         Reseller?       @relation(fields: [resellerId], references: [id], onDelete: SetNull)
   activityLogs     ActivityLog[]
+  statutoryRates   StatutoryRateTable[]
+  assets           Asset[]
+  assetDepreciationEntries AssetDepreciationEntry[]
   appointments     Appointment[]
   categories       Category[]
   customers        Customer[]
@@ -223,6 +226,7 @@ model Location {
   purchaseOrders  PurchaseOrder[]
   grns            GoodsReceivedNote[]
   employees       Employee[]
+  assets          Asset[]
 
   @@index([tenantId])
 }
@@ -576,6 +580,7 @@ model JournalEntry {
   creditNotes      CreditNote[]
   debitNotes       DebitNote[]
   payrollRuns      PayrollRun[]
+  assetDepreciationEntries AssetDepreciationEntry[]
 }
 
 model JournalLine {
@@ -663,6 +668,7 @@ model Supplier {
   invoices       SupplierInvoice[]
   payments       SupplierPayment[]
   debitNotes     DebitNote[]
+  assets         Asset[]
 
   @@index([tenantId])
   @@index([name])
@@ -907,6 +913,7 @@ model Employee {
   leaves          LeaveRequest[]
   loans           EmployeeLoan[]
   payslips        Payslip[]
+  assignedAssets  Asset[]
 
   @@unique([tenantId, staffNumber])
   @@index([tenantId])
@@ -1023,13 +1030,16 @@ model Payslip {
 }
 
 // Country-level regulatory rates (PAYE bands, NSSF caps, SHIF, AHL, NITA).
-// Global on purpose — deliberately NOT tenant-scoped: KRA/NSSF rates are
-// the same for every Kenyan tenant, and keeping one versioned copy means a
-// rate change is a single row with effectiveFrom (spec §9: never hardcode
-// in calculation logic), not a per-tenant migration. Payslips keep
-// rateTableId for provenance.
+// Shared by default: KRA/NSSF rates are the same for every Kenyan tenant, so
+// one versioned platform copy serves everyone — a rate change is a single row
+// with effectiveFrom (spec §9: never hardcode in calculation logic), not a
+// per-tenant migration. A tenant may add override rows (tenantId set) that
+// layer on top of the default for that tenant only, so one tenant's
+// correction never changes another's payroll. Payslips keep rateTableId
+// for provenance.
 model StatutoryRateTable {
   id                 String    @id @default(cuid())
+  tenantId           String?   // null = shared platform default; set = that tenant's override
   label              String    // e.g. "Kenya 2026 reference — verify before filing"
   effectiveFrom      DateTime
   payeBands          Json      // [{upTo, rate}] — null upTo = top band, %
@@ -1042,11 +1052,73 @@ model StatutoryRateTable {
   shifMinimum        Float     @default(300)   // KES/month floor
   housingLevyRate    Float     @default(1.5)   // % each side
   nitaLevyPerEmployee Float    @default(50)    // employer-only, annual (accrued 1/12 per month)
-  isDefault          Boolean   @default(false)
-  createdAt          DateTime  @default(now())
+  isDefault          Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  tenant             Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   payslips           Payslip[]
 
+  @@index([tenantId, effectiveFrom])
   @@index([effectiveFrom])
+}
+
+// ── Asset management (Phase 4, spec §4.5) ──
+// Lightweight register for POS-tenant assets — till machines, delivery
+// bikes, kitchen equipment, furniture. Straight-line depreciation posts
+// one balanced JE per run (DR 6500 Depreciation / CR 1510 Accumulated
+// Depreciation), disposal settles remaining book value against the GL,
+// and every entry keeps journalEntryId so the schedule traces to the
+// ledger. Kept deliberately shallower than SAP-PM per spec §4.5.
+model Asset {
+  id                      String   @id @default(cuid())
+  tenantId                String
+  locationId              String?
+  supplierId              String?
+  assignedTo              String?  // employeeId — assets can be assigned to staff
+  assetCode               String   // AST-0001, unique per tenant
+  name                    String
+  category                String   @default("equipment") // equipment | it | kitchen | furniture | vehicle | other
+  description             String?
+  purchaseCost            Float
+  purchaseDate            DateTime @db.Date
+  depreciationMethod      String   @default("straight_line") // straight_line | none
+  usefulLifeMonths        Int      @default(60)
+  residualValue           Float    @default(0)
+  // Book value = purchaseCost − accumulatedDepreciation, maintained on the
+// asset row as entries post so lists don't sum the schedule every read.
+  accumulatedDepreciation Float    @default(0)
+  lifecycleStatus         String   @default("in_service") // in_service | under_maintenance | disposed | lost
+  disposedAt              DateTime?
+  disposalProceeds        Float?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  tenant                  Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location                Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  supplier                Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  assignedEmployee        Employee? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  depreciationEntries     AssetDepreciationEntry[]
+
+  @@unique([tenantId, assetCode])
+  @@index([tenantId])
+  @@index([tenantId, lifecycleStatus])
+}
+
+// One row per asset per depreciated month — provenance for the
+// schedule and the exact link into the GL entry that posted it.
+model AssetDepreciationEntry {
+  id             String        @id @default(cuid())
+  tenantId       String
+  assetId        String
+  period         String        // "2026-11"
+  amount         Float
+  bookValueAfter Float
+  journalEntryId String?
+  createdAt      DateTime      @default(now())
+  tenant         Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset          Asset         @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  journalEntry   JournalEntry? @relation(fields: [journalEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([assetId, period])
+  @@index([tenantId, period])
 }
 
 model StockRecord {
