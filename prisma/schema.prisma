@@ -95,6 +95,11 @@ model Tenant {
   creditNotes      CreditNote[]
   debitNotes       DebitNote[]
   etimsInvoices    EtimsInvoice[]
+  employees        Employee[]
+  leaveRequests    LeaveRequest[]
+  employeeLoans    EmployeeLoan[]
+  payrollRuns      PayrollRun[]
+  payslips         Payslip[]
 
   @@index([slug])
   @@index([isActive])
@@ -217,6 +222,7 @@ model Location {
   journalEntries  JournalEntry[]
   purchaseOrders  PurchaseOrder[]
   grns            GoodsReceivedNote[]
+  employees       Employee[]
 
   @@index([tenantId])
 }
@@ -569,6 +575,7 @@ model JournalEntry {
   supplierPayments SupplierPayment[]
   creditNotes      CreditNote[]
   debitNotes       DebitNote[]
+  payrollRuns      PayrollRun[]
 }
 
 model JournalLine {
@@ -611,6 +618,7 @@ model BankAccount {
   coaAccount     ChartOfAccount? @relation(fields: [coaAccountId], references: [id])
   transactions   BankTransaction[]
   supplierPayments SupplierPayment[]
+  payrollRuns    PayrollRun[]
 
   @@index([tenantId])
 }
@@ -860,6 +868,185 @@ model EtimsInvoice {
   @@unique([tenantId, sourceType, sourceId])
   @@index([tenantId, status])
   @@index([tenantId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ERP Phase 3 — HR & Payroll (LipaPoint ERP spec §4.4/§6).
+// Employee records, leave, staff loans and the Kenya statutory payroll
+// engine. Employee is deliberately separate from User: User is a login to
+// this app (cashiers, kitchen), Employee is an HR record with a salary —
+// a casual worker can be an Employee without ever signing in.
+// ═══════════════════════════════════════════════════════════════════
+
+model Employee {
+  id              String   @id @default(cuid())
+  tenantId        String
+  locationId      String?  // home branch/assignment
+  staffNumber     String   // EMP-0001, unique per tenant
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  jobTitle        String?
+  kraPin          String?
+  nssfNumber      String?
+  shaNumber       String?  // SHIF/SHA number
+  bankAccount     String?  // account number for batch payouts
+  mpesaNumber     String?
+  employmentType  String   @default("permanent") // permanent | contract | casual
+  basicSalary     Float    @default(0)
+  // Kenya Employment Act: 21 working days annual leave (spec §6 HR scope).
+  annualLeaveDays Int      @default(21)
+  startDate       DateTime @db.Date
+  endDate         DateTime?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  location        Location? @relation(fields: [locationId], references: [id])
+  leaves          LeaveRequest[]
+  loans           EmployeeLoan[]
+  payslips        Payslip[]
+
+  @@unique([tenantId, staffNumber])
+  @@index([tenantId])
+  @@index([tenantId, active])
+}
+
+model LeaveRequest {
+  id         String    @id @default(cuid())
+  tenantId   String
+  employeeId String
+  type       String    @default("annual") // annual | sick | maternity | paternity | unpaid | compassionate
+  startDate  DateTime  @db.Date
+  endDate    DateTime  @db.Date
+  days       Int
+  reason     String?
+  status     String    @default("pending") // pending | approved | rejected | cancelled
+  approvedBy String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([employeeId])
+}
+
+model EmployeeLoan {
+  id               String    @id @default(cuid())
+  tenantId         String
+  employeeId       String
+  principal        Float
+  balance          Float // outstanding; decremented by payroll deductions
+  monthlyDeduction Float
+  reason           String?
+  status           String    @default("active") // active | cleared | written_off
+  startDate        DateTime  @db.Date
+  createdBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  employee         Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([employeeId])
+}
+
+model PayrollRun {
+  id               String    @id @default(cuid())
+  tenantId         String
+  period           String    // "2026-11" — one run per tenant per period
+  status           String    @default("draft") // draft | approved | paid | filed
+  // Disbursement wallet; when set, marking paid credits it and drops a
+  // reconciled BankTransaction so the Banking page balance stays true.
+  bankAccountId    String?
+  journalEntryId   String?
+  notes            String?
+  // Snapshot totals frozen at approval — reports don't depend on re-reading
+  // payslips that may later be regenerated in a fresh draft.
+  grossPay         Float     @default(0)
+  totalDeductions  Float     @default(0)
+  netPay           Float     @default(0)
+  totalEmployerCost Float    @default(0)
+  createdBy        String?
+  approvedBy       String?
+  paidAt           DateTime?
+  filedAt          DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  tenant           Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bankAccount      BankAccount? @relation(fields: [bankAccountId], references: [id])
+  journalEntry     JournalEntry? @relation(fields: [journalEntryId], references: [id])
+  payslips         Payslip[]
+
+  @@unique([tenantId, period])
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+model Payslip {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  payrollRunId        String
+  employeeId          String
+  grossPay            Float
+  nssfEmployee        Float     @default(0)
+  nssfEmployer        Float     @default(0)
+  shif                Float     @default(0)
+  housingLevyEmployee Float     @default(0)
+  housingLevyEmployer Float     @default(0)
+  taxablePay          Float     @default(0)
+  paye                Float     @default(0) // tax before personal relief
+  personalRelief      Float     @default(0)
+  // What is actually withheld: max(0, paye - relief). Kept separate from
+  // `paye` because P9 reporting needs both figures.
+  payePayable         Float     @default(0)
+  otherDeductions     Float     @default(0)
+  // Portion of otherDeductions that repays a staff loan (post the rest as
+  // receivable, this as payable — see payroll.ts JE).
+  loanDeduction       Float     @default(0)
+  netPay              Float
+  nitaLevy            Float     @default(0) // employer-only
+  rateTableId         String?
+  createdAt           DateTime  @default(now())
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payrollRun          PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee            Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  rateTable           StatutoryRateTable? @relation(fields: [rateTableId], references: [id], onDelete: SetNull)
+
+  @@unique([payrollRunId, employeeId])
+  @@index([tenantId])
+  @@index([payrollRunId])
+}
+
+// Country-level regulatory rates (PAYE bands, NSSF caps, SHIF, AHL, NITA).
+// Global on purpose — deliberately NOT tenant-scoped: KRA/NSSF rates are
+// the same for every Kenyan tenant, and keeping one versioned copy means a
+// rate change is a single row with effectiveFrom (spec §9: never hardcode
+// in calculation logic), not a per-tenant migration. Payslips keep
+// rateTableId for provenance.
+model StatutoryRateTable {
+  id                 String    @id @default(cuid())
+  label              String    // e.g. "Kenya 2026 reference — verify before filing"
+  effectiveFrom      DateTime
+  payeBands          Json      // [{upTo, rate}] — null upTo = top band, %
+  personalRelief     Float     @default(2400) // KES/month
+  nssfRateEmployee   Float     @default(6)    // %
+  nssfRateEmployer   Float     @default(6)    // %
+  nssfTier1Cap       Float     @default(8000)   // Tier I earnings ceiling
+  nssfTier2Cap       Float     @default(108000) // Tier II ceiling (6% → 6,480/mo cap)
+  shifRate           Float     @default(2.75)  // % of gross, employee-only
+  shifMinimum        Float     @default(300)   // KES/month floor
+  housingLevyRate    Float     @default(1.5)   // % each side
+  nitaLevyPerEmployee Float    @default(50)    // employer-only, annual (accrued 1/12 per month)
+  isDefault          Boolean   @default(false)
+  createdAt          DateTime  @default(now())
+  payslips           Payslip[]
+
+  @@index([effectiveFrom])
 }
 
 model StockRecord {

@@ -1,6 +1,7 @@
 import { db } from "../src/lib/db";
 import { provisionTenantModules } from "../src/lib/modules";
 import { seedChartOfAccounts } from "../src/lib/coa";
+import { ensureStatutoryRates } from "../src/lib/payroll";
 
 /**
  * Backfills TenantModule rows for tenants that predate module
@@ -8,25 +9,25 @@ import { seedChartOfAccounts } from "../src/lib/coa";
  * provision from then on, but existing tenants never got rows — leaving
  * every ERP API returning 403 for them).
  *
- * Idempotent: provisionTenantModules re-syncs tier-sourced rows and
- * leaves addon/manual grants alone, so this is safe to re-run any time.
+ * Also re-seeds the default COA (Phase 3 added payroll accounts) and the
+ * statutory rate table. All three are idempotent: provisioning leaves
+ * addon/manual grants alone, the COA upsert only fills gaps without
+ * overwriting tenant edits, and rates are seeded only when absent.
  */
 async function main() {
+  await ensureStatutoryRates();
+  console.log("  ✓ statutory rate table present");
+
   const tenants = await db.tenant.findMany({
     select: { id: true, name: true, tier: true },
     orderBy: { createdAt: "asc" },
   });
   for (const t of tenants) {
     await provisionTenantModules(t.id, t.tier);
-    // Same class of gap: the default COA was only ever seeded on new
-    // signups, so pre-Phase-1 tenants had nowhere to post journals.
-    const accounts = await db.chartOfAccount.count({ where: { tenantId: t.id } });
-    if (accounts === 0) {
-      await seedChartOfAccounts(t.id);
-      console.log(`  ✓ ${t.name} (${t.tier}) — modules + COA`);
-    } else {
-      console.log(`  ✓ ${t.name} (${t.tier})`);
-    }
+    // Always run: upsert-only, so it adds accounts introduced by later
+    // phases (payroll) to pre-existing tenants without touching edits.
+    await seedChartOfAccounts(t.id);
+    console.log(`  ✓ ${t.name} (${t.tier}) — modules + COA`);
   }
   const count = await db.tenantModule.count();
   console.log(`\nProvisioned ${tenants.length} tenants — ${count} module rows total`);

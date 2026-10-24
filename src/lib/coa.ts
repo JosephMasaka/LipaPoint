@@ -29,6 +29,8 @@ export const DEFAULT_CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: "1100", name: "Accounts Receivable", type: "asset" },
   { code: "1200", name: "Inventory", type: "asset" },
   { code: "1300", name: "Prepaid Expenses", type: "asset" },
+  // Phase 3: staff loan/advance balances recoverable via payroll deductions.
+  { code: "1400", name: "Staff Loans & Advances", type: "asset" },
   {
     code: "1500",
     name: "Fixed Assets",
@@ -44,6 +46,9 @@ export const DEFAULT_CHART_OF_ACCOUNTS: SeedAccount[] = [
   { code: "2400", name: "SHIF Payable", type: "liability" },
   { code: "2500", name: "Housing Levy Payable", type: "liability" },
   { code: "2600", name: "Customer Deposits & Advances", type: "liability" },
+  // Phase 3: payroll withholdings (see src/lib/payroll.ts JE on run payment)
+  { code: "2700", name: "NITA Training Levy Payable", type: "liability" },
+  { code: "2710", name: "Other Deductions Payable", type: "liability" },
   { code: "3000", name: "Owner's Equity", type: "equity" },
   { code: "3100", name: "Retained Earnings", type: "equity" },
   { code: "4000", name: "Sales Revenue", type: "income" },
@@ -63,15 +68,28 @@ export const DEFAULT_CHART_OF_ACCOUNTS: SeedAccount[] = [
 /**
  * Upserts the default COA for a tenant. Idempotent — safe to call on every
  * signup and from the seed script; existing rows (including tenant edits
- * to name/type) are left untouched. Parents are written before children so
- * parentId can be resolved inline.
+ * to name/type) are left untouched.
+ *
+ * Writes breadth-first, one round trip per tree level instead of one per
+ * account: parents resolve before children (each level waits for the one
+ * above), but accounts within a level go concurrently. Against a remote
+ * database this is the difference between ~40 serial queries and ~2 per
+ * call — it runs on every signup and on the tenant backfill.
  */
 export async function seedChartOfAccounts(tenantId: string): Promise<void> {
-  for (const root of DEFAULT_CHART_OF_ACCOUNTS) {
-    const created = await upsertAccount(tenantId, root, null);
-    for (const child of root.children ?? []) {
-      await upsertAccount(tenantId, child, created.id);
-    }
+  let level = DEFAULT_CHART_OF_ACCOUNTS.map((account) => ({ account, parentId: null as string | null }));
+
+  while (level.length > 0) {
+    const created = await Promise.all(
+      level.map(({ account, parentId }) => upsertAccount(tenantId, account, parentId))
+    );
+    const next: typeof level = [];
+    created.forEach((row, i) => {
+      for (const child of level[i].account.children ?? []) {
+        next.push({ account: child, parentId: row.id });
+      }
+    });
+    level = next;
   }
 }
 
