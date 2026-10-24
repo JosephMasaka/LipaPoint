@@ -3,7 +3,6 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
-  Zap,
   Shield,
   Globe,
   Wifi,
@@ -14,12 +13,15 @@ import {
   CreditCard,
   Package,
   Clock,
+  ShieldCheck,
+  Banknote,
+  Landmark,
 } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "LipaPoint — #1 POS System for Kenyan Businesses | M-Pesa, Inventory & Analytics",
   description:
-    "Kenya's top-rated POS system. Accept M-Pesa & card payments, track inventory in real-time, manage staff & view analytics. For restaurants, bars, retail, supermarkets & pharmacies. Free 14-day trial.",
+    "Kenya's top-rated POS system. Accept M-Pesa & card payments, track inventory, run statutory payroll, submit KRA eTIMS invoices and keep the books. For restaurants, bars, retail, supermarkets & pharmacies. Free 14-day trial.",
   alternates: { canonical: "https://lipapoint.co.ke" },
 };
 
@@ -31,7 +33,7 @@ const jsonLd = {
       name: "LipaPoint",
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web, Android, iOS, Windows",
-      description: "All-in-one Point of Sale system for Kenyan businesses. M-Pesa integration, inventory management, real-time analytics, staff management and multi-location support.",
+      description: "All-in-one Point of Sale and ERP system for Kenyan businesses. M-Pesa integration, inventory management, real-time analytics, KRA eTIMS invoicing, statutory payroll and multi-location support.",
       url: "https://lipapoint.co.ke",
       offers: {
         "@type": "AggregateOffer",
@@ -46,7 +48,7 @@ const jsonLd = {
         reviewCount: "127",
         bestRating: "5",
       },
-      featureList: "M-Pesa Payments, Card Payments, Inventory Management, Real-time Analytics, Staff Management, Multi-Location, Offline Mode, Receipt Printing, KRA Tax Compliance, Barcode Scanning",
+      featureList: "M-Pesa Payments, Card Payments, Inventory Management, Real-time Analytics, Staff Management, Multi-Location, Offline Mode, Receipt Printing, KRA Tax Compliance, KRA eTIMS Invoicing, Statutory Payroll (PAYE/NSSF/SHIF), HR & Leave, Accounting & General Ledger, Procurement, Fixed Asset Depreciation, Barcode Scanning",
     },
     {
       "@type": "Organization",
@@ -120,6 +122,22 @@ const jsonLd = {
             text: "Yes, LipaPoint is a Progressive Web App (PWA) that works offline. You can continue processing sales without internet, and data automatically syncs when connectivity is restored.",
           },
         },
+        {
+          "@type": "Question",
+          name: "Does LipaPoint support KRA eTIMS?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes. LipaPoint submits invoices to KRA's OSCU (eTIMS) in real time, tracks CSIDs, flags rejected submissions for correction, and reconciles declared VAT month by month so filing is straightforward.",
+          },
+        },
+        {
+          "@type": "Question",
+          name: "Can LipaPoint run payroll for my employees in Kenya?",
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: "Yes. LipaPoint computes Kenyan statutory payroll automatically — PAYE, NSSF, SHIF, Housing Levy and NITA — with payslips, P9 extracts, staff loan repayments and a bank payment batch, alongside HR files and leave balances.",
+          },
+        },
       ],
     },
   ],
@@ -168,8 +186,8 @@ export default function HomePage() {
           </h1>
 
           <p className="text-lg text-text-secondary max-w-2xl mx-auto leading-relaxed mb-10">
-            The all-in-one POS system for Kenyan businesses. Track sales, manage
-            inventory, monitor staff, and accept payments via M-Pesa and card —
+            The all-in-one POS and ERP system for Kenyan businesses. Track sales, manage
+            inventory, run payroll, keep the books and accept payments via M-Pesa and card —
             all from one dashboard.
           </p>
 
@@ -248,6 +266,9 @@ export default function HomePage() {
               { icon: Users, title: "Staff Management", desc: "Assign roles, track shifts, and audit employee transactions." },
               { icon: Wifi, title: "Works Offline", desc: "Keep selling even without internet. Data syncs when you reconnect." },
               { icon: Globe, title: "Multi-Location", desc: "Manage multiple branches from a single dashboard." },
+              { icon: ShieldCheck, title: "KRA eTIMS Ready", desc: "Invoices submitted to KRA's OSCU in real time, with VAT reconciliation for clean filing." },
+              { icon: Banknote, title: "Payroll & HR", desc: "PAYE, NSSF, SHIF and Housing Levy computed for you — payslips, P9 and staff loans included." },
+              { icon: Landmark, title: "Books & Assets", desc: "Automatic journal entries, procurement and monthly asset depreciation keep your GL balanced." },
               { icon: Shield, title: "Secure & Compliant", desc: "KRA-ready tax calculations and encrypted data storage." },
               { icon: Clock, title: "24/7 Support", desc: "Local support team available round the clock via call or WhatsApp." },
             ].map((f) => (
@@ -303,7 +324,15 @@ export default function HomePage() {
               },
               {
                 q: "Is LipaPoint POS KRA compliant?",
-                a: "Yes. LipaPoint includes automatic VAT calculations at the standard 16% rate, generates tax-compliant receipts, and provides detailed reports to support your KRA filing.",
+                a: "Yes. LipaPoint includes automatic VAT calculations at the standard 16% rate, generates tax-compliant receipts, submits invoices to KRA's eTIMS (OSCU) in real time with a submission log, and provides reports — including VAT reconciliation — to support your KRA filing.",
+              },
+              {
+                q: "Does LipaPoint support KRA eTIMS?",
+                a: "Yes. LipaPoint submits invoices to KRA's OSCU (eTIMS) in real time, tracks CSIDs, flags rejected submissions for correction, and reconciles declared VAT month by month so filing is straightforward.",
+              },
+              {
+                q: "Can LipaPoint run payroll for my employees in Kenya?",
+                a: "Yes. LipaPoint computes Kenyan statutory payroll automatically — PAYE, NSSF, SHIF, Housing Levy and NITA — with payslips, P9 extracts, staff loan repayments and a bank payment batch, alongside HR files, leave balances and staff loans.",
               },
             ].map((faq) => (
               <details key={faq.q} className="group rounded-xl border border-border bg-surface-elevated overflow-hidden">

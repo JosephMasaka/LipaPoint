@@ -5,16 +5,17 @@ import {
   ShoppingCart, Package, CreditCard, BarChart3, Users, Wifi,
   Globe, Shield, Clock, Smartphone, Receipt, Bell,
   ArrowRight, Layers, Database, Zap,
+  Landmark, Truck, ShieldCheck, Contact, Banknote, Boxes,
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "POS Features — M-Pesa, Inventory, Analytics & More",
+  title: "POS Features — M-Pesa, Inventory, Payroll, KRA eTIMS & More",
   description:
-    "Explore LipaPoint POS features: M-Pesa & card payments, real-time inventory tracking, sales analytics, staff management, multi-location support, offline mode, KRA tax compliance. Best POS for Kenya.",
+    "Explore LipaPoint features: M-Pesa & card payments, inventory, sales analytics, KRA eTIMS invoicing, Kenyan statutory payroll (PAYE/NSSF/SHIF), HR & leave, accounting and asset depreciation. Best POS+ERP for Kenya.",
   alternates: { canonical: "https://lipapoint.co.ke/features" },
   openGraph: {
-    title: "LipaPoint POS Features — Everything Your Business Needs",
-    description: "M-Pesa payments, inventory management, real-time analytics, staff tracking, multi-location support & offline mode. Built for Kenyan businesses.",
+    title: "LipaPoint Features — POS, ERP and Tax Compliance in One",
+    description: "M-Pesa payments, inventory, eTIMS invoicing, statutory payroll, accounting & asset depreciation. Built for Kenyan businesses.",
     url: "https://lipapoint.co.ke/features",
   },
 };
@@ -48,6 +49,18 @@ const featureGroups = [
       { icon: Users, name: "Staff Reports", desc: "Track who sold what, when. Identify top performers and training needs." },
       { icon: Globe, name: "Multi-Branch", desc: "Compare performance across locations. Identify best and worst performers." },
       { icon: Zap, name: "Real-time Dashboard", desc: "Live sales ticker, hourly breakdown, and instant profit calculations." },
+    ],
+  },
+  {
+    title: "Accounting & ERP",
+    description: "Back-office that closes the books",
+    features: [
+      { icon: Landmark, name: "Accounting & General Ledger", desc: "Chart of accounts with automatic, balanced journal entries from every sale, payroll run and depreciation — books without the spreadsheet." },
+      { icon: Truck, name: "Procurement", desc: "Purchase orders, goods received notes and supplier invoices, with payments tracked against what you owe." },
+      { icon: ShieldCheck, name: "KRA eTIMS Invoicing", desc: "Submit invoices to KRA's OSCU in real time, track CSIDs and reconcile declared VAT from the compliance dashboard." },
+      { icon: Contact, name: "HR & Leave", desc: "Employee files with KRA PIN, NSSF and SHA numbers, annual leave balances, and staff loans repaid automatically through payroll." },
+      { icon: Banknote, name: "Statutory Payroll", desc: "Kenyan payroll computing PAYE, NSSF, SHIF, Housing Levy and NITA for you — payslips, P9 extracts and bank payment batches." },
+      { icon: Boxes, name: "Fixed Assets", desc: "Register till machines, fridges and delivery bikes — straight-line depreciation posts itself to the ledger every month." },
     ],
   },
   {
