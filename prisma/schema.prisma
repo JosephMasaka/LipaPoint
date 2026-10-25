@@ -74,6 +74,7 @@ model Tenant {
   locations        Location[]
   orders           Order[]
   products         Product[]
+  productPriceHistory ProductPriceHistory[]
   queueEntries     QueueEntry[]
   rolePermissions  RolePermission[]
   services         Service[]
@@ -103,6 +104,10 @@ model Tenant {
   employeeLoans    EmployeeLoan[]
   payrollRuns      PayrollRun[]
   payslips         Payslip[]
+  reportRuns       ReportRun[]
+  ReportDefinition         ReportDefinition[]
+  stockBatches       StockBatch[]
+  assetMaintenances  AssetMaintenance[]
 
   @@index([slug])
   @@index([isActive])
@@ -219,6 +224,7 @@ model Location {
   orders         Order[]
   registers      Register[]
   stocks         Stock[]
+  stockBatches   StockBatch[]
   stockMovements StockMovement[]
   stockRecords   StockRecord[]
   tables          Table[]
@@ -307,6 +313,8 @@ model Product {
   updatedAt      DateTime        @updatedAt
   orderItems     OrderItem[]
   baseUnit       UnitOfMeasure   @relation("ProductBaseUnit", fields: [baseUnitId], references: [id])
+  priceHistory     ProductPriceHistory[]
+  batches          StockBatch[]
   category       Category?       @relation(fields: [categoryId], references: [id])
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   productUoms    ProductUoM[]
@@ -321,6 +329,25 @@ model Product {
   @@index([categoryId])
   @@index([barcode])
   @@index([baseUnitId])
+}
+
+// Append-only log of a product's selling-price changes — the data source for
+// the Price Change report (reports-spec §5). Written by the product update
+// route whenever `price` actually moves, so the report shows every change
+// with who made it.
+model ProductPriceHistory {
+  id            String   @id @default(cuid())
+  tenantId      String
+  productId     String
+  previousPrice Float
+  newPrice      Float
+  changedById   String? // userId; provenance only, no FK
+  createdAt     DateTime @default(now())
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, productId])
 }
 
 model ProductUoM {
@@ -354,6 +381,31 @@ model Stock {
 
   @@unique([productId, locationId])
   @@index([productId])
+  @@index([locationId])
+}
+
+// A received lot of stock carrying its batch/lot number and expiry date —
+// the data source for the Stock Expiry report (reports-spec §5). Written by
+// the GRN receive flow, so a receipt that arrives with an expiry date lands
+// in the report automatically.
+model StockBatch {
+  id          String    @id @default(cuid())
+  tenantId    String
+  productId   String
+  locationId  String
+  batchNumber String?
+  expiryDate  DateTime  @db.Date
+  quantity    Int       @default(0)
+  receivedAt  DateTime  @default(now())
+  grnItemId   String? // provenance, no FK — the GRN line this lot came from
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location    Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, expiryDate])
+  @@index([tenantId, productId])
   @@index([locationId])
 }
 
@@ -404,6 +456,10 @@ model Order {
   deliveryAddress String?
   deliveryPhone   String?
   deliveryFee     Float?
+  // Withholding tax withheld at source on this invoice (reports-spec §3
+  // "Withholding tax by customer"). whtRate is a percentage, e.g. 5 for 5%.
+  whtRate        Float     @default(0)
+  whtAmount      Float     @default(0)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   customer        Customer?     @relation(fields: [customerId], references: [id])
@@ -516,6 +572,48 @@ model ActivityLog {
 // every other module (POS sales, payroll, depreciation, procurement) posts
 // through. See lipapoint-erp-spec.md §3/§8.
 // ═════════════════════════════════════════════════════════════════════
+
+model ReportDefinition {
+  id            String   @default(cuid())
+  tenantId      String
+  key           String   // stable machine key (e.g. profit_and_loss)
+  title         String   // human label
+  description   String?
+  category      String   // finance | bank | maintenance | sales | stock | payroll | asset | etims
+  section       String   // human label, e.g. "Finance Reports"
+  isVisible     Boolean  @default(true)
+  defaultParams Json?    @db.Json
+  isBuiltIn     Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+  // Legacy/optional columns retained on the live table:
+  module        String?
+  parameters    String?  // JSON: { dateRange: true, branch: true, ... }
+  columns       String?  // JSON: [{ key, label, kind: "text"|"number"|"date"|"currency" }]
+  isSystem      Boolean? @default(true)
+  isEnabled     Boolean? @default(true)
+  Tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([tenantId, key])
+  @@unique([tenantId, key])
+  @@index([tenantId, section])
+}
+
+model ReportRun {
+  id             String   @id @default(cuid())
+  tenantId       String
+  params         Json     @db.Json // JSON snapshot of the parameters used
+  generatedAt    DateTime @default(now()) @db.Timestamptz(3)
+  runs           Json     @default("[]") @db.Json // JSON representation of report rows for CSV/print
+  rows           BigInt   @default(0)
+  bytes          BigInt   @default(0) // approximate rendered output size
+  format         String
+  status         String   @default("completed") // completed | failed | running
+  reportTenantId String   @default("")
+  tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, generatedAt])
+}
 
 model TenantModule {
   id         String    @id @default(cuid())
@@ -640,6 +738,14 @@ model BankTransaction {
   reconciled     Boolean  @default(false)
   reconciledAt   DateTime?
   matchedJournalLineId String?
+  // Reporting classification (reports-spec §4): general | cheque | transfer.
+  // Set when the movement is recorded as a cheque received or a wallet
+  // transfer; auto-classified as `transfer` when the counter-account is
+  // another cash/bank wallet.
+  category      String   @default("general")
+  chequeNumber  String?  // set when category = cheque
+  counterparty  String?  // customer/supplier the cheque came from
+  counterAccountCode String? // GL code on the other side (transfer destination)
   createdAt      DateTime @default(now())
   bankAccount    BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Cascade)
   tenant         Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -1096,6 +1202,7 @@ model Asset {
   supplier                Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   assignedEmployee        Employee? @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
   depreciationEntries     AssetDepreciationEntry[]
+  maintenanceEntries      AssetMaintenance[]
 
   @@unique([tenantId, assetCode])
   @@index([tenantId])
@@ -1121,6 +1228,26 @@ model AssetDepreciationEntry {
   @@index([tenantId, period])
 }
 
+// One row per maintenance event on an asset — the data source for the
+// Maintenance Cost report (reports-spec §9 Asset Management).
+model AssetMaintenance {
+  id          String    @id @default(cuid())
+  tenantId    String
+  assetId     String
+  date        DateTime  @db.Date
+  description String
+  cost        Float     @default(0)
+  performedBy String?
+  nextDueDate DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  tenant      Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  asset       Asset     @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date])
+  @@index([tenantId, assetId])
+}
+
 model StockRecord {
   id           String   @id @default(cuid())
   date         DateTime @db.Date
@@ -1129,6 +1256,10 @@ model StockRecord {
   soldStock    Int      @default(0)
   closingStock Int
   adjustment   Int      @default(0)
+  // Set by the stock-take flow on every line actually counted, so the
+  // Physical Stock-Take report can show the whole count sheet — including
+  // lines where counted matched book (variance 0).
+  countedAt    DateTime?
   variance     Int      @default(0)
   notes        String?
   productId    String
@@ -1271,7 +1402,13 @@ model Customer {
   totalSpent    Float     @default(0)
   visitCount    Int       @default(0)
   lastVisit     DateTime?
-  loyaltyPoints Int       @default(0)
+  loyaltyPoints Int     @default(0)
+  // Reports-spec §3 "Customer balance by department" — grouping dimension only.
+  department    String?
+  // Withholding tax withheld on this customer's sales, as a percentage
+  // (e.g. 5 = 5%). Snapshotted onto each Order as whtRate/whtAmount so the
+  // report shows what was actually withheld at the time of sale.
+  whtRate       Float     @default(0)
   tenantId      String
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -1454,6 +1591,9 @@ enum PaymentMethod {
   CARD
   PDQ
   PAYSTACK
+  // Comped/free sale — an explicit method so a complimentary order is never
+  // inferred from a zero price (reports-spec §2 "Sales complementary").
+  COMPLIMENTARY
 }
 
 enum PaymentProvider {

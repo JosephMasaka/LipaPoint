@@ -21,6 +21,8 @@ interface Customer {
   phone: string | null;
   address: string | null;
   notes: string | null;
+  department: string | null;
+  whtRate: number;
   totalSpent: number;
   visitCount: number;
   lastVisit: string | null;
@@ -54,7 +56,7 @@ export default function CustomersPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [viewingCustomer, setViewingCustomer] = useState<CustomerWithOrders | null>(null);
-  const [form, setForm] = useState({ name: "", email: "", phone: "", address: "", notes: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", address: "", notes: "", department: "", whtRate: "" });
   const [error, setError] = useState("");
   const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -112,7 +114,7 @@ export default function CustomersPage() {
         return;
       }
 
-      setForm({ name: "", email: "", phone: "", address: "", notes: "" });
+      setForm({ name: "", email: "", phone: "", address: "", notes: "", department: "", whtRate: "" });
       setShowForm(false);
       setEditingCustomer(null);
       fetchCustomers(pagination.page);
@@ -130,6 +132,8 @@ export default function CustomersPage() {
       phone: customer.phone || "",
       address: customer.address || "",
       notes: customer.notes || "",
+      department: customer.department || "",
+      whtRate: customer.whtRate ? String(customer.whtRate) : "",
     });
     setShowForm(true);
   };
@@ -165,7 +169,7 @@ export default function CustomersPage() {
   const cancelForm = () => {
     setShowForm(false);
     setEditingCustomer(null);
-    setForm({ name: "", email: "", phone: "", address: "", notes: "" });
+    setForm({ name: "", email: "", phone: "", address: "", notes: "", department: "", whtRate: "" });
     setError("");
   };
 
@@ -355,6 +359,21 @@ export default function CustomersPage() {
                   placeholder="Westlands, Nairobi"
                   value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
+                />
+                <Input
+                  label="Department"
+                  placeholder="e.g. Wholesale, Retail, Corporate"
+                  value={form.department}
+                  onChange={(e) => setForm({ ...form, department: e.target.value })}
+                />
+                <Input
+                  label="Withholding tax rate (%)"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="e.g. 5"
+                  value={form.whtRate}
+                  onChange={(e) => setForm({ ...form, whtRate: e.target.value })}
                 />
                 <Input
                   label="Notes"

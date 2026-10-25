@@ -107,6 +107,16 @@ export interface RecordBankTransactionInput {
    * sales for cash takings, 1010 for transfers).
    */
   counterAccountCode?: string | null;
+  /**
+   * Reporting classification (reports-spec §4): `general` | `cheque` |
+   * `transfer`. Omit it and a movement whose counter-account is another
+   * cash/bank wallet is classified as a transfer automatically, so the
+   * Transfer Report and Cheques Received Report stay populated from the
+   * existing Record Transaction form.
+   */
+  category?: "general" | "cheque" | "transfer";
+  chequeNumber?: string | null;
+  counterparty?: string | null;
 }
 
 /**
@@ -130,6 +140,14 @@ export async function recordBankTransaction(input: RecordBankTransactionInput) {
 
   const counterCode = input.counterAccountCode ?? "4200";
 
+  // A journal entry whose counter-account is a *different* wallet is a
+  // transfer between cash/bank accounts — the exact fact the Transfer
+  // Report reads back out.
+  const isWallet = (code: string) => Object.values(TYPE_TO_ACCOUNT_CODE).includes(code);
+  const category =
+    input.category ??
+    (isWallet(counterCode) && counterCode !== walletCode ? "transfer" : "general");
+
   const txn = await db.$transaction(async (tx) => {
     const created = await tx.bankTransaction.create({
       data: {
@@ -140,6 +158,10 @@ export async function recordBankTransaction(input: RecordBankTransactionInput) {
         direction: input.direction,
         description: input.description ?? null,
         reference: input.reference ?? null,
+        category,
+        chequeNumber: input.chequeNumber ?? null,
+        counterparty: input.counterparty ?? null,
+        counterAccountCode: counterCode,
       },
     });
 

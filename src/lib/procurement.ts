@@ -177,6 +177,9 @@ export interface ReceiveGoodsInput {
     poItemId: string;
     quantity: number;
     unitCost?: number | null; // actual invoice cost if it differs from PO
+    /** Optional lot details for this receipt line (stock expiry reporting). */
+    batchNumber?: string | null;
+    expiryDate?: string | null; // ISO date — omit when the line has no expiry
   }>;
 }
 
@@ -202,6 +205,7 @@ export async function receiveGoods(input: ReceiveGoodsInput) {
   }
 
   const poItemsById = new Map(po.items.map((item) => [item.id, item]));
+  const receiptByPoItem = new Map(input.items.map((line) => [line.poItemId, line]));
   for (const [i, line] of input.items.entries()) {
     const poItem = poItemsById.get(line.poItemId);
     if (!poItem) {
@@ -281,6 +285,24 @@ export async function receiveGoods(input: ReceiveGoodsInput) {
           where: { id: line.productId },
           data: { cost: line.unitCost },
         });
+
+        // Lot/expiry capture — the Stock Expiry report reads these rows.
+        const receipt = line.poItemId ? receiptByPoItem.get(line.poItemId) : undefined;
+        const expiryDate = receipt?.expiryDate ? new Date(receipt.expiryDate) : null;
+        if (expiryDate && !Number.isNaN(expiryDate.getTime())) {
+          await tx.stockBatch.create({
+            data: {
+              tenantId: input.tenantId,
+              productId: line.productId,
+              locationId,
+              batchNumber: receipt?.batchNumber || null,
+              expiryDate,
+              quantity: line.quantity,
+              grnItemId: line.id,
+              receivedAt: created.receivedDate,
+            },
+          });
+        }
       }
     }
 

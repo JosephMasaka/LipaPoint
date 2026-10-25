@@ -4,6 +4,7 @@ import { getPlanPricing } from "@/lib/plans";
 import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
 import { provisionTenantModules } from "@/lib/modules";
 import { seedChartOfAccounts } from "@/lib/coa";
+import { ensureReportCatalog } from "@/lib/report-catalog";
 
 function generateSlug(name: string): string {
   return name
@@ -107,7 +108,7 @@ export async function completeSignupFromTransaction(
         type: pending.businessType,
         tier: pending.tier,
         email: pending.email,
-        phone: pending.phone,
+        phone: txn.phone_number,
         resellerId,
         trialEndsAt: null, // paid immediately — no trial
         locations: {
@@ -120,7 +121,7 @@ export async function completeSignupFromTransaction(
           create: {
             name: pending.ownerName,
             email: pending.email,
-            phone: pending.phone,
+            phone: txn.phone_number,
             password: pending.passwordHash,
             role: "OWNER",
           },
@@ -135,6 +136,9 @@ export async function completeSignupFromTransaction(
     // default chart of accounts so Finance has somewhere to post from day one.
     await provisionTenantModules(tenant.id, tenant.tier);
     await seedChartOfAccounts(tenant.id);
+    // Reports are tenant-scoped, so the catalog must exist or the new
+    // account's Reports page would come up empty (reports-spec §1).
+    await ensureReportCatalog(tenant.id);
 
     await db.activityLog.create({
       data: {

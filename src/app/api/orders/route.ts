@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
       paymentMethod,
       customerName,
       customerPhone,
+      customerId,
       locationId,
       registerId,
       discount,
@@ -162,6 +163,32 @@ export async function POST(request: NextRequest) {
     const orderNo = generateOrderNo();
     const txRef = `TXN-${orderNo.replace("ORD-", "")}`;
 
+    // Link the sale to a customer when it can be identified unambiguously
+    // (explicit id, unique phone, or a name matching exactly one customer —
+    // never guess), and snapshot that customer's withholding rate onto the
+    // invoice for reports-spec §3 "Withholding tax by customer".
+    let customer: { id: string; whtRate: number } | null = null;
+    if (customerId) {
+      customer = await db.customer.findFirst({
+        where: { id: customerId, tenantId: user.tenantId },
+        select: { id: true, whtRate: true },
+      });
+    } else if (customerPhone) {
+      customer = await db.customer.findFirst({
+        where: { tenantId: user.tenantId, phone: customerPhone },
+        select: { id: true, whtRate: true },
+      });
+    } else if (customerName) {
+      const matches = await db.customer.findMany({
+        where: { tenantId: user.tenantId, name: customerName },
+        select: { id: true, whtRate: true },
+        take: 2,
+      });
+      if (matches.length === 1) customer = matches[0];
+    }
+    const whtRate = customer?.whtRate ?? 0;
+    const whtAmount = whtRate > 0 ? Math.round(total * whtRate) / 100 : 0;
+
     // STK Push takes a different path: the customer hasn't actually paid
     // yet when this request is made (they confirm on their phone
     // afterward, via /api/pos/payments/initiate). Stock is NOT decremented
@@ -248,6 +275,9 @@ export async function POST(request: NextRequest) {
           paymentStatus: isPendingStk ? "PENDING" : "COMPLETED",
           customerName: customerName || null,
           customerPhone: customerPhone || null,
+          customerId: customer?.id ?? null,
+          whtRate: customer?.whtRate ?? 0,
+          whtAmount,
           notes: notes || null,
           tenantId: user.tenantId,
           locationId: resolvedLocationId,

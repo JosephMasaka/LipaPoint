@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { name, email, phone, address, notes } = body;
+    const { name, email, phone, address, notes, department, whtRate } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -93,6 +93,8 @@ export async function POST(request: NextRequest) {
         phone: phone || null,
         address: address || null,
         notes: notes || null,
+        department: typeof department === "string" && department.trim() ? department.trim() : null,
+        whtRate: Number(whtRate) > 0 ? Number(whtRate) : 0,
         tenantId: user.tenantId,
       },
     });

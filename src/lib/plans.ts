@@ -27,6 +27,57 @@ export interface PlanConfig {
   pricing: PlanPricing;
 }
 
+/**
+ * REPORTING FEATURE KEYS — added to close the gap between the original
+ * Gemini demo notes' report catalog and what the plan matrix currently
+ * gates. Grouped the same way the PDF grouped them (Sales / Stock /
+ * Customer / Cashier-Cash-Bank), NOT as one flag per individual report —
+ * that would be ~40 keys for no real entitlement benefit, since a tenant
+ * either has that report group or doesn't.
+ *
+ * "analytics" / "stock-records" / "daily-summary" (already existed) stay
+ * as the lightweight Professional-tier dashboards. These new keys are the
+ * full, exportable report suites from the client's notes and sit one tier
+ * up from their lightweight counterparts:
+ *
+ *   sales-reports     → invoice, sales detailed/summary, unpaid bills,
+ *                        sales by hour/day/week/month, by sales rep
+ *                        (+ per day), by item (per day), items sold out
+ *                        of set price, complementary sales, sales by
+ *                        payment method (till/mpesa/card/pdq/cash), sales
+ *                        by tax, sales by customer, discount report,
+ *                        sales returns/credit sales
+ *   stock-reports      → stock detailed/summary (by department), stock
+ *                        valuation at cost & selling price, re-order
+ *                        points, stock received, items not sold, stock
+ *                        transferred, stock adjustment, stock expiry,
+ *                        physical stock-take, purchased-by-item, price
+ *                        change
+ *   customer-reports   → customer statement (detailed/summary), customer
+ *                        balance (detailed/summary), balance by
+ *                        department, withholding tax by customer
+ *   cashier-reports    → cash/bank statement & report (summary/detailed),
+ *                        cashier cash/prints report, cheques received,
+ *                        transfer reports, cashier shortage report,
+ *                        mpesa/card/pdq report, cash collection from
+ *                        cashiers — tied to till/cashier activity, so
+ *                        this is POS-level and does NOT require the
+ *                        Finance module to be enabled
+ *
+ * Module-scoped report suites (finance statements, supplier reports,
+ * payroll reports, asset reports, audit trail) are deliberately NOT new
+ * feature keys — they ship as part of the "finance" / "procurement" /
+ * "payroll" / "assets" flags already in ENTERPRISE below. There's no
+ * reason to sell "payroll reports" as a separate add-on from "payroll"
+ * itself.
+ */
+export const REPORT_GROUP_FEATURES = [
+  "sales-reports",
+  "stock-reports",
+  "customer-reports",
+  "cashier-reports",
+] as const;
+
 export const VERTICAL_PLANS: Record<
   BusinessCategory,
   Record<string, PlanConfig>
@@ -66,6 +117,8 @@ export const VERTICAL_PLANS: Record<
           "stock-records",
           "daily-summary",
           "ai-assistant",
+          "sales-reports",
+          "stock-reports",
         ],
       },
       pricing: { monthly: 2499, annual: 24990 },
@@ -88,6 +141,10 @@ export const VERTICAL_PLANS: Record<
           "stock-records",
           "daily-summary",
           "ai-assistant",
+          "sales-reports",
+          "stock-reports",
+          "customer-reports",
+          "cashier-reports",
           "api-access",
           "custom-reports",
           "finance",
@@ -136,6 +193,8 @@ export const VERTICAL_PLANS: Record<
           "ai-assistant",
           "analytics",
           "discounts",
+          "sales-reports",
+          "stock-reports",
         ],
       },
       pricing: { monthly: 3999, annual: 39990 },
@@ -159,6 +218,10 @@ export const VERTICAL_PLANS: Record<
           "analytics",
           "discounts",
           "delivery-management",
+          "sales-reports",
+          "stock-reports",
+          "customer-reports",
+          "cashier-reports",
           "api-access",
           "custom-reports",
           "finance",
@@ -206,6 +269,7 @@ export const VERTICAL_PLANS: Record<
           "ai-assistant",
           "analytics",
           "discounts",
+          "sales-reports",
         ],
       },
       pricing: { monthly: 1999, annual: 19990 },
@@ -227,6 +291,9 @@ export const VERTICAL_PLANS: Record<
           "ai-assistant",
           "analytics",
           "discounts",
+          "sales-reports",
+          "customer-reports",
+          "cashier-reports",
           "api-access",
           "custom-reports",
           "finance",
@@ -273,7 +340,11 @@ export const FEATURE_DISPLAY: Record<string, string> = {
   "daily-summary": "Daily Summary",
   "ai-assistant": "AI Business Assistant",
   "api-access": "API Access",
-  "custom-reports": "Custom Reports",
+  "custom-reports": "Custom Report Builder",
+  "sales-reports": "Full Sales Report Suite (by hour/day/week/month, by item, by rep, by payment method, by tax, discounts, returns)",
+  "stock-reports": "Full Stock Report Suite (valuation, re-order points, transfers, adjustments, expiry, stock-take)",
+  "customer-reports": "Customer Statements & Balance Reports",
+  "cashier-reports": "Cashier & Cash/Bank Reports (shortages, till reconciliation, mpesa/card/pdq)",
   "table-management": "Table Management",
   "menu-management": "Menu Management",
   "kitchen-display": "Kitchen Display (KDS)",

@@ -6,15 +6,16 @@ import { completeUpgradeFromTransaction } from "@/lib/plan-upgrade";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { upgradeTransactionId: string } }
+  { params }: { params: Promise<{ upgradeTransactionId: string }> }
 ) {
+  const { upgradeTransactionId } = await params;
   const currentUser = await getCurrentUser();
   if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let record = await db.transaction.findUnique({
-    where: { id: params.upgradeTransactionId },
+    where: { id: upgradeTransactionId },
   });
 
   // Ownership check — don't let one tenant poll another tenant's upgrade.
@@ -23,8 +24,9 @@ export async function GET(
   }
 
   if (record.status === "PENDING" && record.gatewayRef) {
+    const gatewayRef = record.gatewayRef;
     try {
-      const txn = await getTransaction(record.gatewayRef);
+      const txn = await getTransaction(gatewayRef);
       if (txn.data.status !== "PENDING") {
         await completeUpgradeFromTransaction(record.id, {
           id: txn.data.id,
@@ -36,22 +38,23 @@ export async function GET(
           result_desc: txn.data.result_desc,
           provider_request_id: txn.data.provider_request_id,
         });
-        record = await db.transaction.findUnique({ where: { id: record.id } });
+        const refreshed = await db.transaction.findUnique({ where: { id: record.id } });
+        if (refreshed) record = refreshed;
       }
     } catch (err) {
       console.error(
         "Failed to reconcile PalPluss upgrade transaction",
-        record.gatewayRef,
+        gatewayRef,
         err
       );
     }
   }
 
-  const tierMatch = record!.type.match(/^UPGRADE:(\w+)$/);
+  const tierMatch = record.type.match(/^UPGRADE:(\w+)$/);
 
   return NextResponse.json({
-    status: record!.status, // PENDING | COMPLETED | FAILED
+    status: record.status, // PENDING | COMPLETED | FAILED
     tier: tierMatch ? tierMatch[1] : null,
-    failureReason: record!.status === "FAILED" ? record!.gatewayStatus : null,
+    failureReason: record.status === "FAILED" ? record.gatewayStatus : null,
   });
 }

@@ -12,7 +12,7 @@ import { NetworkStatus } from "@/components/pwa-provider";
 import {
   Search, Grid3X3, List, Minus, Plus, Trash2,
   CreditCard, Banknote, Smartphone, Package, ShoppingCart, ChevronUp,
-  Clock, Users, X, ScanBarcode, Printer, CheckCircle, Wifi, Ruler,
+  Clock, Users, X, ScanBarcode, Printer, CheckCircle, Wifi, Ruler, Gift,
 } from "lucide-react";
 
 interface ProductUoM {
@@ -1062,11 +1062,12 @@ export default function POSPage() {
                   <span className="font-semibold text-text-primary">Total</span>
                   <span className="font-bold text-gold">{formatCurrency(activeTab.total)}</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="grid grid-cols-4 gap-2 mb-3">
                   {[
                     { id: "CASH", icon: Banknote, label: "Cash" },
                     { id: "MPESA_MANUAL", icon: Smartphone, label: "M-Pesa" },
                     { id: "CARD", icon: CreditCard, label: "Card" },
+                    { id: "COMPLIMENTARY", icon: Gift, label: "Comp" },
                   ].map((m) => (
                     <button key={m.id} onClick={() => setPaymentMethod(m.id)} className={cn("flex flex-col items-center gap-1 rounded-lg border p-2 transition-all", paymentMethod === m.id ? "border-gold/50 bg-gold/10 text-gold" : "border-border text-text-secondary")}>
                       <m.icon className="h-4 w-4" /><span className="text-[10px] font-medium">{m.label}</span>
@@ -1230,6 +1231,7 @@ export default function POSPage() {
                     { id: "MPESA_MANUAL", icon: Smartphone, label: "M-Pesa" },
                     { id: "CARD", icon: CreditCard, label: "Card" },
                     { id: "PDQ", icon: Wifi, label: "PDQ" },
+                    { id: "COMPLIMENTARY", icon: Gift, label: "Comp" },
                     ...(stkGateways.length > 0 ? [{ id: "MPESA_STK", icon: Smartphone, label: "STK Push" }] : []),
                   ].map((m) => (
                     <button

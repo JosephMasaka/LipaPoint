@@ -5,17 +5,26 @@ import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/theme-provider";
 import { usePWA } from "@/components/pwa-provider";
+
+import { Logo } from "@/components/logo";
+import { getBusinessCategory, canAccessFeature, type BusinessCategory } from "@/lib/plans";
+import type { ModuleKey } from "@/lib/modules";
+import { useState, useEffect } from "react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Loader } from "@/components/ui/loader";
+import { ModuleList } from "@/components/ui/module-list";
+
 import {
   LayoutDashboard, ShoppingCart, Package, ClipboardList,
   Settings, TrendingUp, Users, LogOut, Receipt,
   Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin, WifiOff, Download,
   UserCircle, Tag, UtensilsCrossed, ChefHat, BookOpen, Globe, Truck, Calendar, Scissors, ListOrdered, CalendarDays,
-  FileText, Landmark, Calculator, ShieldCheck, Contact, Banknote, Boxes,
+  FileText, Landmark, Calculator, ShieldCheck, Contact, Banknote, Boxes, BarChart3,
 } from "lucide-react";
-import { Logo } from "@/components/logo";
-import { getBusinessCategory, canAccessFeature, type BusinessCategory } from "@/lib/plans";
-import type { ModuleKey } from "@/lib/modules";
-import { useState, useEffect } from "react";
 
 interface SidebarProps {
   tenantSlug: string;
@@ -60,7 +69,7 @@ const categoryNavItems: Record<BusinessCategory, NavItem[]> = {
     { icon: Calendar, label: "Appointments", href: "/appointments", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "appointments" },
     { icon: Scissors, label: "Services", href: "/services", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "service-catalog" },
     { icon: ListOrdered, label: "Queue", href: "/queue", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "queue-management" },
-    { icon: CalendarDays, label: "Scheduling", href: "/scheduling", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "staff-scheduling" },
+    { icon: CalendarDays, label: "Scheduling", href: "/scheduling", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "staff-scheduling" },
     { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null },
   ],
 };
@@ -76,6 +85,7 @@ const erpNavItems: NavItem[] = [
   { icon: Contact, label: "HR", href: "/hr", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll" },
   { icon: Banknote, label: "Payroll", href: "/payroll", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll" },
   { icon: Boxes, label: "Assets", href: "/assets", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "assets" },
+  { icon: BarChart3, label: "Reports", href: "/reports", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null },
 ];
 
 const suffixNavItems: NavItem[] = [
@@ -85,6 +95,7 @@ const suffixNavItems: NavItem[] = [
   { icon: Users, label: "Staff", href: "/users", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null },
   { icon: MapPin, label: "Locations", href: "/locations", roles: ["OWNER", "ADMIN"], feature: null },
   { icon: Settings, label: "Settings", href: "/settings", roles: ["OWNER", "ADMIN"], feature: null },
+  { icon: Boxes, label: "Modules", href: "/dashboard/modules", roles: ["OWNER", "ADMIN"], feature: null },
 ];
 
 function getNavItems(tenantType: string, tier: string, modules: string[]): NavItem[] {
@@ -151,9 +162,9 @@ export function Sidebar({ tenantSlug, user, modules }: SidebarProps) {
         {collapsed && (
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/10">
             <svg width="18" height="18" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M9 7L9 22L21 22" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-gold"/>
-              <circle cx="20" cy="11" r="2.2" fill="currentColor" className="text-gold"/>
-              <path d="M23 8.5C25 10.5 25 13 23 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-gold"/>
+              <path d="M9 7L9 22L21 22" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" className="text-gold" />
+              <circle cx="20" cy="11" r="2.2" fill="currentColor" className="text-gold" />
+              <path d="M23 8.5C25 10.5 25 13 23 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-gold" />
             </svg>
           </div>
         )}

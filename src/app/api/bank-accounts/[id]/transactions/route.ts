@@ -43,7 +43,8 @@ export async function GET(
 
 /**
  * Records a bank/cash movement and posts the mirrored journal entry.
- * Body: { amount, direction: in|out, date?, description?, reference?, counterAccountCode? }
+ * Body: { amount, direction: in|out, date?, description?, reference?,
+ *         counterAccountCode?, category?, chequeNumber?, counterparty? }
  */
 export async function POST(
   request: NextRequest,
@@ -62,6 +63,9 @@ export async function POST(
       description?: string;
       reference?: string;
       counterAccountCode?: string;
+      category?: string;
+      chequeNumber?: string;
+      counterparty?: string;
     }>(request);
 
     if (!body.amount || !body.direction) {
@@ -76,6 +80,12 @@ export async function POST(
         { status: 400 }
       );
     }
+    if (body.category && !["general", "cheque", "transfer"].includes(body.category)) {
+      return NextResponse.json(
+        { error: "category must be one of: general, cheque, transfer" },
+        { status: 400 }
+      );
+    }
 
     const txn = await recordBankTransaction({
       tenantId: user.tenantId,
@@ -86,6 +96,9 @@ export async function POST(
       description: body.description ?? null,
       reference: body.reference ?? null,
       counterAccountCode: body.counterAccountCode ?? null,
+      category: (body.category as "general" | "cheque" | "transfer" | undefined) ?? undefined,
+      chequeNumber: body.chequeNumber ?? null,
+      counterparty: body.counterparty ?? null,
     });
 
     return NextResponse.json(txn, { status: 201 });

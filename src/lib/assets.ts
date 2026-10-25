@@ -462,6 +462,76 @@ export async function disposeAsset(input: DisposeAssetInput) {
   return { asset: { id: asset.id, lifecycleStatus: status }, journalEntryId: entry.id, bookValue, proceeds, gain };
 }
 
+export interface RecordMaintenanceInput {
+  tenantId: string;
+  assetId: string;
+  date: Date | string; // date the work was done
+  description: string;
+  cost: number;
+  performedBy?: string | null;
+  nextDueDate?: Date | string | null;
+  notes?: string | null;
+  userId?: string | null;
+}
+
+/**
+ * Logs a maintenance event against an asset — the row the Maintenance Cost
+ * report (reports-spec §9) aggregates. Purely additive: it does not move the
+ * asset's book value or post to the GL (maintenance spend is expensed
+ * through the expense flow when it is paid).
+ */
+export async function recordAssetMaintenance(input: RecordMaintenanceInput) {
+  const asset = await db.asset.findFirst({
+    where: { id: input.assetId, tenantId: input.tenantId },
+    select: { id: true, assetCode: true, name: true, lifecycleStatus: true },
+  });
+  if (!asset) throw new AssetError("Asset not found", 404);
+  if (CLOSED_STATUSES.includes(asset.lifecycleStatus as (typeof CLOSED_STATUSES)[number])) {
+    throw new AssetError(`Asset is ${asset.lifecycleStatus} — closed assets cannot take new maintenance`);
+  }
+  if (!input.description?.trim()) throw new AssetError("description is required");
+
+  const date = toDate(input.date, "date");
+  const cost = toCents(Number(input.cost ?? 0));
+  if (!Number.isFinite(cost) || cost < 0) throw new AssetError("cost must be a non-negative number");
+  const nextDueDate = input.nextDueDate ? toDate(input.nextDueDate, "nextDueDate") : null;
+
+  const created = await db.assetMaintenance.create({
+    data: {
+      tenantId: input.tenantId,
+      assetId: asset.id,
+      date,
+      description: input.description.trim(),
+      cost,
+      performedBy: input.performedBy || null,
+      nextDueDate,
+      notes: input.notes || null,
+    },
+  });
+
+  await writeAuditLog({
+    tenantId: input.tenantId,
+    userId: input.userId ?? null,
+    action: AUDIT_ACTIONS.ASSETS.MAINTENANCE_LOGGED,
+    module: "assets",
+    entity: "assetMaintenance",
+    entityId: created.id,
+    after: {
+      assetCode: asset.assetCode,
+      date,
+      description: created.description,
+      cost,
+      nextDueDate,
+    },
+  });
+
+  return created;
+}
+
+/**
+ * Deletes an open asset. Refuses anything that has touched the GL
+ * (depreciated or disposed assets must stay for the ledger to make sense).
+ */
 /**
  * Deletes an open asset. Refuses anything that has touched the GL
  * (depreciated or disposed assets must stay for the ledger to make sense).

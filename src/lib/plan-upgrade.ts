@@ -34,6 +34,17 @@ export async function completeUpgradeFromTransaction(
   const targetTier = extractTargetTier(record.type);
 
   if (txn.status === "SUCCESS") {
+    const previous = await db.tenant.findUnique({
+      where: { id: record.tenantId },
+      select: { tier: true, type: true },
+    });
+
+    const tenant = await db.tenant.update({
+      where: { id: record.tenantId },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      data: { tier: targetTier as any },
+    });
+
     await db.transaction.update({
       where: { id: record.id },
       data: {
@@ -55,17 +66,6 @@ export async function completeUpgradeFromTransaction(
       );
       return { ok: true };
     }
-
-    const previous = await db.tenant.findUnique({
-      where: { id: record.tenantId },
-      select: { tier: true, type: true },
-    });
-
-    const tenant = await db.tenant.update({
-      where: { id: record.tenantId },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      data: { tier: targetTier as any },
-    });
 
     // ERP module entitlements are additive: re-sync TenantModule rows so
     // newly-included modules switch on without re-onboarding.

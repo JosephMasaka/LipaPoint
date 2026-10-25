@@ -10,7 +10,7 @@ import { Loader } from "@/components/ui/loader";
 import { formatCurrency, cn } from "@/lib/utils";
 import {
   Package, Ruler, BarChart3, DollarSign, Plus, Edit3,
-  ArrowUpDown, Save, Upload, Search,
+  ArrowUpDown, Save, Upload, Search, ClipboardList,
 } from "lucide-react";
 import { Pagination } from "@/components/pagination";
 import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
@@ -295,6 +295,99 @@ function StockSheetTab() {
   const [stockSearch, setStockSearch] = useState("");
   const [stockPage, setStockPage] = useState(1);
 
+  // Stock transfer + physical stock-take entry (reports-spec §5 flows).
+  const [showTransfer, setShowTransfer] = useState(false);
+  const [transferForm, setTransferForm] = useState({ productId: "", quantity: "", toLocationId: "", reference: "" });
+  const [showTake, setShowTake] = useState(false);
+  const [takeCounts, setTakeCounts] = useState<Record<string, string>>({});
+  const [flowBusy, setFlowBusy] = useState(false);
+  const [flowError, setFlowError] = useState("");
+  const [flowResult, setFlowResult] = useState<string | null>(null);
+
+  const openTransfer = () => {
+    setFlowError("");
+    setFlowResult(null);
+    setTransferForm({ productId: "", quantity: "", toLocationId: "", reference: "" });
+    setShowTransfer(true);
+  };
+
+  const openTake = () => {
+    setFlowError("");
+    setFlowResult(null);
+    const seed: Record<string, string> = {};
+    for (const r of records) seed[r.product.id] = String(getCalculatedClosing(r));
+    setTakeCounts(seed);
+    setShowTake(true);
+  };
+
+  const submitTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locationId) return;
+    setFlowBusy(true);
+    setFlowError("");
+    try {
+      const res = await fetch("/api/stock/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: transferForm.productId,
+          quantity: Number(transferForm.quantity),
+          fromLocationId: locationId,
+          toLocationId: transferForm.toLocationId,
+          reference: transferForm.reference || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFlowError(data.error || "Transfer failed");
+        return;
+      }
+      setShowTransfer(false);
+      setTransferForm({ productId: "", quantity: "", toLocationId: "", reference: "" });
+      setFlowResult(`Transfer ${data.reference} recorded — stock moved and the Stock Transferred report updated.`);
+      fetchRecords();
+    } catch {
+      setFlowError("Network error");
+    } finally {
+      setFlowBusy(false);
+    }
+  };
+
+  const submitTake = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!locationId) return;
+    const counts = Object.entries(takeCounts)
+      .filter(([, value]) => value !== "" && !Number.isNaN(Number(value)))
+      .map(([productId, value]) => ({ productId, countedQuantity: Number(value) }));
+    if (counts.length === 0) {
+      setFlowError("Enter at least one counted quantity");
+      return;
+    }
+    setFlowBusy(true);
+    setFlowError("");
+    try {
+      const res = await fetch("/api/stock/take", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, locationId, counts }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setFlowError(data.error || "Stock take failed");
+        return;
+      }
+      setShowTake(false);
+      setFlowResult(
+        `Counted ${data.counted} line(s); ${data.corrected} corrected — net variance ${data.variance}.`
+      );
+      fetchRecords();
+    } catch {
+      setFlowError("Network error");
+    } finally {
+      setFlowBusy(false);
+    }
+  };
+
   useEffect(() => {
     fetch("/api/locations").then(r => r.json()).then(data => {
       if (Array.isArray(data) && data.length > 0) {
@@ -504,6 +597,12 @@ function StockSheetTab() {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={openTransfer}>
+            <ArrowUpDown className="h-4 w-4 mr-1" /> Transfer
+          </Button>
+          <Button variant="outline" onClick={openTake}>
+            <ClipboardList className="h-4 w-4 mr-1" /> Stock Take
+          </Button>
           <Button variant="outline" onClick={() => setShowImport(true)}>
             <Upload className="h-4 w-4 mr-1" /> Import
           </Button>
@@ -519,6 +618,12 @@ function StockSheetTab() {
           )}
         </div>
       </div>
+
+      {flowResult && (
+        <p className="text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-3 py-2 w-fit">
+          {flowResult}
+        </p>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -634,6 +739,129 @@ function StockSheetTab() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Stock Transfer Modal */}
+      {showTransfer && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTransfer(false)} />
+          <form
+            onSubmit={submitTransfer}
+            className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4"
+          >
+            <div>
+              <h3 className="text-base font-bold text-text-primary">Transfer Stock</h3>
+              <p className="text-xs text-text-muted mt-1">
+                Moves stock out of {locations.find((l) => l.id === locationId)?.name || "this location"} into another branch and records both legs of the transfer.
+              </p>
+            </div>
+            {flowError && (
+              <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{flowError}</div>
+            )}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-text-secondary">Item</label>
+              <select
+                required
+                value={transferForm.productId}
+                onChange={(e) => setTransferForm({ ...transferForm, productId: e.target.value })}
+                className="w-full h-10 rounded-lg border border-border bg-surface-elevated px-3 text-sm text-text-primary"
+              >
+                <option value="">Select an item…</option>
+                {records.map((r) => (
+                  <option key={r.product.id} value={r.product.id}>{r.product.name}</option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Quantity"
+              type="number"
+              min={1}
+              step={1}
+              value={transferForm.quantity}
+              onChange={(e) => setTransferForm({ ...transferForm, quantity: e.target.value })}
+              required
+            />
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-text-secondary">To location</label>
+              <select
+                required
+                value={transferForm.toLocationId}
+                onChange={(e) => setTransferForm({ ...transferForm, toLocationId: e.target.value })}
+                className="w-full h-10 rounded-lg border border-border bg-surface-elevated px-3 text-sm text-text-primary"
+              >
+                <option value="">Select destination…</option>
+                {locations.filter((l) => l.id !== locationId).map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Reference (optional)"
+              placeholder="Generated automatically if left blank"
+              value={transferForm.reference}
+              onChange={(e) => setTransferForm({ ...transferForm, reference: e.target.value })}
+            />
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowTransfer(false)}>Cancel</Button>
+              <Button type="submit" className="flex-1" disabled={flowBusy || locations.length < 2}>
+                {flowBusy ? "Moving…" : "Transfer"}
+              </Button>
+            </div>
+            {locations.length < 2 && (
+              <p className="text-[11px] text-text-muted">Add a second location to transfer between branches.</p>
+            )}
+          </form>
+        </div>
+      )}
+
+      {/* Physical Stock-Take Modal */}
+      {showTake && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowTake(false)} />
+          <form
+            onSubmit={submitTake}
+            className="relative bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-lg p-6 space-y-4"
+          >
+            <div>
+              <h3 className="text-base font-bold text-text-primary">Physical Stock-Take — {date}</h3>
+              <p className="text-xs text-text-muted mt-1">
+                Enter what you counted on the shelf. Lines left at the book quantity are recorded as matching;
+                anything else is corrected and shows up in the Stock Adjustment and Stock-Take reports.
+              </p>
+            </div>
+            {flowError && (
+              <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{flowError}</div>
+            )}
+            {records.length === 0 ? (
+              <p className="text-sm text-text-muted">No stock sheet for this location and date yet — initialize the day first.</p>
+            ) : (
+              <div className="max-h-[45vh] overflow-y-auto border border-border rounded-lg divide-y divide-border">
+                {records.map((r) => (
+                  <div key={r.product.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-text-primary truncate">{r.product.name}</p>
+                      <p className="text-[11px] text-text-muted">Book: {getCalculatedClosing(r)}</p>
+                    </div>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={takeCounts[r.product.id] ?? ""}
+                      onChange={(e) => setTakeCounts({ ...takeCounts, [r.product.id]: e.target.value })}
+                      className="h-9 w-24 rounded-lg border border-border bg-surface-elevated px-2 text-sm text-text-primary text-right"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button type="button" variant="outline" className="flex-1" onClick={() => setShowTake(false)}>Cancel</Button>
+              <Button type="submit" className="flex-1" disabled={flowBusy || records.length === 0}>
+                {flowBusy ? "Recording…" : "Record Count"}
+              </Button>
+            </div>
+          </form>
         </div>
       )}
 

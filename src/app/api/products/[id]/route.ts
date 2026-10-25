@@ -24,6 +24,15 @@ export async function PUT(
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
 
+    // Price Change report (reports-spec §5): log every real change to the
+    // selling price, with who made it, before overwriting the old value.
+    const requestedPrice =
+      price !== undefined && price !== null && price !== "" ? parseFloat(price) : undefined;
+    const priceChanged =
+      requestedPrice !== undefined &&
+      !Number.isNaN(requestedPrice) &&
+      requestedPrice !== existing.price;
+
     const product = await db.product.update({
       where: { id },
       data: {
@@ -42,6 +51,18 @@ export async function PUT(
         stocks: { select: { quantity: true } },
       },
     });
+
+    if (priceChanged) {
+      await db.productPriceHistory.create({
+        data: {
+          tenantId: user.tenantId,
+          productId: product.id,
+          previousPrice: existing.price,
+          newPrice: requestedPrice!,
+          changedById: user.id,
+        },
+      });
+    }
 
     return NextResponse.json(product);
   } catch (error) {

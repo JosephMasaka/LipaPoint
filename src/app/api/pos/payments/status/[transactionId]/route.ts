@@ -6,14 +6,15 @@ import { completeOrderPayment } from "@/lib/payment-gateways/order-completion";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { transactionId: string } }
+  { params }: { params: Promise<{ transactionId: string }> }
 ) {
+  const { transactionId } = await params;
   const currentUser = await getCurrentUser();
   if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let record = await db.transaction.findUnique({ where: { id: params.transactionId } });
+  let record = await db.transaction.findUnique({ where: { id: transactionId } });
   if (!record || record.tenantId !== currentUser.tenantId) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -29,7 +30,8 @@ export async function GET(
             receiptNumber: result.receiptNumber,
             resultDesc: result.resultDesc,
           });
-          record = await db.transaction.findUnique({ where: { id: record.id } });
+          const refreshed = await db.transaction.findUnique({ where: { id: record.id } });
+          if (refreshed) record = refreshed;
         }
       }
     } catch (err) {
@@ -38,7 +40,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    status: record!.status,
-    failureReason: record!.status === "FAILED" ? record!.gatewayStatus : null,
+    status: record.status,
+    failureReason: record.status === "FAILED" ? record.gatewayStatus : null,
   });
 }

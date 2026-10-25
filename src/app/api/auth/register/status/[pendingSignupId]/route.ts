@@ -5,10 +5,11 @@ import { completeSignupFromTransaction } from "@/lib/signup-completion";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { pendingSignupId: string } }
+  { params }: { params: Promise<{ pendingSignupId: string }> }
 ) {
+  const { pendingSignupId } = await params;
   let pending = await db.pendingSignup.findUnique({
-    where: { id: params.pendingSignupId },
+    where: { id: pendingSignupId },
   });
 
   if (!pending) {
@@ -20,8 +21,9 @@ export async function GET(
   // unreachable entirely. Actively check PalPluss directly whenever we're
   // still PENDING and know the transaction id.
   if (pending.status === "PENDING" && pending.transactionId) {
+    const txnId = pending.transactionId;
     try {
-      const txn = await getTransaction(pending.transactionId);
+      const txn = await getTransaction(txnId);
       if (txn.data.status !== "PENDING") {
         await completeSignupFromTransaction(pending.id, {
           id: txn.data.id,
@@ -33,12 +35,13 @@ export async function GET(
           result_desc: txn.data.result_desc,
           provider_request_id: txn.data.provider_request_id,
         });
-        pending = await db.pendingSignup.findUnique({ where: { id: pending.id } });
+        const refreshed = await db.pendingSignup.findUnique({ where: { id: pending.id } });
+        if (refreshed) pending = refreshed;
       }
     } catch (err) {
       console.error(
         "Failed to reconcile PalPluss transaction status",
-        pending.transactionId,
+        txnId,
         err
       );
       // Not fatal — keep reporting current DB status, client keeps polling.
@@ -46,7 +49,7 @@ export async function GET(
   }
 
   return NextResponse.json({
-    status: pending!.status,
-    failureReason: pending!.failureReason ?? null,
+    status: pending.status,
+    failureReason: pending.failureReason ?? null,
   });
 }

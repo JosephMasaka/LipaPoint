@@ -117,10 +117,49 @@ export async function PUT(request: NextRequest) {
   if (action === "close") {
     const { paymentMethod } = body;
 
+    // Settling a tab turns it into a real invoice — that is when the
+    // customer is linked (when identifiable) and their withholding rate is
+    // snapshotted onto the sale (reports-spec §3 "Withholding tax by customer").
+    let linkedCustomerId = order.customerId;
+    let linkedWhtRate = order.whtRate;
+    if (linkedCustomerId) {
+      const linked = await db.customer.findUnique({
+        where: { id: linkedCustomerId },
+        select: { whtRate: true },
+      });
+      linkedWhtRate = linked?.whtRate ?? 0;
+    } else {
+      const matches = order.customerPhone
+        ? await db.customer.findMany({
+            where: { tenantId: user.tenantId, phone: order.customerPhone },
+            select: { id: true, whtRate: true },
+            take: 2,
+          })
+        : order.customerName
+          ? await db.customer.findMany({
+              where: { tenantId: user.tenantId, name: order.customerName },
+              select: { id: true, whtRate: true },
+              take: 2,
+            })
+          : [];
+      if (matches.length === 1) {
+        linkedCustomerId = matches[0].id;
+        linkedWhtRate = matches[0].whtRate;
+      }
+    }
+    const whtAmount = linkedWhtRate > 0 ? Math.round(order.total * linkedWhtRate) / 100 : 0;
+
     const updated = await db.$transaction(async (tx) => {
       const closedOrder = await tx.order.update({
         where: { id: orderId },
-        data: { status: "COMPLETED", paymentMethod: paymentMethod || "CASH", paymentStatus: "COMPLETED" },
+        data: {
+          status: "COMPLETED",
+          paymentMethod: paymentMethod || "CASH",
+          paymentStatus: "COMPLETED",
+          customerId: linkedCustomerId,
+          whtRate: linkedWhtRate,
+          whtAmount,
+        },
         include: { items: { include: { product: { select: { name: true } } } } },
       });
 

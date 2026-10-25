@@ -1,6 +1,5 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import bcrypt from "bcryptjs";
-import { cookies } from "next/headers";
 import { db } from "./db";
 
 const COOKIE_NAME = "lipapoint-session";
@@ -8,6 +7,9 @@ const SESSION_DURATION = 7 * 24 * 60 * 60; // 7 days in seconds
 
 /** Cookie holding the super-admin's own session while they impersonate a tenant. */
 export const IMPERSONATION_BACKUP_COOKIE = "lipapoint-session-backup";
+
+import { readSessionCookie as readStoredSessionCookie, readBackupCookie, setSessionCookie as setStoredSessionCookie, setBackupCookie, clearSessionCookie as clearStoredSessionCookie, clearBackupCookie } from "./cookies";
+
 
 interface SessionPayload extends JWTPayload {
   // Platform users (SUPER_ADMIN included) carry userId/tenantId; reseller
@@ -61,10 +63,7 @@ export async function verifyToken(
   } catch {
     return null;
   }
-}
-
-// --- Session management ---
-
+}// --- Session management ---
 export async function createSession(user: {
   id: string;
   tenantId: string;
@@ -90,96 +89,87 @@ export async function createSession(user: {
     },
   });
 
-  // Set cookie
-  const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_DURATION,
-  });
+  // Set cookie — server-only, never imported into a client bundle.
+  await setSessionCookie(token);
 
   return token;
 }
 
+/**
+ * Reads the current session cookie value (if any). Server-only.
+ */
+export async function readSessionCookie(): Promise<string | null> {
+  return readStoredSessionCookie();
+}
+
 export async function destroySession(): Promise<void> {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
+  const token = await readSessionCookie();
 
   if (token) {
     // Remove session from database
     await db.session.deleteMany({ where: { token } });
   }
 
-  // Clear cookie
-  cookieStore.set(COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
-
-  // If this logout happened mid-impersonation, drop the parked admin
-  // session too so a stale backup token can't be restored later.
-  cookieStore.set(IMPERSONATION_BACKUP_COOKIE, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
-}
-
-// --- Get current user ---
-
-export async function getCurrentUser() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
-
+  // Clear cookie — server-only.
+  await clearStoredSessionCookie();
+}// --- Get current user ---
+/**
+ * Server-only current-user lookup. Still uses `cookies()` under the hood, so
+ * it stays server-only (the `import "server-only"` at the top of this file).
+ * Kept for server route handlers and server components.
+ */
+export async function getCurrentUser(): Promise<
+  Omit<
+    import("@prisma/client").Prisma.UserGetPayload<{
+      include: { tenant: { select: { id: true; name: true; slug: true; type: true; tier: true; currency: true; taxRate: true; logo: true; isActive: true } } };
+    }>,
+    "password"
+  > | null
+> {
+  const token = await readSessionCookie();
+  
   if (!token) {
     console.log("[AUTH] No session cookie found");
     return null;
   }
-
+  
   console.log("[AUTH] Session cookie found");
-
+  
   const payload = await verifyToken(token);
-
+  
   if (!payload) {
     console.log("[AUTH] JWT verification failed");
     return null;
   }
-
+  
   if (!payload.userId) {
     // Reseller portal session — not a tenant user.
     return null;
   }
-
+  
   console.log("[AUTH] JWT verified:", {
     userId: payload.userId,
     tenantId: payload.tenantId,
     tenantSlug: payload.tenantSlug,
     role: payload.role,
   });
-
+  
   const session = await db.session.findUnique({
     where: { token },
   });
-
+  
   if (!session) {
     console.log("[AUTH] No database session found for JWT");
     return null;
   }
-
+  
   if (session.expiresAt < new Date()) {
     console.log("[AUTH] Database session expired:", session.expiresAt);
     return null;
   }
-
+  
   console.log("[AUTH] Database session valid");
-
+  
   const user = await db.user.findUnique({
     where: { id: payload.userId },
     include: {
@@ -198,43 +188,40 @@ export async function getCurrentUser() {
       },
     },
   });
-
+  
   if (!user) {
     console.log("[AUTH] User not found:", payload.userId);
     return null;
   }
-
+  
   if (!user.isActive) {
     console.log("[AUTH] User is inactive:", user.id);
     return null;
   }
-
+  
   if (!user.tenant) {
     console.log("[AUTH] User has no tenant:", user.id);
     return null;
   }
-
+  
   if (!user.tenant.isActive) {
     console.log("[AUTH] Tenant is inactive:", user.tenant.id);
     return null;
   }
-
+  
   console.log("[AUTH] Authentication successful:", {
     userId: user.id,
     tenantId: user.tenantId,
     tenantSlug: user.tenant.slug,
     role: user.role,
   });
-
+  
   const { password, ...userWithoutPassword } = user;
-
+  
   return userWithoutPassword;
-}
-
-export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
+}export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 
 // --- Reseller portal sessions ---
-
 export async function createResellerSession(reseller: {
   id: string;
 }): Promise<string> {
@@ -254,21 +241,15 @@ export async function createResellerSession(reseller: {
     },
   });
 
-  const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_DURATION,
-  });
+  await setSessionCookie(token);
 
   return token;
 }
 
-export async function getCurrentReseller() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(COOKIE_NAME)?.value;
+export async function getCurrentReseller(): Promise<
+  Omit<import("@prisma/client").Prisma.ResellerGetPayload<{}>, "password"> | null
+> {
+  const token = await readSessionCookie();
   if (!token) return null;
 
   const payload = await verifyToken(token);
@@ -289,7 +270,15 @@ export async function getCurrentReseller() {
 
 export type CurrentReseller = NonNullable<Awaited<ReturnType<typeof getCurrentReseller>>>;
 
-// --- Tenant impersonation (super admin) ---
+// --- Server-only cookie helpers ---
+
+async function setSessionCookie(token: string, maxAge = SESSION_DURATION): Promise<void> {
+  await setStoredSessionCookie(token, maxAge);
+}
+
+async function clearSessionCookie(): Promise<void> {
+  await clearStoredSessionCookie();
+}
 
 function sessionCookieOptions(maxAge: number) {
   return {
@@ -311,13 +300,12 @@ export async function startImpersonation(targetUser: {
   role: string;
   tenantSlug: string;
 }): Promise<void> {
-  const cookieStore = await cookies();
-  const current = cookieStore.get(COOKIE_NAME)?.value;
+  const current = await readSessionCookie();
   if (!current) {
     throw new Error("Not signed in");
   }
 
-  cookieStore.set(IMPERSONATION_BACKUP_COOKIE, current, sessionCookieOptions(SESSION_DURATION));
+  await setBackupCookie(current, SESSION_DURATION);
 
   await createSession({
     id: targetUser.id,
@@ -332,8 +320,7 @@ export async function startImpersonation(targetUser: {
  * cookie is a tenant session opened via `startImpersonation`.
  */
 export async function isImpersonating(): Promise<boolean> {
-  const cookieStore = await cookies();
-  const backup = cookieStore.get(IMPERSONATION_BACKUP_COOKIE)?.value;
+  const backup = await readBackupCookie();
   if (!backup) return false;
   const payload = await verifyToken(backup);
   return payload?.role === "SUPER_ADMIN";
@@ -341,8 +328,7 @@ export async function isImpersonating(): Promise<boolean> {
 
 /** Restores the parked super-admin session and clears the backup cookie. */
 export async function exitImpersonation(): Promise<{ ok: boolean; reason?: string }> {
-  const cookieStore = await cookies();
-  const backup = cookieStore.get(IMPERSONATION_BACKUP_COOKIE)?.value;
+  const backup = await readBackupCookie();
   if (!backup) return { ok: false, reason: "no_active_impersonation" };
 
   const payload = await verifyToken(backup);
@@ -355,11 +341,12 @@ export async function exitImpersonation(): Promise<{ ok: boolean; reason?: strin
     session.userId === payload.userId;
 
   if (!valid) {
-    cookieStore.set(IMPERSONATION_BACKUP_COOKIE, "", sessionCookieOptions(0));
+    await clearBackupCookie();
     return { ok: false, reason: "session_expired" };
   }
 
-  cookieStore.set(COOKIE_NAME, backup, sessionCookieOptions(SESSION_DURATION));
-  cookieStore.set(IMPERSONATION_BACKUP_COOKIE, "", sessionCookieOptions(0));
+  await setSessionCookie(backup, SESSION_DURATION);
+  await clearBackupCookie();
   return { ok: true };
 }
+

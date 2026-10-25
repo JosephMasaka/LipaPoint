@@ -93,6 +93,9 @@ export default function BankingPage() {
     description: "",
     reference: "",
     counterAccountCode: "",
+    category: "general",
+    chequeNumber: "",
+    counterparty: "",
   });
 
   const [notification, setNotification] = useState<{ type: string; message: string } | null>(null);
@@ -193,6 +196,9 @@ export default function BankingPage() {
           description: record.description || undefined,
           reference: record.reference || undefined,
           counterAccountCode: record.counterAccountCode || undefined,
+          category: record.category || undefined,
+          chequeNumber: record.chequeNumber || undefined,
+          counterparty: record.counterparty || undefined,
         }),
       });
       if (!res.ok) {
@@ -201,7 +207,7 @@ export default function BankingPage() {
         return;
       }
       setShowRecord(false);
-      setRecord({ direction: "in", amount: 0, date: "", description: "", reference: "", counterAccountCode: "" });
+      setRecord({ direction: "in", amount: 0, date: "", description: "", reference: "", counterAccountCode: "", category: "general", chequeNumber: "", counterparty: "" });
       notify("success", "Transaction recorded — journal entry posted");
       fetchTransactions(detail.id, unreconciledOnly);
       fetchAccounts();
@@ -327,6 +333,36 @@ export default function BankingPage() {
                       value={record.reference}
                       onChange={(e) => setRecord({ ...record, reference: e.target.value })}
                     />
+                    <div>
+                      <label className="text-xs font-medium text-text-secondary mb-1.5 block">
+                        Type
+                      </label>
+                      <select
+                        className="w-full h-10 rounded-xl border border-border bg-surface-elevated px-3 text-sm text-text-primary"
+                        value={record.category}
+                        onChange={(e) => setRecord({ ...record, category: e.target.value })}
+                      >
+                        <option value="general">General money in / out</option>
+                        <option value="cheque">Cheque received</option>
+                        <option value="transfer">Transfer between wallets</option>
+                      </select>
+                    </div>
+                    {record.category === "cheque" && (
+                      <>
+                        <Input
+                          label="Cheque number"
+                          placeholder="e.g. 000123"
+                          value={record.chequeNumber}
+                          onChange={(e) => setRecord({ ...record, chequeNumber: e.target.value })}
+                        />
+                        <Input
+                          label="Customer"
+                          placeholder="Who the cheque came from"
+                          value={record.counterparty}
+                          onChange={(e) => setRecord({ ...record, counterparty: e.target.value })}
+                        />
+                      </>
+                    )}
                     <div>
                       <label className="text-xs font-medium text-text-secondary mb-1.5 block">
                         Counter account <span className="text-text-muted">(other side of the GL entry)</span>

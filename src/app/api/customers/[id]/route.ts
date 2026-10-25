@@ -88,6 +88,8 @@ export async function PUT(
         ...(body.phone !== undefined && { phone: body.phone || null }),
         ...(body.address !== undefined && { address: body.address || null }),
         ...(body.notes !== undefined && { notes: body.notes || null }),
+        ...(body.department !== undefined && { department: body.department || null }),
+        ...(body.whtRate !== undefined && { whtRate: Number(body.whtRate) > 0 ? Number(body.whtRate) : 0 }),
         ...(body.loyaltyPoints !== undefined && { loyaltyPoints: body.loyaltyPoints }),
       },
     });

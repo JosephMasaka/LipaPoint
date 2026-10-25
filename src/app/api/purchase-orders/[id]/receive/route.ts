@@ -5,7 +5,7 @@ import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
 /**
  * POST /api/purchase-orders/[id]/receive
  * Records a GRN against the PO. Body:
- *   { locationId?, notes?, items: [{ poItemId, quantity, unitCost? }] }
+ *   { locationId?, notes?, items: [{ poItemId, quantity, unitCost?, batchNumber?, expiryDate? }] }
  * Partial receipts are allowed; over-receiving a line is rejected.
  */
 export async function POST(
@@ -21,7 +21,13 @@ export async function POST(
     const body = await parseBody<{
       locationId?: string;
       notes?: string;
-      items?: Array<{ poItemId?: string; quantity?: number; unitCost?: number }>;
+      items?: Array<{
+        poItemId?: string;
+        quantity?: number;
+        unitCost?: number;
+        batchNumber?: string;
+        expiryDate?: string;
+      }>;
     }>(request);
 
     if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -41,6 +47,8 @@ export async function POST(
         poItemId: line.poItemId ?? "",
         quantity: Number(line.quantity),
         unitCost: line.unitCost ?? null,
+        batchNumber: line.batchNumber ?? null,
+        expiryDate: line.expiryDate ?? null,
       })),
     });
 
