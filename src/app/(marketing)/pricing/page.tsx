@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://lipapoint.co.ke/pricing" },
   openGraph: {
     title: "LipaPoint Pricing — POS Plans for Every Business Type",
-    description: "Industry-specific POS plans from KSh 1,999/month. Retail, restaurants, barbershops. No setup fees. 14-day free trial.",
+    description: "Industry-specific POS plans from KSh 1,999/month. Retail, restaurants, barbershops. No setup fees. Cancel anytime.",
     url: "https://lipapoint.co.ke/pricing",
   },
 };

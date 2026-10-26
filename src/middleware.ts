@@ -10,6 +10,16 @@ const PUBLIC_PATHS = [
   "/features",
   "/contact",
   "/demo-request",
+  // Marketing industry pages: the first segment ("industries") would
+  // otherwise pattern-match as a tenant slug and bounce logged-out
+  // visitors to /login. Listing it here also covers /industries/*. Same
+  // for the offline fallback and the auth utility pages — they must stay
+  // reachable without a session.
+  "/industries",
+  "/offline",
+  "/forgot-password",
+  "/reset-password",
+  "/opengraph-image",
   "/login",
   "/register",
   "/onboard",

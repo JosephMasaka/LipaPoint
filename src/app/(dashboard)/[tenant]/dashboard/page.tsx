@@ -1,17 +1,34 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Header } from "@/components/header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { PageLoader } from "@/components/ui/loader";
 import { AIInsights } from "@/components/ai-insights";
 import { usePlan } from "@/components/plan-guard";
 import { formatCurrency } from "@/lib/utils";
+import { appsFromModules, APP_TASKS, type AppId } from "@/lib/apps";
 import {
   ShoppingCart, Package, TrendingUp, Users, AlertTriangle,
   ClipboardList, Clock, DollarSign, ArrowUp, ArrowDown,
+  LayoutDashboard, Calculator, HandCoins, Boxes, Globe, X, ArrowRight,
 } from "lucide-react";
+
+/** Odoo-style "apps dashboard": launch tiles for the purchased apps, each
+ *  with a one-line get-started task. Dismissible, first login only. */
+const WELCOME_KEY = "lipapoint-apps-welcome-dismissed";
+const APP_TILE_ICONS: Record<AppId, React.ComponentType<{ className?: string }>> = {
+  pos: LayoutDashboard,
+  crm: Users,
+  finance: Calculator,
+  payroll: HandCoins,
+  assets: Boxes,
+  etims: Globe,
+};
 
 interface DashboardStats {
   todaySales: number;
@@ -30,6 +47,34 @@ export default function DashboardPage() {
   const plan = usePlan();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const tenantSlug = usePathname().split("/")[1] || "";
+
+  // First-run apps panel — only for owners/admins (the modules API is
+  // admin-gated) and only until it's dismissed.
+  const [welcomeApps, setWelcomeApps] = useState<AppId[] | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  useEffect(() => {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(WELCOME_KEY) === "1"; } catch {}
+    if (dismissed) return;
+    fetch("/api/modules", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d || !Array.isArray(d.modules)) return;
+        const enabled = d.modules.filter((m: { enabled: boolean }) => m.enabled).map((m: { key: string }) => m.key);
+        const apps = [...appsFromModules(enabled)];
+        if (apps.length === 0) return;
+        setWelcomeApps(apps);
+        setShowWelcome(true);
+      })
+      .catch(() => {});
+  }, []);
+
+  function dismissWelcome() {
+    setShowWelcome(false);
+    try { localStorage.setItem(WELCOME_KEY, "1"); } catch {}
+  }
 
   useEffect(() => {
     fetch("/api/dashboard")
@@ -67,6 +112,55 @@ export default function DashboardPage() {
       <Header title="Dashboard" subtitle="System overview and real-time status" />
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+        {/* Guided first run — purchased apps as launch tiles */}
+        {showWelcome && welcomeApps && welcomeApps.length > 0 && (
+          <Card className="border-gold/20 bg-gold/5/40">
+            <CardHeader className="flex flex-row items-start justify-between space-y-0 gap-3">
+              <div>
+                <CardTitle className="text-base">Your apps</CardTitle>
+                <p className="text-sm text-text-secondary mt-0.5">
+                  Everything you picked at sign-up — start with whichever task makes sense.
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={dismissWelcome} aria-label="Dismiss">
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {welcomeApps.map((id) => {
+                  const meta = APP_TASKS[id];
+                  const Icon = APP_TILE_ICONS[id];
+                  if (!meta) return null;
+                  return (
+                    <Link
+                      key={id}
+                      href={`/${tenantSlug}${meta.href}`}
+                      className="group flex items-center gap-3 rounded-xl border border-border bg-surface-elevated p-3.5 transition-colors hover:border-gold/40 hover:bg-gold/5"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gold/10 text-gold">
+                        <Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold text-text-primary truncate">{meta.title}</span>
+                        <span className="block text-xs text-text-secondary truncate">{meta.task}</span>
+                      </span>
+                      <ArrowRight className="h-4 w-4 shrink-0 text-text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-gold" />
+                    </Link>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-text-muted mt-3">
+                Need another app? Switch it on from the{" "}
+                <Link href={`/${tenantSlug}/dashboard/modules`} className="text-gold hover:underline">
+                  Apps screen
+                </Link>
+                .
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           <Card>

@@ -47,7 +47,7 @@ export function PricingClient() {
           </p>
           {/*<div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
             <Check className="h-4 w-4 text-emerald-400" />
-            <span className="text-sm text-emerald-400 font-medium">14-day free trial on all plans</span>
+            <span className="text-sm text-emerald-400 font-medium">Have a coupon code? Apply it at sign-up.</span>
           </div>*/}
         </div>
 
@@ -119,6 +119,13 @@ export function PricingClient() {
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <span className="bg-gold text-black text-xs font-bold px-3 py-1 rounded-full">
                       Best Value
+                    </span>
+                  </div>
+                )}
+                {category === 'RETAIL_GENERAL' && tier === 'ENTERPRISE' && (
+                  <div className="absolute -top-6 left-1/2 -translate-x-1/2">
+                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 rounded-full px-3 py-1 text-xs font-medium">
+                      Full ERP
                     </span>
                   </div>
                 )}

@@ -4,6 +4,9 @@
   --color-gold: #d4af37;
   --color-gold-light: #e8c84a;
   --color-surface: var(--surface);
+  --color-background: var(--background);
+  --color-brand-solid: var(--brand-solid);
+  --color-brand-solid-hover: var(--brand-solid-hover);
   --color-surface-elevated: var(--surface-elevated);
   --color-surface-hover: var(--surface-hover);
   --color-border: var(--border);
@@ -22,6 +25,12 @@
   --text-primary: #fafafa;
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
+  /* Page background — dark by default, matches surface. */
+  --background: #09090b;
+  /* Solid brand fill (pills, CTAs, avatars): lifted off the background
+     so it stays visible in dark mode. */
+  --brand-solid: #18181b;
+  --brand-solid-hover: #27272a;
 }
 
 html.light {
@@ -32,6 +41,10 @@ html.light {
   --text-primary: #09090b;
   --text-secondary: #52525b;
   --text-muted: #71717a;
+  /* Warm off-white so marketing pages don't read as a dark-mode app. */
+  --background: #fafaf9;
+  --brand-solid: #09090b;
+  --brand-solid-hover: #27272a;
 }
 
 * {
@@ -67,4 +80,10 @@ body {
   box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.4), 0 0 20px rgba(212, 175, 55, 0.2);
   border-radius: 8px;
   transition: box-shadow 0.3s ease;
+}
+
+/* Hero screenshot elevation on the marketing homepage (the class was
+   referenced but never defined, so the image rendered flat). */
+.bordered-shadow-card {
+  box-shadow: 0 24px 48px -24px rgb(0 0 0 / 0.35);
 }

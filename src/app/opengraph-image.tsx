@@ -94,7 +94,7 @@ export default async function OgImage() {
               fontWeight: "600",
             }}
           >
-            Free 14-Day Trial
+            One platform. Every app.
           </div>
           <div
             style={{

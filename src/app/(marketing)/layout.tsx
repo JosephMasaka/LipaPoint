@@ -38,10 +38,8 @@ export default function MarketingLayout({
             </Link>
             <Link href="/pricing" className="text-sm text-text-secondary hover:text-text-primary transition-colors">
               Pricing
-            </Link>
-            <Link href="/contact" className="text-sm text-text-secondary hover:text-text-primary transition-colors">
-              Contact
-            </Link>
+            </Link><Link href="/industries" className="text-sm text-text-secondary hover:text-text-primary transition-colors">Industries</Link>
+              <Link href="/contact" className="text-sm text-text-secondary hover:text-text-primary transition-colors">Contact</Link>
             <Link href="/demo-request" className="text-sm text-text-secondary hover:text-text-primary transition-colors">
               Request Demo
             </Link>
@@ -86,7 +84,7 @@ export default function MarketingLayout({
                 <Link href="/features" className="block text-sm text-text-muted hover:text-text-secondary">POS Features</Link>
                 <Link href="/pricing" className="block text-sm text-text-muted hover:text-text-secondary">POS Pricing</Link>
                 <Link href="/demo-request" className="block text-sm text-text-muted hover:text-text-secondary">Request Free Demo</Link>
-                <Link href="/register" className="block text-sm text-text-muted hover:text-text-secondary">Start Free Trial</Link>
+                <Link href="/register" className="block text-sm text-text-muted hover:text-text-secondary">Get started</Link>
               </nav>
             </div>
             <div>
@@ -98,6 +96,8 @@ export default function MarketingLayout({
                 <span className="block text-sm text-text-muted">Supermarket POS</span>
                 <span className="block text-sm text-text-muted">Pharmacy POS</span>
                 <span className="block text-sm text-text-muted">Barbershop & Salon POS</span>
+                <span className="block text-sm text-text-muted">HR & Payroll</span>
+                <span className="block text-sm text-text-muted">Asset Management</span>
               </nav>
             </div>
             <div>

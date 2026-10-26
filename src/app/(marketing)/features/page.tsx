@@ -81,10 +81,10 @@ export default function FeaturesPage() {
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-16">
           <h1 className="text-4xl font-bold text-text-primary mb-4">
-            Powerful Features for Modern Businesses
+            ERP Features for Modern Businesses
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
-            Everything you need to run, manage, and grow your business — all in one platform.
+            A complete ERP system for Kenyan businesses — point of sale, inventory, payroll, accounting, eTIMS compliance and more.
           </p>
         </div>
 
@@ -120,7 +120,7 @@ export default function FeaturesPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/register">
               <Button size="lg">
-                Start Free Trial <ArrowRight className="h-4 w-4" />
+                Get started <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
             <Link href="/demo-request">

@@ -20,7 +20,10 @@ model PendingSignup {
   amount          Float
   couponCode      String?
   resellerCode    String?
-  status          String           @default("PENDING")
+  // Odoo-style onboarding: apps chosen before account creation, applied
+  // when payment completes (module keys, e.g. ["pos","inventory"]).
+  selectedApps    String[]         @default([])
+  status           String           @default("PENDING")
   failureReason   String?
   transactionId   String?
   completionToken String           @unique

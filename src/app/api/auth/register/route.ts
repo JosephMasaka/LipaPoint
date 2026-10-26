@@ -11,6 +11,7 @@ import {
   resolveResellerCode,
   validateCouponCode,
 } from "@/lib/coupons";
+import { MODULE_KEYS } from "@/lib/modules";
 
 const VALID_BUSINESS_TYPES = [
   "RETAIL",
@@ -39,11 +40,19 @@ const PENDING_SIGNUP_TTL_MS = 30 * 60 * 1000; // 30 minutes
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { businessName, businessType, plan, ownerName, email, phone, password, couponCode, resellerCode } = body;
+    const { businessName, businessType, plan, ownerName, email, phone, password, couponCode, resellerCode, selectedApps } = body;
 
     if (!businessName || !businessType || !ownerName || !email || !phone || !password) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
     }
+
+    // Odoo-style onboarding: the apps chosen up front become the tenant's
+    // initial module configuration once payment completes.
+    const apps: string[] = Array.isArray(selectedApps)
+      ? [...new Set(selectedApps.filter((k: unknown) =>
+          typeof k === "string" && (MODULE_KEYS as readonly string[]).includes(k)
+        ))]
+      : [];
 
     if (password.length < 8) {
       return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
@@ -143,6 +152,7 @@ export async function POST(request: NextRequest) {
         amount,
         couponCode: wantsCoupon ? couponCode.trim().toUpperCase().replace(/\s+/g, "") : null,
         resellerCode: appliedResellerCode,
+        selectedApps: apps,
         status: "PENDING",
         completionToken,
         expiresAt: new Date(Date.now() + PENDING_SIGNUP_TTL_MS),

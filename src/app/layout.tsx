@@ -34,7 +34,7 @@ export const metadata: Metadata = {
     template: "%s | LipaPoint POS Kenya",
   },
   description:
-    "Kenya's leading Point of Sale system. M-Pesa integration, inventory management, real-time analytics, staff tracking & multi-location support. Free 14-day trial.",
+    "Kenya's leading Point of Sale system. M-Pesa integration, inventory management, real-time analytics, staff tracking & multi-location support. No setup fees.",
   keywords: [
     "POS system Kenya",
     "point of sale Kenya",
@@ -83,7 +83,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "LipaPoint — #1 POS System for Kenyan Businesses",
     description:
-      "All-in-one POS with M-Pesa, inventory, analytics & staff management. Free trial.",
+      "All-in-one POS with M-Pesa, inventory, analytics & staff management. No setup fees. Cancel anytime.",
     images: ["/og-image.png"],
   },
   robots: {
