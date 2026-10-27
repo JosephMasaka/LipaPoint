@@ -454,129 +454,133 @@ export default function DashboardModulesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="border-b border-border bg-surface/80 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-4 pt-12 lg:pt-5 shrink-0 sticky top-0 z-10 mb-0">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary">Apps</h1>
-          <p className="text-text-secondary">
+          <h1 className="text-2xl font-bold text-text-primary">LipaPoint Apps</h1>
+          <p className="mt-0.5 text-xs sm:text-sm text-text-secondary">
             Every app your business runs on — switch apps on or off, then open one to pick the
             individual features you actually pay for, like Payroll without the rest of HR.
           </p>
         </div>
+        
+      </div>
+
+      <div class="p-4 sm:p-6 lg:p-8 space-y-6">
         <Button asChild>
           <Link href="/dashboard">
             <LayoutDashboard className="h-4 w-4 mr-2" />
-            Back to dashboard
+              Back to dashboard
           </Link>
         </Button>
+
+        {error && modules.length > 0 && (
+          <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+        {info && !error && (
+          <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-500">
+            {info}
+          </div>
+        )}
+
+        {loading ? (
+          <Card>
+            <CardContent className="flex items-center justify-center py-12">
+              <Loader size="lg" label="Loading apps..." />
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {commerceApps.length > 0 && (
+              <div>
+                <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-text-muted">
+                  Commerce apps
+                </p>
+                <div className="grid gap-6 sm:grid-cols-2">{commerceApps.map(renderAppCard)}</div>
+              </div>
+            )}
+            {backofficeApps.length > 0 && (
+              <div>
+                <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-text-muted">
+                  Back-office apps
+                </p>
+                <div className="grid gap-6 sm:grid-cols-2">{backofficeApps.map(renderAppCard)}</div>
+              </div>
+            )}
+
+            {apps.length === 0 && modules.length > 0 && (
+              <div className="grid gap-6 sm:grid-cols-2">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5 text-sky-500" />
+                      Commerce apps
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1">
+                      {modules.filter((m) => m.group === "commerce").map((m) => renderRow(m, []))}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Boxes className="h-5 w-5 text-emerald-500" />
+                      Back-office apps
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-1">
+                      {modules.filter((m) => m.group === "backoffice").map((m) => renderRow(m, []))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {pendingChange && (
+              <Card className="border-amber-500/20 bg-amber-500/5">
+                <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-4">
+                  <div>
+                    <p className="font-medium text-text-primary">
+                      {pendingChange.action === "grant" ? "Turn this app on?" : "Turn this app off?"}
+                    </p>
+                    <p className="text-sm text-text-secondary">
+                      {pendingChange.module.label} will be{" "}
+                      {pendingChange.action === "grant" ? "enabled" : "disabled"}
+                      {pendingChange.action === "grant" &&
+                      pendingChange.module.requires.length > 0
+                        ? ` — ${pendingChange.module.requires.join(", ")} will be enabled with it.`
+                        : "."}
+                      {pendingChange.action === "revoke" &&
+                      " — its features switch off with it, but your choices are remembered."}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setPendingChange(null)}
+                      disabled={busy}
+                    >
+                      <X className="h-4 w-4 mr-1.5" />
+                      Cancel
+                    </Button>
+                    <Button size="sm" onClick={confirmChange} className="gap-2" disabled={busy}>
+                      <Save className="h-4 w-4" />
+                      {busy
+                        ? "Saving..."
+                        : `Confirm ${pendingChange.action === "grant" ? "Enable" : "Disable"}`}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
       </div>
-
-      {error && modules.length > 0 && (
-        <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-          {error}
-        </div>
-      )}
-      {info && !error && (
-        <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-500">
-          {info}
-        </div>
-      )}
-
-      {loading ? (
-        <Card>
-          <CardContent className="flex items-center justify-center py-12">
-            <Loader size="lg" label="Loading apps..." />
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {commerceApps.length > 0 && (
-            <div>
-              <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-text-muted">
-                Commerce apps
-              </p>
-              <div className="grid gap-6 sm:grid-cols-2">{commerceApps.map(renderAppCard)}</div>
-            </div>
-          )}
-          {backofficeApps.length > 0 && (
-            <div>
-              <p className="mb-3 text-[11px] font-medium uppercase tracking-widest text-text-muted">
-                Back-office apps
-              </p>
-              <div className="grid gap-6 sm:grid-cols-2">{backofficeApps.map(renderAppCard)}</div>
-            </div>
-          )}
-
-          {apps.length === 0 && modules.length > 0 && (
-            <div className="grid gap-6 sm:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Package className="h-5 w-5 text-sky-500" />
-                    Commerce apps
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1">
-                    {modules.filter((m) => m.group === "commerce").map((m) => renderRow(m, []))}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Boxes className="h-5 w-5 text-emerald-500" />
-                    Back-office apps
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-1">
-                    {modules.filter((m) => m.group === "backoffice").map((m) => renderRow(m, []))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
-          {pendingChange && (
-            <Card className="border-amber-500/20 bg-amber-500/5">
-              <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between py-4">
-                <div>
-                  <p className="font-medium text-text-primary">
-                    {pendingChange.action === "grant" ? "Turn this app on?" : "Turn this app off?"}
-                  </p>
-                  <p className="text-sm text-text-secondary">
-                    {pendingChange.module.label} will be{" "}
-                    {pendingChange.action === "grant" ? "enabled" : "disabled"}
-                    {pendingChange.action === "grant" &&
-                    pendingChange.module.requires.length > 0
-                      ? ` — ${pendingChange.module.requires.join(", ")} will be enabled with it.`
-                      : "."}
-                    {pendingChange.action === "revoke" &&
-                    " — its features switch off with it, but your choices are remembered."}
-                  </p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPendingChange(null)}
-                    disabled={busy}
-                  >
-                    <X className="h-4 w-4 mr-1.5" />
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={confirmChange} className="gap-2" disabled={busy}>
-                    <Save className="h-4 w-4" />
-                    {busy
-                      ? "Saving..."
-                      : `Confirm ${pendingChange.action === "grant" ? "Enable" : "Disable"}`}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </>
-      )}
     </div>
   );
 }

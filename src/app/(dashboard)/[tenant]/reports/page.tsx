@@ -179,7 +179,7 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border bg-surface/80 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-4 pt-12 lg:pt-5 shrink-0 sticky top-0 z-10">
         <div>
           <h1 className="text-2xl font-bold text-text-primary">Reports</h1>
           <p className="text-sm text-text-secondary mt-1">
@@ -201,6 +201,7 @@ export default function ReportsPage() {
         )}
       </div>
 
+      <div class="p-4 sm:p-6 lg:p-8 space-y-6">
       {listError && (
         <Card>
           <CardContent className="p-4 text-sm text-red-400">{listError}</CardContent>
@@ -375,6 +376,7 @@ export default function ReportsPage() {
           </CardContent>
         </Card>
       )}
+      </div>
     </div>
   );
 }
