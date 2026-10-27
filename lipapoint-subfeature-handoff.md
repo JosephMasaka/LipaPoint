@@ -15,13 +15,13 @@
 
 | Item | State |
 |---|---|
-| Build stage | **Spec §9 steps 1–10 all landed, built and verified** (2026-10-27): engine, migration, all guard swaps, soft-dep degrade, vertical filter, Apps tree UI, feature-keyed nav, `FEATURE_PRICES` + the /pricing à la carte table, the §10 demo-tenant matrix, and the step-8 `offline-mode` entitlement gate. `tsc`, lint (0 errors across 92 files), `next build`, `feature-registry.check.ts`, `offline-entitlement.check.ts`, live HTTP smoke and headless-Chrome screenshots all pass. **Still open: D6 price validation before publishing, §11 marketing copy, optional offline UX polish.** |
+| Build stage | **Spec §9 steps 1–10 all landed, built and verified** (2026-10-27): engine, migration, all guard swaps, soft-dep degrade, vertical filter, Apps tree UI, feature-keyed nav, `FEATURE_PRICES` + the /pricing à la carte table, the §10 demo-tenant matrix, and the step-8 `offline-mode` entitlement gate. `tsc`, lint (0 errors across 92 files), `next build`, `feature-registry.check.ts`, `offline-entitlement.check.ts`, live HTTP smoke and headless-Chrome screenshots all pass. **Session 7 closed §11 marketing copy** (features-page granularity blurb + cross-link, pricing FAQ, metadata). **Still open: D6 price validation before publishing, optional offline UX polish.** |
 | Spec status | Received and read; §9 build order is the plan of record |
 | `src/` working tree | **Clean for this feature** — no uncommitted source edits relating to granularity (only the previous session's work, already committed) |
 | Repo baseline | HEAD `e89c636` "updated registration/onboarding, added HR and payroll, added finance and procurement, added etims, added asset management, Fixed UI theme issues, other simple mods" (2026-10-27 01:43) |
 | Untracked / uncommitted | 7 deleted spec docs (`lipapoint-erp-spec*.md`, `lipapoint-reports-spec.md`, gap analyses, `report-engine.spec-check.md`, `lipapoint-reports-gap-analysis.xlsx`), plus `LipaPoint-Session-Change-Report.docx`, `lipapoint-erp-saas-ui.skill.md`, `lipapoint-subfeature-granularity-spec.md`, this file |
 | Prior session record | `LipaPoint-Session-Change-Report.docx` — the Oct 26–27 session (theme fixes, `/api/modules`, Apps screen, reports UI, Odoo onboarding, app switcher, `/industries`) |
-| First action on resume | Spec §9 is complete. Remaining: D6 price validation before publishing, §11 marketing/pricing copy, and (optional) offline queue UX polish |
+| First action on resume | Spec §9 is complete. Remaining: D6 price validation before publishing (product call) and (optional) offline queue UX polish |
 
 ### Extra requirements added by the user mid-session (not in the spec)
 
@@ -443,3 +443,20 @@ Post-build (same day): **0** `requireUserWithModule("…")` call sites, 2 sessio
   `feature-registry.check.ts` + `offline-entitlement.check.ts` green, `/pricing` 200 with the new
   section, `/api/features` entitlement differing correctly per tenant. Server stopped, temp files
   removed; `shot-pricing-alacarte.png` added to the screenshots kept for reference.
+- **2026-10-27 (session 7)** — **Followups: §11 marketing copy, live E2E guard matrix.**
+  1. **§11 marketing copy (last non-D6 open item):** `/features` gained a granularity line under
+     the hero ("Every capability below is its own switch…") plus a gold cross-link banner to the
+     pricing page's feature prices; `/pricing` metadata description now mentions à la carte
+     purchase, the hero subtitle reads "Start with one app — or just one feature inside it", and
+     a three-card FAQ answers "Can I buy just one app?", "Can I buy just part of an app?" (with
+     Payroll-only example) and "What is always included?" (the 7 free core features). Copy only —
+     it is now truthful because the entitlement engine ships.
+  2. **Live E2E guard matrix** (dev server, real cookies, `next start` on :3000): logged in as
+     `demo-finance-hr` → 200 on `finance/accounts`, `bank-accounts`, `credit-notes`,
+     `hr/employees`, `hr/leave`; 403 with the correct feature key on `hr/loans`
+     (`loans-advances`), `purchase-orders`, `products` (`stock-tracking-basic`), `customers`
+     (`customer-records`), `assets` (`asset-register`). `demo-assets-only` → 200 on `assets` and
+     `assets/depreciation`, 403 on `finance/accounts`, `hr/employees`, `suppliers`, `products`.
+     Matches `prisma/seed.demo-tenants.ts`'s `FINANCE_HR` / `ASSETS_ONLY` expected sets exactly.
+  Verified: `tsc` clean (temp script removed), 0 lint errors on the 3 changed marketing files,
+  `/pricing` and `/features` 200 with the new copy present in the served HTML.

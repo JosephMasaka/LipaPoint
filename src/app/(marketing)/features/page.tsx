@@ -86,6 +86,21 @@ export default function FeaturesPage() {
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
             A complete ERP system for Kenyan businesses — point of sale, inventory, payroll, accounting, eTIMS compliance and more.
           </p>
+          <p className="mt-4 text-sm text-text-muted max-w-2xl mx-auto">
+            Every capability below is its own switch: start with one app, then add
+            single features — Payroll without the rest of HR, Kitchen Display
+            without a full restaurant bundle.
+          </p>
+        </div>
+
+        <div className="mb-4 flex flex-col sm:flex-row items-center justify-center gap-3 rounded-2xl border border-gold/25 bg-gold/5 px-6 py-4 text-center">
+          <p className="text-sm text-text-secondary">
+            Want just one part of an app? Feature-level pricing is listed on our
+            pricing page.
+          </p>
+          <Link href="/pricing" className="text-sm font-medium text-gold hover:underline shrink-0">
+            See individual feature prices →
+          </Link>
         </div>
 
         {featureGroups.map((group, i) => (

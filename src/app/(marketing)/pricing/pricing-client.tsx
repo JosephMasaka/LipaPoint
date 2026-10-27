@@ -48,7 +48,8 @@ export function PricingClient() {
             Simple, Transparent Pricing
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
-            No setup fees. No hidden charges. Cancel anytime.
+            No setup fees. No hidden charges. Cancel anytime. Start with one app —
+            or just one feature inside it.
           </p>
           {/*<div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
             <Check className="h-4 w-4 text-emerald-400" />
@@ -257,6 +258,46 @@ export function PricingClient() {
             Suppliers, Asset Register and Customer Records — are always included
             with their app at no extra charge.
           </p>
+        </div>
+
+        {/* FAQ — answers the two questions this granularity exists to settle
+            (skill §7 / sub-feature spec §11). */}
+        <div className="mt-20">
+          <h2 className="text-2xl font-bold text-text-primary text-center mb-8">
+            Questions about buying less than everything
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="rounded-2xl border border-border bg-surface-elevated p-6">
+              <h3 className="font-semibold text-text-primary mb-2">
+                Can I buy just one app?
+              </h3>
+              <p className="text-sm text-text-secondary">
+                Yes. Every app stands alone — a shop can run Point of Sale and
+                Inventory with no accounting, and a services business can run
+                Finance and Payroll with no POS at all.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-gold/30 bg-gold/5 p-6">
+              <h3 className="font-semibold text-text-primary mb-2">
+                Can I buy just part of an app?
+              </h3>
+              <p className="text-sm text-text-secondary">
+                Yes — features are switched on individually from your Apps screen.
+                Take Payroll and Employee Records and leave Attendance, Leave and
+                Recruitment off; each add-on price is listed above.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border bg-surface-elevated p-6">
+              <h3 className="font-semibold text-text-primary mb-2">
+                What is always included?
+              </h3>
+              <p className="text-sm text-text-secondary">
+                The core of every app is free with the app itself: the Till, Stock
+                Tracking, Employee Records, General Ledger, Suppliers, Asset
+                Register and Customer Records.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Hardware Add-ons */}
