@@ -8,7 +8,7 @@ import { usePWA } from "@/components/pwa-provider";
 
 import { Logo } from "@/components/logo";
 import { getBusinessCategory, canAccessFeature, type BusinessCategory } from "@/lib/plans";
-import type { ModuleKey } from "@/lib/module-registry";
+import type { FeatureKey, ModuleKey } from "@/lib/module-registry";
 import { APPS, appsFromModules, type AppId } from "@/lib/apps";
 import { useState, useEffect } from "react";
 
@@ -32,6 +32,8 @@ interface SidebarProps {
   user: { name: string; role: string; tenant: { name: string; tier: string; type: string } };
   /** Enabled ERP module keys for this tenant (from the dashboard layout). */
   modules: string[];
+  /** Enabled sub-feature keys (spec §8) — nav items carry `featureKey`. */
+  features: string[];
 }
 
 interface NavItem {
@@ -40,6 +42,9 @@ interface NavItem {
   href: string;
   roles: string[];
   feature: string | null;
+  /** Gate on an enabled sub-feature (TenantFeature, spec §8) — the granular
+   *  switch the Apps screen exposes, e.g. Payroll without Attendance. */
+  featureKey?: FeatureKey;
   /** Gate on an enabled ERP module (TenantModule) instead of a plan feature. */
   module?: ModuleKey;
   /** Odoo-style app section this link lives under (see SIDEBAR_SECTIONS). */
@@ -48,52 +53,52 @@ interface NavItem {
 
 const baseNavItems: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "STOCK_KEEPER", "KITCHEN"], feature: null, app: "home" },
-  { icon: ShoppingCart, label: "Point of Sale", href: "/pos", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
-  { icon: ClipboardList, label: "Orders", href: "/orders", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "KITCHEN"], feature: null, module: "pos", app: "pos" },
+  { icon: ShoppingCart, label: "Point of Sale", featureKey: "core-till", href: "/pos", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
+  { icon: ClipboardList, label: "Orders", featureKey: "core-till", href: "/orders", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "KITCHEN"], feature: null, module: "pos", app: "pos" },
 ];
 
 const categoryNavItems: Record<BusinessCategory, NavItem[]> = {
   RETAIL_GENERAL: [
-    { icon: Clock, label: "Tabs", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
-    { icon: Package, label: "Inventory", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"], feature: null, module: "inventory", app: "pos" },
-    { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
+    { icon: Clock, label: "Tabs", featureKey: "core-till", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
+    { icon: Package, label: "Inventory", featureKey: "stock-tracking-basic", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"], feature: null, module: "inventory", app: "pos" },
+    { icon: Receipt, label: "Transactions", featureKey: "core-till", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
   ],
   RESTAURANT_HOSPITALITY: [
-    { icon: Clock, label: "Tabs", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
-    { icon: UtensilsCrossed, label: "Tables", href: "/tables", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "table-management", module: "pos", app: "pos" },
-    { icon: BookOpen, label: "Menu", href: "/menu", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "menu-management", module: "pos", app: "pos" },
-    { icon: ChefHat, label: "Kitchen Display", href: "/kitchen", roles: ["OWNER", "ADMIN", "MANAGER", "KITCHEN"], feature: "kitchen-display", module: "pos", app: "pos" },
-    { icon: Package, label: "Inventory", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"], feature: null, module: "inventory", app: "pos" },
-    { icon: Globe, label: "Online Ordering", href: "/online-ordering", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "online-ordering", module: "pos", app: "pos" },
-    { icon: Truck, label: "Delivery", href: "/delivery", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "delivery-management", module: "pos", app: "pos" },
-    { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
+    { icon: Clock, label: "Tabs", featureKey: "core-till", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
+    { icon: UtensilsCrossed, label: "Tables", featureKey: "table-management", href: "/tables", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "table-management", module: "pos", app: "pos" },
+    { icon: BookOpen, label: "Menu", featureKey: "menu-management", href: "/menu", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "menu-management", module: "pos", app: "pos" },
+    { icon: ChefHat, label: "Kitchen Display", featureKey: "kitchen-display", href: "/kitchen", roles: ["OWNER", "ADMIN", "MANAGER", "KITCHEN"], feature: "kitchen-display", module: "pos", app: "pos" },
+    { icon: Package, label: "Inventory", featureKey: "stock-tracking-basic", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"], feature: null, module: "inventory", app: "pos" },
+    { icon: Globe, label: "Online Ordering", featureKey: "online-ordering", href: "/online-ordering", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "online-ordering", module: "pos", app: "pos" },
+    { icon: Truck, label: "Delivery", featureKey: "delivery-management", href: "/delivery", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "delivery-management", module: "pos", app: "pos" },
+    { icon: Receipt, label: "Transactions", featureKey: "core-till", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
   ],
   BARBERSHOP_SALON: [
-    { icon: Calendar, label: "Appointments", href: "/appointments", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "appointments", module: "pos", app: "pos" },
-    { icon: Scissors, label: "Services", href: "/services", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "service-catalog", module: "pos", app: "pos" },
-    { icon: ListOrdered, label: "Queue", href: "/queue", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "queue-management", module: "pos", app: "pos" },
-    { icon: CalendarDays, label: "Scheduling", href: "/scheduling", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "staff-scheduling", module: "pos", app: "pos" },
-    { icon: Receipt, label: "Transactions", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
+    { icon: Calendar, label: "Appointments", featureKey: "appointments", href: "/appointments", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "appointments", module: "pos", app: "pos" },
+    { icon: Scissors, label: "Services", featureKey: "service-catalog", href: "/services", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "service-catalog", module: "pos", app: "pos" },
+    { icon: ListOrdered, label: "Queue", featureKey: "queue-management", href: "/queue", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "queue-management", module: "pos", app: "pos" },
+    { icon: CalendarDays, label: "Scheduling", featureKey: "staff-scheduling", href: "/scheduling", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "staff-scheduling", module: "pos", app: "pos" },
+    { icon: Receipt, label: "Transactions", featureKey: "core-till", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
   ],
 };
 
 // ERP back-office links (Phase 1): shown only when the tenant's module
 // rows enable them, so a pure-POS customer never sees Finance/Procurement.
 const erpNavItems: NavItem[] = [
-  { icon: Truck, label: "Suppliers", href: "/suppliers", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "procurement", app: "finance" },
-  { icon: FileText, label: "Purchase Orders", href: "/purchase-orders", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "procurement", app: "finance" },
-  { icon: Landmark, label: "Banking", href: "/banking", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "finance", app: "finance" },
-  { icon: Calculator, label: "Finance", href: "/finance", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "finance", app: "finance" },
-  { icon: ShieldCheck, label: "eTIMS", href: "/etims", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "etims", app: "etims" },
-  { icon: Contact, label: "HR", href: "/hr", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll", app: "payroll" },
-  { icon: Banknote, label: "Payroll", href: "/payroll", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll", app: "payroll" },
-  { icon: Boxes, label: "Assets", href: "/assets", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "assets", app: "assets" },
+  { icon: Truck, label: "Suppliers", featureKey: "supplier-management", href: "/suppliers", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "procurement", app: "finance" },
+  { icon: FileText, label: "Purchase Orders", featureKey: "purchase-orders", href: "/purchase-orders", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "procurement", app: "finance" },
+  { icon: Landmark, label: "Banking", featureKey: "bank-reconciliation", href: "/banking", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "finance", app: "finance" },
+  { icon: Calculator, label: "Finance", featureKey: "general-ledger", href: "/finance", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "finance", app: "finance" },
+  { icon: ShieldCheck, label: "eTIMS", featureKey: "etims-submission", href: "/etims", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "etims", app: "etims" },
+  { icon: Contact, label: "HR", featureKey: "employee-records", href: "/hr", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll", app: "payroll" },
+  { icon: Banknote, label: "Payroll", featureKey: "payroll", href: "/payroll", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll", app: "payroll" },
+  { icon: Boxes, label: "Assets", featureKey: "asset-register", href: "/assets", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "assets", app: "assets" },
   { icon: BarChart3, label: "Reports", href: "/reports", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, app: "insights" },
 ];
 
 const suffixNavItems: NavItem[] = [
-  { icon: UserCircle, label: "Customers", href: "/customers", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, app: "crm" },
-  { icon: Tag, label: "Discounts", href: "/discounts", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "discounts", app: "crm" },
+  { icon: UserCircle, label: "Customers", featureKey: "customer-records", href: "/customers", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, app: "crm" },
+  { icon: Tag, label: "Discounts", featureKey: "discounts-coupons", href: "/discounts", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "discounts", app: "crm" },
   { icon: TrendingUp, label: "Analytics", href: "/analytics", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "analytics", app: "insights" },
   { icon: Users, label: "Staff", href: "/users", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, app: "admin" },
   { icon: MapPin, label: "Locations", href: "/locations", roles: ["OWNER", "ADMIN"], feature: null, app: "admin" },
@@ -125,6 +130,7 @@ function getNavSections(
   tenantType: string,
   tier: string,
   modules: string[],
+  features: string[],
   role: string
 ): SidebarSection[] {
   const category = getBusinessCategory(tenantType);
@@ -132,6 +138,7 @@ function getNavSections(
     (item) =>
       item.roles.includes(role) &&
       (!item.feature || canAccessFeature(tier, item.feature, tenantType)) &&
+      (!item.featureKey || features.includes(item.featureKey)) &&
       (!item.module || modules.includes(item.module))
   );
 
@@ -160,7 +167,7 @@ function getNavSections(
   return sections;
 }
 
-export function Sidebar({ tenantSlug, user, modules }: SidebarProps) {
+export function Sidebar({ tenantSlug, user, modules, features }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
@@ -186,7 +193,7 @@ export function Sidebar({ tenantSlug, user, modules }: SidebarProps) {
   };
 
   const { isOnline, canInstall, installApp } = usePWA();
-  const sections = getNavSections(user.tenant.type, user.tenant.tier, modules, user.role);
+  const sections = getNavSections(user.tenant.type, user.tenant.tier, modules, features, user.role);
 
   const sidebarContent = (
     <>

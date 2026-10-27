@@ -1,5 +1,5 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function PUT(
@@ -7,10 +7,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("menu-management");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     if (!["OWNER", "ADMIN", "MANAGER"].includes(user.role)) {
       return NextResponse.json(
@@ -79,10 +78,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("menu-management");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     if (!["OWNER", "ADMIN"].includes(user.role)) {
       return NextResponse.json(

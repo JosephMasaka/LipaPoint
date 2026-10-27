@@ -1,12 +1,13 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPlanLimits } from "@/lib/plans";
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireUserWithFeature("stock-tracking-basic");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     const locations = await db.location.findMany({
       where: { tenantId: user.tenantId },
@@ -26,8 +27,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireUserWithFeature("stock-tracking-basic");
+    if (auth.response) return auth.response;
+    const { user } = auth;
     if (user.role !== "OWNER" && user.role !== "ADMIN") {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
@@ -61,8 +63,9 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireUserWithFeature("stock-tracking-basic");
+    if (auth.response) return auth.response;
+    const { user } = auth;
     if (user.role !== "OWNER" && user.role !== "ADMIN") {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }

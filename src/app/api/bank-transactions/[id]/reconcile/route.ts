@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { reconcileBankTransaction } from "@/lib/bank";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * POST /api/bank-transactions/[id]/reconcile
@@ -13,7 +13,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("bank-reconciliation");
     if (auth.response) return auth.response;
     const { user } = auth;
 

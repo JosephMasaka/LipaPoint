@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createEmployee, HrError } from "@/lib/hr";
-import { requireUserWithModule, routeError, pagination } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, pagination } from "@/lib/api-guards";
 
 /**
  * GET /api/hr/employees — HR file list with per-employee overview:
@@ -11,7 +11,7 @@ import { requireUserWithModule, routeError, pagination } from "@/lib/api-guards"
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("employee-records");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest) {
 /** POST /api/hr/employees — create an employee file. Body: see hr.ts. */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("employee-records");
     if (auth.response) return auth.response;
     const { user } = auth;
 

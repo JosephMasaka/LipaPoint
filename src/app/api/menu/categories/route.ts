@@ -1,13 +1,12 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("menu-management");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     const categories = await db.category.findMany({
       where: { tenantId: user.tenantId },
@@ -33,10 +32,9 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("menu-management");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     if (!["OWNER", "ADMIN", "MANAGER"].includes(user.role)) {
       return NextResponse.json(

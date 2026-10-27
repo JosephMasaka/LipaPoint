@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createAsset, AssetError, type CreateAssetInput } from "@/lib/assets";
-import { requireUserWithModule, routeError, pagination, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, pagination, parseBody } from "@/lib/api-guards";
 
 /**
  * GET /api/assets — the register with book values plus portfolio totals
@@ -10,7 +10,7 @@ import { requireUserWithModule, routeError, pagination, parseBody } from "@/lib/
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("assets");
+    const auth = await requireUserWithFeature("asset-register");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 /** POST /api/assets — register an asset. Body: see createAsset in assets.ts. */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("assets");
+    const auth = await requireUserWithFeature("asset-register");
     if (auth.response) return auth.response;
     const { user } = auth;
 

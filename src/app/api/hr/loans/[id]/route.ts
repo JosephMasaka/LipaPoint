@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { closeLoan, HrError } from "@/lib/hr";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * PATCH /api/hr/loans/[id] — settle a loan outside payroll.
@@ -12,7 +12,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("loans-advances");
     if (auth.response) return auth.response;
     const { user } = auth;
 

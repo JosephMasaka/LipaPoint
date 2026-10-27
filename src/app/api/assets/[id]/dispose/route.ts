@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { disposeAsset, AssetError, type DisposeAssetInput } from "@/lib/assets";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * POST /api/assets/[id]/dispose — closes an asset against the GL:
@@ -16,7 +16,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("assets");
+    const auth = await requireUserWithFeature("disposal-management");
     if (auth.response) return auth.response;
     const { user } = auth;
 

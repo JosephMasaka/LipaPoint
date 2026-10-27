@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createBankAccount } from "@/lib/bank";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 export async function GET() {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("bank-reconciliation");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -48,7 +48,7 @@ export async function GET() {
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("bank-reconciliation");
     if (auth.response) return auth.response;
     const { user } = auth;
 

@@ -1,3 +1,9 @@
+import {
+  isOfflineQueueEnabled,
+  announceOfflineFeatureRequired,
+  OfflineModeRequiredError,
+} from "./offline-entitlement";
+
 const DB_NAME = "lipapoint-offline";
 const DB_VERSION = 2;
 
@@ -56,7 +62,17 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveOfflineOrder(orderData: Record<string, unknown>): Promise<number> {
+export async function saveOfflineOrder(
+  orderData: Record<string, unknown>
+): Promise<number> {
+  // The offline write queue IS the paid `offline-mode` feature (sub-feature
+  // spec §1/§9 step 8): without this tenant's entitlement, refuse the write
+  // loudly — the caller's "saved offline" toast is skipped (its await throws)
+  // and OfflineIndicator explains why, instead of giving the feature away.
+  if (!(await isOfflineQueueEnabled())) {
+    announceOfflineFeatureRequired();
+    throw new OfflineModeRequiredError();
+  }
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("offline-orders", "readwrite");
@@ -132,7 +148,14 @@ export async function getCachedSetting(key: string): Promise<unknown | null> {
 }
 
 // Offline actions (inventory, tabs)
-export async function saveOfflineAction(type: OfflineAction["type"], data: Record<string, unknown>): Promise<number> {
+export async function saveOfflineAction(
+  type: OfflineAction["type"],
+  data: Record<string, unknown>
+): Promise<number> {
+  if (!(await isOfflineQueueEnabled())) {
+    announceOfflineFeatureRequired();
+    throw new OfflineModeRequiredError();
+  }
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("offline-actions", "readwrite");

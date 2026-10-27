@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "./auth";
 import { requireModule, ModuleNotEnabledError, type ModuleKey } from "./modules";
+import { requireFeature, FeatureNotEnabledError, type FeatureKey } from "./features";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -42,6 +43,33 @@ export async function requireUserWithModule(moduleKey?: ModuleKey): Promise<
       }
       throw error;
     }
+  }
+  return { user };
+}
+
+/**
+ * Same contract as requireUserWithModule, one granularity down (sub-feature
+ * spec §3/§4): `featureKey` enforces the sub-feature gate, so a tenant that
+ * bought Payroll but not Attendance gets 403 on /api/hr/attendance rather
+ * than silently-empty data. Routes not yet decomposed keep the coarser
+ * module guard above — both stay, neither replaces the other.
+ */
+export async function requireUserWithFeature(featureKey: FeatureKey): Promise<
+  { user: SessionUser; response?: undefined } | { user?: undefined; response: NextResponse }
+> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  try {
+    await requireFeature(user.tenantId, featureKey);
+  } catch (error) {
+    if (error instanceof FeatureNotEnabledError) {
+      return {
+        response: NextResponse.json({ error: error.message }, { status: 403 }),
+      };
+    }
+    throw error;
   }
   return { user };
 }

@@ -1,5 +1,5 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 function addMinutesToTime(time: string, minutes: number): string {
@@ -12,10 +12,9 @@ function addMinutesToTime(time: string, minutes: number): string {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("appointments");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     const { searchParams } = new URL(request.url);
     const dateParam = searchParams.get("date");
@@ -62,10 +61,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("appointments");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     const body = await request.json();
     const { date, startTime, serviceId, clientName, clientPhone, staffId, notes } = body;

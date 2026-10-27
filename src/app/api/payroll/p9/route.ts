@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { p9Csv, PayrollError } from "@/lib/payroll";
-import { requireUserWithModule, routeError } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError } from "@/lib/api-guards";
 
 /**
  * GET /api/payroll/p9?year=2026 — annual P9 filing extract: per-employee
@@ -9,7 +9,7 @@ import { requireUserWithModule, routeError } from "@/lib/api-guards";
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("payroll");
     if (auth.response) return auth.response;
     const { user } = auth;
 

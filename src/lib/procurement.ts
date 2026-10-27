@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { postJournalEntry } from "./journal";
+import { hasSoftDependency } from "./features";
 import { writeAuditLog, AUDIT_ACTIONS } from "./audit";
 import type { Prisma } from "@prisma/client";
 
@@ -382,6 +383,10 @@ export async function recordSupplierInvoice(input: RecordInvoiceInput) {
     );
   }
 
+  // Soft dependency (sub-feature spec §1): supplier invoices post to the GL
+  // only while Finance's core (`general-ledger`) is active for this tenant.
+  const postToGl = await hasSoftDependency(input.tenantId, "general-ledger");
+
   return db.$transaction(async (tx) => {
     const invoice = await tx.supplierInvoice.create({
       data: {
@@ -396,24 +401,26 @@ export async function recordSupplierInvoice(input: RecordInvoiceInput) {
       },
     });
 
-    const entry = await postJournalEntry(
-      {
-        tenantId: input.tenantId,
-        reference: `SI-${invoice.id.slice(-6).toUpperCase()}`,
-        sourceModule: "procurement",
-        sourceId: invoice.id,
-        description: `Supplier invoice ${input.invoiceNumber}`,
-        lines: [
-          { accountCode: "1200", debit: input.amount, description: "Inventory received" },
-          { accountCode: "2000", credit: input.amount, description: `AP — ${input.invoiceNumber}` },
-        ],
-      },
-      tx
-    );
+    const entry = postToGl
+      ? await postJournalEntry(
+          {
+            tenantId: input.tenantId,
+            reference: `SI-${invoice.id.slice(-6).toUpperCase()}`,
+            sourceModule: "procurement",
+            sourceId: invoice.id,
+            description: `Supplier invoice ${input.invoiceNumber}`,
+            lines: [
+              { accountCode: "1200", debit: input.amount, description: "Inventory received" },
+              { accountCode: "2000", credit: input.amount, description: `AP — ${input.invoiceNumber}` },
+            ],
+          },
+          tx
+        )
+      : null;
 
     const updated = await tx.supplierInvoice.update({
       where: { id: invoice.id },
-      data: { journalEntryId: entry.id },
+      data: { journalEntryId: entry?.id ?? null },
       include: { supplier: { select: { name: true } }, purchaseOrder: true },
     });
 
@@ -495,6 +502,10 @@ export async function recordSupplierPayment(input: RecordPaymentInput) {
     }
   }
 
+  // Soft dependency (sub-feature spec §1): supplier payments post to the GL
+  // only while Finance's core (`general-ledger`) is active for this tenant.
+  const postToGl = await hasSoftDependency(input.tenantId, "general-ledger");
+
   return db.$transaction(async (tx) => {
     const payment = await tx.supplierPayment.create({
       data: {
@@ -510,25 +521,27 @@ export async function recordSupplierPayment(input: RecordPaymentInput) {
       },
     });
 
-    const entry = await postJournalEntry(
-      {
-        tenantId: input.tenantId,
-        reference: `PAY-${payment.id.slice(-6).toUpperCase()}`,
-        sourceModule: "procurement",
-        sourceId: payment.id,
-        description: `Supplier payment${invoice ? ` against ${invoice.invoiceNumber}` : ""}`,
-        postedBy: input.createdBy ?? null,
-        lines: [
-          { accountCode: "2000", debit: input.amount, description: "AP settled" },
-          { accountCode: creditAccountCode, credit: input.amount, description: `Paid via ${input.method}` },
-        ],
-      },
-      tx
-    );
+    const entry = postToGl
+      ? await postJournalEntry(
+          {
+            tenantId: input.tenantId,
+            reference: `PAY-${payment.id.slice(-6).toUpperCase()}`,
+            sourceModule: "procurement",
+            sourceId: payment.id,
+            description: `Supplier payment${invoice ? ` against ${invoice.invoiceNumber}` : ""}`,
+            postedBy: input.createdBy ?? null,
+            lines: [
+              { accountCode: "2000", debit: input.amount, description: "AP settled" },
+              { accountCode: creditAccountCode, credit: input.amount, description: `Paid via ${input.method}` },
+            ],
+          },
+          tx
+        )
+      : null;
 
     await tx.supplierPayment.update({
       where: { id: payment.id },
-      data: { journalEntryId: entry.id },
+      data: { journalEntryId: entry?.id ?? null },
     });
 
     await tx.supplier.update({
@@ -562,7 +575,7 @@ export async function recordSupplierPayment(input: RecordPaymentInput) {
       after: { amount: input.amount, method: input.method, creditAccountCode },
     }, tx);
 
-    return { payment, journalEntryId: entry.id };
+    return { payment, journalEntryId: entry?.id ?? null };
     },
     { timeout: 20000 }
   );

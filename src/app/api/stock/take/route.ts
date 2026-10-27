@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 import { writeAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 
 /**
@@ -15,7 +15,7 @@ import { writeAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("inventory");
+    const auth = await requireUserWithFeature("physical-stock-take");
     if (auth.response) return auth.response;
     const { user } = auth;
 

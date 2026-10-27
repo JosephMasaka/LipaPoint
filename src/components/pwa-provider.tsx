@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { WifiOff, Download, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { syncOfflineOrders, syncOfflineActions, getOfflineOrders, getOfflineActions, getPendingCount } from "@/lib/offline-db";
+import { refreshOfflineEntitlement } from "@/lib/offline-entitlement";
 
 interface PWAContextType {
   isOnline: boolean;
@@ -40,7 +41,12 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
   const deferredPrompt = useRef<BeforeInstallPromptEvent | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+    // Warm the `offline-mode` entitlement cache (sub-feature spec §9 step 8)
+    // so the offline write queue has an answer before the browser goes dark.
+    void refreshOfflineEntitlement();
+  }, []);
 
   // Online/offline detection
   useEffect(() => {

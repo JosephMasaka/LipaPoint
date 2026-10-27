@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getRatesForPeriod, ensureStatutoryRates, PayrollError, type PayeBand } from "@/lib/payroll";
 import { writeAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * GET /api/payroll/rates — the statutory rate table plus the rates
@@ -16,7 +16,7 @@ import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("payroll");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -104,7 +104,7 @@ function bad(message: string): never {
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("payroll");
     if (auth.response) return auth.response;
     const { user } = auth;
 

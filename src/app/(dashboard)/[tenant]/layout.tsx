@@ -8,6 +8,8 @@ import { AIAssistant } from "@/components/ai-assistant";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
 import { canAccessFeature } from "@/lib/plans";
 import { getEnabledModules, modulesForTier } from "@/lib/modules";
+import { getEffectiveEnabledFeatures } from "@/lib/features";
+import { FEATURE_KEYS, FEATURE_REGISTRY } from "@/lib/module-registry";
 
 export default async function DashboardLayout({
   children,
@@ -38,11 +40,21 @@ export default async function DashboardLayout({
   const modules =
     enabledModules.size > 0 ? [...enabledModules] : [...modulesForTier(user.tenant.tier)];
 
+  // Sub-feature keys (spec §8) drive the same nav: a tenant that bought
+  // Payroll without Attendance sees the Payroll link and no Attendance link.
+  // Same transitional fallback as the module list — a tenant with no feature
+  // rows yet resolves through its module entitlement, never to an empty nav.
+  const enabledFeatures = await getEffectiveEnabledFeatures(user.tenantId);
+  const features =
+    enabledFeatures.size > 0
+      ? [...enabledFeatures]
+      : FEATURE_KEYS.filter((key) => modules.includes(FEATURE_REGISTRY[key].moduleKey));
+
   return (
     <PlanProvider tenantSlug={tenantSlug}>
       <div className="min-h-screen bg-surface">
         {impersonating && <ImpersonationBanner tenantName={user.tenant.name} />}
-        <Sidebar tenantSlug={tenantSlug} user={user} modules={modules} />
+        <Sidebar tenantSlug={tenantSlug} user={user} modules={modules} features={features} />
         <DashboardMain>{children}</DashboardMain>
         <Tour />
         {showAI && <AIAssistant />}

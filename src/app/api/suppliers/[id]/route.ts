@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { writeAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("procurement");
+    const auth = await requireUserWithFeature("supplier-management");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -58,7 +58,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("procurement");
+    const auth = await requireUserWithFeature("supplier-management");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -110,7 +110,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("procurement");
+    const auth = await requireUserWithFeature("supplier-management");
     if (auth.response) return auth.response;
     const { user } = auth;
 

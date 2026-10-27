@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { updateEmployee, HrError } from "@/lib/hr";
-import { requireUserWithModule, routeError } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError } from "@/lib/api-guards";
 
 /**
  * PATCH /api/hr/employees/[id] — update fields, or archive/reactivate via
@@ -12,7 +12,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("employee-records");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -38,7 +38,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("employee-records");
     if (auth.response) return auth.response;
     const { user } = auth;
 

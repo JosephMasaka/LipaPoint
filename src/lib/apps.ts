@@ -14,9 +14,11 @@ import {
   minTierForModules,
   TIER_ORDER,
 } from "./module-registry";
-import type { ModuleKey } from "./module-registry";
+import type { AppKey, ModuleKey } from "./module-registry";
 
-export type AppId = "pos" | "crm" | "finance" | "payroll" | "assets" | "etims";
+/** Alias of the registry's AppKey so the App layer and the feature layer
+ * can never disagree about how many Apps exist. */
+export type AppId = AppKey;
 
 export interface AppDefinition {
   id: AppId;

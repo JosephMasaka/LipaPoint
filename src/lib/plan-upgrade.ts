@@ -4,6 +4,7 @@ import { sendEmail, planUpgradeEmail } from "@/lib/email";
 import { getPlanPricing } from "@/lib/plans";
 import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
 import { provisionTenantModules } from "@/lib/modules";
+import { provisionTenantFeatures } from "@/lib/features";
 
 const TIER_ORDER = ["STARTER", "PROFESSIONAL", "ENTERPRISE"];
 
@@ -70,6 +71,9 @@ export async function completeUpgradeFromTransaction(
     // ERP module entitlements are additive: re-sync TenantModule rows so
     // newly-included modules switch on without re-onboarding.
     await provisionTenantModules(tenant.id, targetTier);
+    // Sub-feature rows re-sync with them (spec §5 scope), preserving any
+    // addon/manual opt-outs the tenant made on the Apps screen.
+    await provisionTenantFeatures(tenant.id, targetTier);
 
     // Coupon use was reserved when the payment was initiated — record the
     // redemption now that the money actually moved.

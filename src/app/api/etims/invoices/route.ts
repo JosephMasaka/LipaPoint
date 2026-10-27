@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getEtimsStats } from "@/lib/etims/submission";
-import { requireUserWithModule, routeError, pagination } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, pagination } from "@/lib/api-guards";
 
 /**
  * GET /api/etims/invoices — the eTIMS submission log (spec §4.8 dashboard).
@@ -12,7 +12,7 @@ import { requireUserWithModule, routeError, pagination } from "@/lib/api-guards"
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("etims");
+    const auth = await requireUserWithFeature("etims-submission");
     if (auth.response) return auth.response;
     const { user } = auth;
 

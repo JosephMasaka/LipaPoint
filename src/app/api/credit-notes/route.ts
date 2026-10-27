@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createCreditNote, approveCreditNote } from "@/lib/credit-debit-notes";
-import { requireUserWithModule, routeError, parseBody, pagination } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody, pagination } from "@/lib/api-guards";
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("credit-debit-notes");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 /** Creates a draft credit note. Body: { customerId, amount, reason } */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("credit-debit-notes");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
 /** Approves a draft credit note — posts DR Sales / CR AR. */
 export async function PATCH(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("credit-debit-notes");
     if (auth.response) return auth.response;
     const { user } = auth;
 

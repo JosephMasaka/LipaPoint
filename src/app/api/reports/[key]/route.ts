@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireUserWithModule, routeError } from "@/lib/api-guards";
 import { canAccessFeature } from "@/lib/plans";
+import { isFeatureEnabled } from "@/lib/features";
 import { reportFeature, normalizeReportKey } from "@/lib/reports/types";
+import { reportFeatureKey, reportFeatureLabel } from "@/lib/reports/feature-map";
 import { getReportQuery } from "@/lib/reports/queries";
 
 /**
@@ -34,6 +36,20 @@ export async function GET(
     if (flag && !canAccessFeature(user.tenant.tier, flag, user.tenant.type)) {
       return NextResponse.json(
         { error: `This report requires the "${flag}" feature on your plan` },
+        { status: 403 }
+      );
+    }
+
+    // Sub-feature gate (handoff D2/R1): the catalog list stays complete, so a
+    // report the tenant's features don't cover is listed but answers with a
+    // friendly 403 naming the feature to switch on — never a silent removal.
+    const featureKey = reportFeatureKey(def.key);
+    if (featureKey && !(await isFeatureEnabled(user.tenantId, featureKey))) {
+      return NextResponse.json(
+        {
+          error: `Enable "${reportFeatureLabel(def.key)}" to run this report`,
+          feature: featureKey,
+        },
         { status: 403 }
       );
     }

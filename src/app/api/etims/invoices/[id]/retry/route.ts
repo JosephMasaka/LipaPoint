@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { retryEtimsInvoice, EtimsError } from "@/lib/etims/submission";
-import { requireUserWithModule, routeError } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError } from "@/lib/api-guards";
 
 /**
  * POST /api/etims/invoices/[id]/retry — resubmit one pending/rejected
@@ -12,7 +12,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("etims");
+    const auth = await requireUserWithFeature("etims-submission");
     if (auth.response) return auth.response;
     const { user } = auth;
 

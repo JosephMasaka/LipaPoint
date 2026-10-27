@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { receiveGoods } from "@/lib/procurement";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * POST /api/purchase-orders/[id]/receive
@@ -13,7 +13,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("procurement");
+    const auth = await requireUserWithFeature("purchase-orders");
     if (auth.response) return auth.response;
     const { user } = auth;
 

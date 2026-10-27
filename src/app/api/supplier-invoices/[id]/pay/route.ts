@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recordSupplierPayment, ProcurementError } from "@/lib/procurement";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * POST /api/supplier-invoices/[id]/pay
@@ -13,7 +13,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("procurement");
+    const auth = await requireUserWithFeature("supplier-invoicing");
     if (auth.response) return auth.response;
     const { user } = auth;
 

@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { postJournalEntry } from "./journal";
+import { hasSoftDependency } from "./features";
 import { writeAuditLog, AUDIT_ACTIONS } from "./audit";
 
 /**
@@ -309,22 +310,29 @@ export async function runDepreciation(input: RunDepreciationInput) {
 
   const total = toCents(plan.reduce((sum, row) => sum + row.amount, 0));
 
+  // Soft dependency (sub-feature spec §1): depreciation reaches the GL only
+  // while Finance's core (`general-ledger`) is active — otherwise the book
+  // values still move and the period simply isn't journalised.
+  const postToGl = await hasSoftDependency(input.tenantId, "general-ledger");
+
   const result = await db.$transaction(async (tx) => {
-    const entry = await postJournalEntry(
-      {
-        tenantId: input.tenantId,
-        date: start,
-        reference: `DEP-${input.period}`,
-        sourceModule: "assets",
-        description: `Depreciation ${input.period} — ${plan.length} asset${plan.length === 1 ? "" : "s"}`,
-        postedBy: input.userId ?? null,
-        lines: [
-          { accountCode: "6500", debit: total, description: `Depreciation expense ${input.period}` },
-          { accountCode: "1510", credit: total, description: "Accumulated depreciation" },
-        ],
-      },
-      tx
-    );
+    const entry = postToGl
+      ? await postJournalEntry(
+          {
+            tenantId: input.tenantId,
+            date: start,
+            reference: `DEP-${input.period}`,
+            sourceModule: "assets",
+            description: `Depreciation ${input.period} — ${plan.length} asset${plan.length === 1 ? "" : "s"}`,
+            postedBy: input.userId ?? null,
+            lines: [
+              { accountCode: "6500", debit: total, description: `Depreciation expense ${input.period}` },
+              { accountCode: "1510", credit: total, description: "Accumulated depreciation" },
+            ],
+          },
+          tx
+        )
+      : null;
 
     for (const { asset, amount } of plan) {
       const bookValueAfter = toCents(asset.purchaseCost - (asset.accumulatedDepreciation + amount));
@@ -335,7 +343,7 @@ export async function runDepreciation(input: RunDepreciationInput) {
           period: input.period,
           amount,
           bookValueAfter,
-          journalEntryId: entry.id,
+          journalEntryId: entry?.id ?? null,
         },
       });
       await tx.asset.update({
@@ -353,15 +361,15 @@ export async function runDepreciation(input: RunDepreciationInput) {
     action: AUDIT_ACTIONS.ASSETS.DEPRECIATION_RUN,
     module: "assets",
     entity: "depreciationRun",
-    entityId: result.entry.id,
-    after: { period: input.period, assets: result.count, total, journalEntryId: result.entry.id },
+    entityId: result.entry?.id ?? `${input.tenantId}:${input.period}`,
+    after: { period: input.period, assets: result.count, total, journalEntryId: result.entry?.id ?? null },
   });
 
   return {
     period: input.period,
     count: result.count,
     total,
-    journalEntryId: result.entry.id,
+    journalEntryId: result.entry?.id ?? null,
   };
 }
 
@@ -424,19 +432,26 @@ export async function disposeAsset(input: DisposeAssetInput) {
 
   const status = input.lost ? "lost" : "disposed";
 
+  // Soft dependency (sub-feature spec §1): disposal only reaches the GL while
+  // Finance's core (`general-ledger`) is active — the asset still closes and
+  // the audit log still records the gain/loss, just without a journal entry.
+  const postToGl = await hasSoftDependency(input.tenantId, "general-ledger");
+
   const entry = await db.$transaction(async (tx) => {
-    const created = await postJournalEntry(
-      {
-        tenantId: input.tenantId,
-        reference: `DISP-${asset.assetCode}`,
-        sourceModule: "assets",
-        sourceId: asset.id,
-        description: `${input.lost ? "Write-off" : "Disposal"} — ${asset.name} (book value ${bookValue})`,
-        postedBy: input.userId ?? null,
-        lines,
-      },
-      tx
-    );
+    const created = postToGl
+      ? await postJournalEntry(
+          {
+            tenantId: input.tenantId,
+            reference: `DISP-${asset.assetCode}`,
+            sourceModule: "assets",
+            sourceId: asset.id,
+            description: `${input.lost ? "Write-off" : "Disposal"} — ${asset.name} (book value ${bookValue})`,
+            postedBy: input.userId ?? null,
+            lines,
+          },
+          tx
+        )
+      : null;
     await tx.asset.update({
       where: { id: asset.id },
       data: {
@@ -456,10 +471,10 @@ export async function disposeAsset(input: DisposeAssetInput) {
     entity: "asset",
     entityId: asset.id,
     before: { status: asset.lifecycleStatus, bookValue, accumulated: accum },
-    after: { status, proceeds, gain, journalEntryId: entry.id },
+    after: { status, proceeds, gain, journalEntryId: entry?.id ?? null },
   });
 
-  return { asset: { id: asset.id, lifecycleStatus: status }, journalEntryId: entry.id, bookValue, proceeds, gain };
+  return { asset: { id: asset.id, lifecycleStatus: status }, journalEntryId: entry?.id ?? null, bookValue, proceeds, gain };
 }
 
 export interface RecordMaintenanceInput {

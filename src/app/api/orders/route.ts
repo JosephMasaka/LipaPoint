@@ -1,15 +1,14 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { generateOrderNo } from "@/lib/utils";
 import { submitOrderForEtims } from "@/lib/etims/submission";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("core-till");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     const { searchParams } = request.nextUrl;
     const status = searchParams.get("status") || "";
@@ -59,10 +58,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("core-till");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     const tenant = await db.tenant.findUnique({ where: { id: user.tenantId }, select: { trialEndsAt: true, isActive: true } });
     if (tenant?.trialEndsAt && new Date() > tenant.trialEndsAt && !tenant.isActive) {

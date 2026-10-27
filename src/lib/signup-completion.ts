@@ -3,6 +3,7 @@ import { sendEmail, welcomeEmail } from "@/lib/email";
 import { getPlanPricing } from "@/lib/plans";
 import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
 import { provisionTenantModules, modulesForTier, expandModuleSet, MODULE_KEYS } from "@/lib/modules";
+import { provisionTenantFeatures } from "@/lib/features";
 import { seedChartOfAccounts } from "@/lib/coa";
 import { ensureReportCatalog } from "@/lib/report-catalog";
 
@@ -135,6 +136,10 @@ export async function completeSignupFromTransaction(
     // ERP Phase 0 foundation: grant tier-entitled modules and seed the
     // default chart of accounts so Finance has somewhere to post from day one.
     await provisionTenantModules(tenant.id, tenant.tier);
+    // Sub-feature rows follow the same tier scope (spec §5 generosity: a
+    // tier grants every feature of every module it entitles), so feature
+    // checks agree with module checks from day one.
+    await provisionTenantFeatures(tenant.id, tenant.tier);
     // Odoo-style install semantics: only the apps picked during onboarding
     // stay switched on. Entitled-but-unselected modules are recorded as an
     // explicit opt-out (source "manual") so the monthly tier re-sync doesn't
@@ -150,6 +155,13 @@ export async function completeSignupFromTransaction(
       if (toDisable.length > 0) {
         await db.tenantModule.updateMany({
           where: { tenantId: tenant.id, moduleKey: { in: [...toDisable] }, source: "tier" },
+          data: { enabled: false, enabledAt: null, source: "manual" },
+        });
+        // Feature rows mirror the opt-out (core rows included — an unselected
+        // app is off entirely), or the rollup would still read those apps as
+        // active from feature rows alone.
+        await db.tenantFeature.updateMany({
+          where: { tenantId: tenant.id, moduleKey: { in: [...toDisable] } },
           data: { enabled: false, enabledAt: null, source: "manual" },
         });
       }

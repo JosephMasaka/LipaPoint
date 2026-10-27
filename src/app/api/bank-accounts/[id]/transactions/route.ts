@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recordBankTransaction } from "@/lib/bank";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("bank-reconciliation");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -51,7 +51,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("bank-reconciliation");
     if (auth.response) return auth.response;
     const { user } = auth;
 

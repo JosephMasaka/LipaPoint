@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEtimsStats, getVatReconciliation } from "@/lib/etims/submission";
-import { requireUserWithModule, routeError } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError } from "@/lib/api-guards";
 
 /**
  * GET /api/etims/summary — compliance dashboard data (spec §4.8):
@@ -11,7 +11,7 @@ import { requireUserWithModule, routeError } from "@/lib/api-guards";
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("etims");
+    const auth = await requireUserWithFeature("etims-compliance-dashboard");
     if (auth.response) return auth.response;
     const { user } = auth;
 

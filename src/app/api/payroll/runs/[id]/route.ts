@@ -7,7 +7,7 @@ import {
   deletePayrollRun,
   PayrollError,
 } from "@/lib/payroll";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 async function loadRun(tenantId: string, id: string) {
   return db.payrollRun.findFirst({
@@ -41,7 +41,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("payroll");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -66,7 +66,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("payroll");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -109,7 +109,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("payroll");
     if (auth.response) return auth.response;
     const { user } = auth;
 

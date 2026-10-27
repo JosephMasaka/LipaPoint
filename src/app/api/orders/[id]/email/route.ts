@@ -1,13 +1,14 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { getCurrentUser } from "@/lib/auth";
 import { sendEmail, receiptEmail } from "@/lib/email";
 import { formatCurrency } from "@/lib/utils";
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getCurrentUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const auth = await requireUserWithFeature("core-till");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     let email: string | undefined;
     try {

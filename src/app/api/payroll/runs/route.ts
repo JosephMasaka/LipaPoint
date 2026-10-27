@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createPayrollRun, PayrollError } from "@/lib/payroll";
-import { requireUserWithModule, routeError, pagination } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, pagination } from "@/lib/api-guards";
 
 /**
  * GET /api/payroll/runs — payroll run history with payslip counts.
@@ -9,7 +9,7 @@ import { requireUserWithModule, routeError, pagination } from "@/lib/api-guards"
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("payroll");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("payroll");
     if (auth.response) return auth.response;
     const { user } = auth;
 

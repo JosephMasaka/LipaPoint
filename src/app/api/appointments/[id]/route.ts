@@ -1,5 +1,5 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 function addMinutesToTime(time: string, minutes: number): string {
@@ -15,10 +15,9 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("appointments");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     if (!["OWNER", "ADMIN", "MANAGER", "CASHIER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
@@ -104,10 +103,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("appointments");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     if (!["OWNER", "ADMIN", "MANAGER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

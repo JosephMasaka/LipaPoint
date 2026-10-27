@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { retryPendingEtims } from "@/lib/etims/submission";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * POST /api/etims/retry — bulk retry of the unreachable pile.
@@ -12,7 +12,7 @@ import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("etims");
+    const auth = await requireUserWithFeature("etims-submission");
     if (auth.response) return auth.response;
     const { user } = auth;
 

@@ -1,10 +1,11 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireUserWithFeature("core-till");
+  if (auth.response) return auth.response;
+  const { user } = auth;
 
   const tabs = await db.order.findMany({
     where: { tenantId: user.tenantId, status: "TAB" },
@@ -19,8 +20,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireUserWithFeature("core-till");
+  if (auth.response) return auth.response;
+  const { user } = auth;
 
   const body = await request.json();
   const { tabName, items, customerName, customerPhone } = body;
@@ -95,8 +97,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PUT(request: NextRequest) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireUserWithFeature("core-till");
+  if (auth.response) return auth.response;
+  const { user } = auth;
 
   const body = await request.json();
   const { orderId, items, action } = body;

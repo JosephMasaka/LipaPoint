@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createPurchaseOrder } from "@/lib/procurement";
-import { requireUserWithModule, routeError, parseBody, pagination } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody, pagination } from "@/lib/api-guards";
 
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("procurement");
+    const auth = await requireUserWithFeature("purchase-orders");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("procurement");
+    const auth = await requireUserWithFeature("purchase-orders");
     if (auth.response) return auth.response;
     const { user } = auth;
 

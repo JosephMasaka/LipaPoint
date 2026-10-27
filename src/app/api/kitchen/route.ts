@@ -1,13 +1,12 @@
+import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const auth = await requireUserWithFeature("kitchen-display");
+    if (auth.response) return auth.response;
+    const { user } = auth;
 
     const orders = await db.order.findMany({
       where: {

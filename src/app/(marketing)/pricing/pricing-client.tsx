@@ -10,8 +10,13 @@ import {
   HARDWARE_ADDONS,
   CATEGORY_DISPLAY,
   FEATURE_DISPLAY,
+  FEATURE_PRICES,
+  formatFeaturePrice,
   formatPrice,
 } from "@/lib/plans";
+import { FEATURE_KEYS, FEATURE_REGISTRY } from "@/lib/module-registry";
+import type { FeatureKey } from "@/lib/module-registry";
+import { APPS } from "@/lib/apps";
 
 const CATEGORIES: BusinessCategory[] = ["RETAIL_GENERAL", "RESTAURANT_HOSPITALITY", "BARBERSHOP_SALON"];
 
@@ -187,6 +192,71 @@ export function PricingClient() {
               </div>
             );
           })}
+        </div>
+
+        {/* À la carte features (sub-feature spec §6/§11): the next level down
+            from the tier cards — every billable sub-feature is independently
+            purchasable, and core features are the free floor. */}
+        <div className="mt-20">
+          <div className="text-center mb-10">
+            <h2 className="text-2xl font-bold text-text-primary mb-3">
+              Need just one part of an app?
+            </h2>
+            <p className="text-text-secondary max-w-xl mx-auto">
+              Every feature below can be switched on individually from the Apps
+              screen — buy Payroll without the rest of HR, or Kitchen Display
+              without a full restaurant bundle.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {APPS.map((app) => {
+              const rows = FEATURE_KEYS.filter((key) => {
+                const def = FEATURE_REGISTRY[key as FeatureKey];
+                return (
+                  def.appKey === app.id &&
+                  !def.core &&
+                  Boolean(FEATURE_PRICES[key as FeatureKey])
+                );
+              });
+              if (rows.length === 0) return null;
+
+              return (
+                <div
+                  key={app.id}
+                  className="rounded-2xl border border-border bg-surface-elevated p-6"
+                >
+                  <h3 className="font-bold text-text-primary mb-1">
+                    {app.label}
+                  </h3>
+                  <p className="text-xs text-text-muted mb-4">
+                    Add-on features · billed monthly on top of any plan
+                  </p>
+                  <ul className="space-y-2.5">
+                    {rows.map((key) => (
+                      <li
+                        key={key}
+                        className="flex items-start justify-between gap-3 text-sm"
+                      >
+                        <span className="text-text-secondary">
+                          {FEATURE_REGISTRY[key as FeatureKey].label}
+                        </span>
+                        <span className="shrink-0 font-medium text-text-primary text-right">
+                          {formatFeaturePrice(key)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+
+          <p className="mt-6 text-center text-xs text-text-muted">
+            Core features — Till, Stock Tracking, Employee Records, General Ledger,
+            Suppliers, Asset Register and Customer Records — are always included
+            with their app at no extra charge.
+          </p>
         </div>
 
         {/* Hardware Add-ons */}

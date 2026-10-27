@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireUserWithModule, routeError, pagination, Prisma } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, pagination, Prisma } from "@/lib/api-guards";
 
 /**
  * General ledger read (spec §4.3 — JournalEntry is the single source of
@@ -11,7 +11,7 @@ import { requireUserWithModule, routeError, pagination, Prisma } from "@/lib/api
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("general-ledger");
     if (auth.response) return auth.response;
     const { user } = auth;
 

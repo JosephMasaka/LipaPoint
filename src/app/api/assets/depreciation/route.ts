@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { runDepreciation, AssetError, type RunDepreciationInput } from "@/lib/assets";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * GET /api/assets/depreciation?period=2026-11 — depreciation history:
@@ -10,7 +10,7 @@ import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("assets");
+    const auth = await requireUserWithFeature("depreciation");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("assets");
+    const auth = await requireUserWithFeature("depreciation");
     if (auth.response) return auth.response;
     const { user } = auth;
 

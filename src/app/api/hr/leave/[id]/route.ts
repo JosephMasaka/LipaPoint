@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { decideLeave, HrError } from "@/lib/hr";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * PATCH /api/hr/leave/[id] — decide a pending request.
@@ -12,7 +12,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("payroll");
+    const auth = await requireUserWithFeature("leave-management");
     if (auth.response) return auth.response;
     const { user } = auth;
 

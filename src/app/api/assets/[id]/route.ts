@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { updateAsset, deleteAsset, AssetError, type UpdateAssetInput } from "@/lib/assets";
-import { requireUserWithModule, routeError, parseBody } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards";
 
 /**
  * PATCH /api/assets/[id] — edit an open asset (fields, assignment, method,
@@ -13,7 +13,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("assets");
+    const auth = await requireUserWithFeature("asset-register");
     if (auth.response) return auth.response;
     const { user } = auth;
 
@@ -38,7 +38,7 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireUserWithModule("assets");
+    const auth = await requireUserWithFeature("asset-register");
     if (auth.response) return auth.response;
     const { user } = auth;
 

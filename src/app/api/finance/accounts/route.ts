@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireUserWithModule, routeError } from "@/lib/api-guards";
+import { requireUserWithFeature, routeError } from "@/lib/api-guards";
 
 /**
  * GET /api/finance/accounts
@@ -9,7 +9,7 @@ import { requireUserWithModule, routeError } from "@/lib/api-guards";
  */
 export async function GET(request: NextRequest) {
   try {
-    const auth = await requireUserWithModule("finance");
+    const auth = await requireUserWithFeature("general-ledger");
     if (auth.response) return auth.response;
     const { user } = auth;
 

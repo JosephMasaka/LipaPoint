@@ -90,6 +90,7 @@ model Tenant {
   unitsOfMeasure   UnitOfMeasure[]
   users            User[]
   tenantModules    TenantModule[]
+  tenantFeatures   TenantFeature[]
   chartOfAccounts  ChartOfAccount[]
   journalEntries   JournalEntry[]
   bankAccounts     BankAccount[]
@@ -632,6 +633,27 @@ model TenantModule {
 
   @@unique([tenantId, moduleKey])
   @@index([tenantId])
+}
+
+// Sub-feature granularity (sub-feature spec §2): the stored entitlement is
+// the feature, not the module. TenantModule stays as a *derived rollup*
+// (see deriveActiveModules in src/lib/module-registry.ts) — never a second
+// source of truth that can drift from these rows.
+model TenantFeature {
+  id         String    @id @default(cuid())
+  tenantId   String
+  moduleKey  String    // parent module of the feature (denormalised for [tenantId, moduleKey] queries)
+  featureKey String    // sub-feature key from FEATURE_REGISTRY — unique per tenant across ALL modules
+  enabled    Boolean   @default(false)
+  source     String    @default("tier") // core | tier (re-synced on tier change) | addon | manual (survive re-syncs)
+  planTier   String?   // SubscriptionTier the entitlement was granted at ("ADDON" for paid add-ons)
+  enabledAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  tenant     Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, featureKey])
+  @@index([tenantId, moduleKey])
 }
 
 model ChartOfAccount {
