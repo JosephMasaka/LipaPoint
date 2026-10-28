@@ -3,7 +3,9 @@ import { sendEmail, welcomeEmail } from "@/lib/email";
 import { getPlanPricing } from "@/lib/plans";
 import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
 import { provisionTenantModules, modulesForTier, expandModuleSet, MODULE_KEYS } from "@/lib/modules";
-import { provisionTenantFeatures } from "@/lib/features";
+import { provisionTenantFeatures, grantFeature } from "@/lib/features";
+import { FEATURE_REGISTRY } from "@/lib/module-registry";
+import type { FeatureKey } from "@/lib/module-registry";
 import { seedChartOfAccounts } from "@/lib/coa";
 import { ensureReportCatalog } from "@/lib/report-catalog";
 
@@ -140,6 +142,39 @@ export async function completeSignupFromTransaction(
     // tier grants every feature of every module it entitles), so feature
     // checks agree with module checks from day one.
     await provisionTenantFeatures(tenant.id, tenant.tier);
+
+    // Apply granular feature selection from onboarding: enable any features
+    // the customer explicitly selected that weren't already granted by their tier.
+    // This allows customers to buy individual add-ons within an app at signup.
+    if (pending.selectedFeatures && pending.selectedFeatures.length > 0) {
+      for (const featureKey of pending.selectedFeatures) {
+        const def = FEATURE_REGISTRY[featureKey as FeatureKey];
+        if (!def) continue;
+
+        // Skip core features (always enabled when module is active)
+        if (def.core) continue;
+
+        // Check if already enabled by tier provisioning
+        const existing = await db.tenantFeature.findUnique({
+          where: { tenantId_featureKey: { tenantId: tenant.id, featureKey: featureKey as FeatureKey } },
+          select: { enabled: true, source: true },
+        });
+
+        if (!existing || !existing.enabled) {
+          // Grant the feature as an add-on (this also turns on parent module if needed)
+          try {
+            await grantFeature(tenant.id, featureKey as FeatureKey, "addon");
+          } catch (err) {
+            // Log but don't fail signup — feature may have unmet dependencies
+            console.warn(
+              `Failed to grant feature ${featureKey} during signup:`,
+              err instanceof Error ? err.message : err
+            );
+          }
+        }
+      }
+    }
+
     // Odoo-style install semantics: only the apps picked during onboarding
     // stay switched on. Entitled-but-unselected modules are recorded as an
     // explicit opt-out (source "manual") so the monthly tier re-sync doesn't

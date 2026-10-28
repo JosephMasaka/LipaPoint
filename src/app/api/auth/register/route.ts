@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { initiateStkPush, normalizeKenyanPhone } from "@/lib/palpluss";
-import { getPlanPricing } from "@/lib/plans";
+import { getPlanPricing, FULL_ERP_PRICE, FULL_ERP_TIER } from "@/lib/plans";
 import {
   claimCouponUse,
   quoteCoupon,
@@ -12,6 +12,7 @@ import {
   validateCouponCode,
 } from "@/lib/coupons";
 import { MODULE_KEYS } from "@/lib/modules";
+import { FEATURE_KEYS } from "@/lib/module-registry";
 
 const VALID_BUSINESS_TYPES = [
   "RETAIL",
@@ -40,7 +41,7 @@ const PENDING_SIGNUP_TTL_MS = 30 * 60 * 1000; // 30 minutes
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { businessName, businessType, plan, ownerName, email, phone, password, couponCode, resellerCode, selectedApps } = body;
+    const { businessName, businessType, plan, ownerName, email, phone, password, couponCode, resellerCode, selectedApps, selectedFeatures, fullErp } = body;
 
     if (!businessName || !businessType || !ownerName || !email || !phone || !password) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
@@ -51,6 +52,13 @@ export async function POST(request: NextRequest) {
     const apps: string[] = Array.isArray(selectedApps)
       ? [...new Set(selectedApps.filter((k: unknown) =>
           typeof k === "string" && (MODULE_KEYS as readonly string[]).includes(k)
+        ))]
+      : [];
+
+    // Granular feature selection: validate feature keys against registry
+    const features: string[] = Array.isArray(selectedFeatures)
+      ? [...new Set(selectedFeatures.filter((k: unknown) =>
+          typeof k === "string" && (FEATURE_KEYS as readonly string[]).includes(k)
         ))]
       : [];
 
@@ -102,7 +110,14 @@ export async function POST(request: NextRequest) {
     }
 
     const hashedPassword = await hashPassword(password);
-    const listPrice = getPlanPricing(tier, businessType as TenantType).monthly;
+    // Unified Full ERP plan (pricing page's fourth card): identical
+    // entitlements to ENTERPRISE, but one flat price for every industry
+    // instead of getPlanPricing's per-vertical Enterprise rate. The flag is
+    // only honored on an ENTERPRISE signup — anywhere else it's ignored.
+    const useFullErpPrice = fullErp === true && tier === FULL_ERP_TIER;
+    const listPrice = useFullErpPrice
+      ? FULL_ERP_PRICE
+      : getPlanPricing(tier, businessType as TenantType).monthly;
     let amount = listPrice;
 
     // Optional platform coupon — validate up-front so the user gets a clear
@@ -153,6 +168,7 @@ export async function POST(request: NextRequest) {
         couponCode: wantsCoupon ? couponCode.trim().toUpperCase().replace(/\s+/g, "") : null,
         resellerCode: appliedResellerCode,
         selectedApps: apps,
+        selectedFeatures: features,
         status: "PENDING",
         completionToken,
         expiresAt: new Date(Date.now() + PENDING_SIGNUP_TTL_MS),

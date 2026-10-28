@@ -505,6 +505,131 @@ export function getFeaturePrice(feature: string): FeaturePrice | null {
   return FEATURE_PRICES[feature as FeatureKey] ?? null;
 }
 
+/* ------------------------------------------------------------------ *
+ * Grouped plan-card display + the unified Full ERP plan
+ * ------------------------------------------------------------------ */
+
+/**
+ * One bullet per group instead of one bullet per feature — the tier cards
+ * were a 21-line wall of text, and the four report suites (with their
+ * by-hour/by-item/by-rep run-ons) were most of it. Group membership is
+ * display-only: entitlement stays `limits.features`, so nothing about what
+ * a tier grants changes when these groups move around.
+ */
+export interface PlanFeatureGroup {
+  id: string;
+  label: string;
+  members: string[];
+}
+
+export const PLAN_FEATURE_GROUPS: PlanFeatureGroup[] = [
+  {
+    id: "core",
+    label: "Core POS & operations",
+    members: [
+      "pos", "orders", "tabs", "inventory", "expenses", "customers",
+      "table-management", "menu-management", "appointments",
+      "service-catalog", "queue-management",
+    ],
+  },
+  {
+    id: "selling",
+    label: "Selling tools",
+    members: [
+      "discounts", "kitchen-display", "online-ordering",
+      "delivery-management", "staff-scheduling",
+    ],
+  },
+  {
+    id: "insights",
+    label: "Insights & AI",
+    members: ["analytics", "stock-records", "daily-summary", "ai-assistant"],
+  },
+  {
+    id: "reports",
+    label: "Full reports suite",
+    members: ["sales-reports", "stock-reports", "customer-reports", "cashier-reports"],
+  },
+  {
+    id: "platform",
+    label: "Platform",
+    members: ["api-access", "custom-reports"],
+  },
+  {
+    id: "erp",
+    label: "Full ERP",
+    members: ["finance", "procurement", "etims", "payroll", "assets"],
+  },
+];
+
+/** Short names for grouped bullets — FEATURE_DISPLAY's report-suite strings
+ *  are written for a full-width list, not a card bullet. */
+const GROUP_ITEM_DISPLAY: Record<string, string> = {
+  "sales-reports": "sales by hour/day/week, item, rep & payment method",
+  "stock-reports": "valuation, re-order, transfers, expiry & stock-take",
+  "customer-reports": "customer statements & balances",
+  "cashier-reports": "cashier & cash/bank reconciliation",
+};
+
+export interface GroupedPlanFeatures {
+  id: string;
+  label: string;
+  items: string[];
+}
+
+/** Buckets a tier's feature list into display groups (order preserved).
+ *  Any key no group claims falls into a trailing "More" bucket, so a new
+ *  feature can never silently disappear from the card. */
+export function groupPlanFeatures(features: string[]): GroupedPlanFeatures[] {
+  const selected = new Set(features);
+  const groups: GroupedPlanFeatures[] = [];
+
+  for (const group of PLAN_FEATURE_GROUPS) {
+    const items = group.members.filter((key) => selected.has(key));
+    if (items.length === 0) continue;
+    groups.push({
+      id: group.id,
+      label: group.label,
+      items: items.map((key) => GROUP_ITEM_DISPLAY[key] ?? FEATURE_DISPLAY[key] ?? key),
+    });
+  }
+
+  const claimed = new Set(PLAN_FEATURE_GROUPS.flatMap((g) => g.members));
+  const leftovers = features.filter((key) => !claimed.has(key));
+  if (leftovers.length > 0) {
+    groups.push({
+      id: "more",
+      label: "More",
+      items: leftovers.map((key) => FEATURE_DISPLAY[key] ?? key),
+    });
+  }
+
+  return groups;
+}
+
+/**
+ * UNIFIED FULL ERP PLAN — the fourth, industry-agnostic card.
+ *
+ * Deliberately NOT a fourth SubscriptionTier (no Prisma/ provisioning /
+ * billing changes): it sells the existing ENTERPRISE entitlements at one
+ * flat price for every industry, instead of the per-vertical Enterprise
+ * prices (5,999 / 7,999 / 4,499). Signup wires it via `fullErp: true`,
+ * which is what moves the charged amount to FULL_ERP_PRICE.
+ */
+export const FULL_ERP_TIER = "ENTERPRISE" as const;
+export const FULL_ERP_PRICE = 9999;
+
+/** Everything the card promises: the union of all three verticals' ENTERPRISE
+ *  feature lists, so "every industry feature" is literally what's shown. */
+export const FULL_ERP_FEATURES: string[] = [
+  ...new Set(
+    Object.values(VERTICAL_PLANS).flatMap((tiers) => tiers.ENTERPRISE.limits.features)
+  ),
+];
+
+/** Route into the existing register flow from the Full ERP CTA. */
+export const FULL_ERP_SIGNUP_HREF = "/register?plan=ENTERPRISE&fullErp=1";
+
 /** Human price line for pickers/marketing: "KES 2,500/mo + KES 400/employee". */
 export function formatFeaturePrice(feature: string): string | null {
   const price = getFeaturePrice(feature);

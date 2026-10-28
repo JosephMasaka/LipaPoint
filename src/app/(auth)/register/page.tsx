@@ -9,9 +9,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import {
   UserPlus, Smartphone, XCircle, Check, CheckCircle2,
   LayoutDashboard, Users, Calculator, HandCoins, Boxes, Globe,
+  ChevronDown, ChevronUp,
 } from "lucide-react";
 import { Logo } from "@/components/logo";
-import { BUSINESS_TYPES, VERTICAL_PLANS, getBusinessCategory, formatPrice } from "@/lib/plans";
+import { BUSINESS_TYPES, VERTICAL_PLANS, getBusinessCategory, formatPrice, getFeaturePrice, formatFeaturePrice, FULL_ERP_PRICE } from "@/lib/plans";
 import {
   APPS,
   type AppId,
@@ -19,6 +20,12 @@ import {
   minTierIndexForApps,
   modulesForApps,
 } from "@/lib/apps";
+import {
+  FEATURE_REGISTRY,
+  type FeatureKey,
+  featuresForModule,
+  expandFeatureSet,
+} from "@/lib/module-registry";
 import { TIER_ORDER } from "@/lib/module-registry";
 import { cn } from "@/lib/utils";
 
@@ -67,10 +74,20 @@ export default function RegisterPage() {
 
   // Step 1 — app selection (Odoo's "which apps do you want?")
   const [selectedApps, setSelectedApps] = useState<Set<AppId>>(new Set(["pos"]));
+  // Granular feature selection per module (sub-feature spec §1/§3)
+  const [expandedApps, setExpandedApps] = useState<Set<AppId>>(new Set(["pos"]));
+  const [selectedFeatures, setSelectedFeatures] = useState<Set<FeatureKey>>(new Set());
+
+  // Track which feature keys have been explicitly deselected by the user
+  const [excludedFeatures, setExcludedFeatures] = useState<Set<FeatureKey>>(new Set());
 
   // Step 2 — business profile
   const [businessType, setBusinessType] = useState("RETAIL");
   const [selectedPlan, setSelectedPlan] = useState("STARTER");
+  // Unified Full ERP plan: same ENTERPRISE entitlements, one flat price for
+  // every industry instead of the per-vertical Enterprise price. Entered via
+  // /register?plan=ENTERPRISE&fullErp=1 from the pricing page's fourth card.
+  const [fullErp, setFullErp] = useState(false);
 
   // Step 3 — account + coupon gate
   const [couponInput, setCouponInput] = useState("");
@@ -90,6 +107,22 @@ export default function RegisterPage() {
 
   const plans = getPlansForType(businessType);
 
+  // The Full ERP flag only counts while ENTERPRISE is still the chosen plan —
+  // dropping back to starter/professional reverts to that tier's normal price.
+  const isFullErp = fullErp && selectedPlan === "ENTERPRISE";
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fullErp") !== "1") return;
+    const requested = params.get("plan");
+    if (requested && (TIER_ORDER as readonly string[]).includes(requested)) {
+      setSelectedPlan(requested);
+    } else {
+      setSelectedPlan("ENTERPRISE");
+    }
+    setFullErp(true);
+  }, []);
+
   // The plan can't sit below what the chosen apps need — auto-fit it and
   // say so (the server re-checks entitlement at provisioning time).
   const minTierIndex = useMemo(() => minTierIndexForApps(selectedApps), [selectedApps]);
@@ -103,8 +136,9 @@ export default function RegisterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [minTierIndex]);
 
-  const monthlyPrice =
-    VERTICAL_PLANS[getBusinessCategory(businessType)]?.[selectedPlan]?.pricing.monthly ?? 0;
+  const monthlyPrice = isFullErp
+    ? FULL_ERP_PRICE
+    : VERTICAL_PLANS[getBusinessCategory(businessType)]?.[selectedPlan]?.pricing.monthly ?? 0;
   const discount = couponInfo
     ? couponInfo.type === "PERCENT"
       ? (monthlyPrice * Math.min(couponInfo.value, 100)) / 100
@@ -112,14 +146,110 @@ export default function RegisterPage() {
     : 0;
   const discountedPrice = Math.round((monthlyPrice - discount) * 100) / 100;
 
+  // Compute effective features: tier-granted minus explicitly excluded
+  const category = getBusinessCategory(businessType);
+  const tierModules = useMemo(() => {
+    const modules = new Set(modulesForApps(selectedApps));
+    return modules;
+  }, [selectedApps]);
+
+  // Get all features for selected apps
+  const effectiveFeatures = useMemo(() => {
+    const features = new Set<FeatureKey>();
+    for (const appId of selectedApps) {
+      const app = APPS.find((a) => a.id === appId);
+      if (!app) continue;
+      for (const moduleKey of app.modules) {
+        const featureKeys = featuresForModule(moduleKey as any);
+        for (const fk of featureKeys) {
+          const def = FEATURE_REGISTRY[fk];
+          // Skip features not applicable to this business category
+          if (def.applicableCategories && !def.applicableCategories.includes(category)) {
+            continue;
+          }
+          // Core features are always included if the module is enabled
+          if (def.core) {
+            features.add(fk);
+          }
+          // Billable features: include if explicitly selected or not excluded
+          else {
+            if (selectedFeatures.has(fk) || !excludedFeatures.has(fk)) {
+              features.add(fk);
+            }
+          }
+        }
+      }
+    }
+    return features;
+  }, [selectedApps, selectedFeatures, excludedFeatures, category]);
+
+  // Compute additional cost for selected add-on features
+  const addonCost = useMemo(() => {
+    let cost = 0;
+    for (const fk of selectedFeatures) {
+      const price = getFeaturePrice(fk);
+      if (price && price.monthly > 0) {
+        cost += price.monthly;
+      }
+    }
+    return cost;
+  }, [selectedFeatures]);
+
+  // Total monthly cost
+  const totalMonthly = discountedPrice + addonCost;
+
   function toggleApp(id: AppId) {
     setSelectedApps((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
         // Never allow an empty selection — Odoo always installs something.
         if (next.size > 1) next.delete(id);
+        // Collapse expanded state when deselecting
+        setExpandedApps((ep) => {
+          const e = new Set(ep);
+          e.delete(id);
+          return e;
+        });
       } else {
         next.add(id);
+        // Expand by default when selecting
+        setExpandedApps((ep) => new Set(ep).add(id));
+      }
+      return next;
+    });
+  }
+
+  function toggleFeatureExpand(appId: AppId) {
+    setExpandedApps((prev) => {
+      const next = new Set(prev);
+      if (next.has(appId)) {
+        next.delete(appId);
+      } else {
+        next.add(appId);
+      }
+      return next;
+    });
+  }
+
+  function toggleFeature(featureKey: FeatureKey, moduleKey: string) {
+    setSelectedFeatures((prev) => {
+      const next = new Set(prev);
+      // Only allow toggling features from selected apps
+      const app = APPS.find((a) => a.id === [...selectedApps][0]);
+      const featuredApp = APPS.find((a) => a.modules.includes(moduleKey as any));
+      if (!featuredApp || !selectedApps.has(featuredApp.id)) {
+        return prev;
+      }
+      if (next.has(featureKey)) {
+        next.delete(featureKey);
+        setExcludedFeatures((ep) => new Set(ep).add(featureKey));
+      } else {
+        next.add(featureKey);
+        setExcludedFeatures((ep) => {
+          const e = new Set(ep);
+          e.delete(featureKey);
+          return e;
+        });
       }
       return next;
     });
@@ -225,6 +355,8 @@ export default function RegisterPage() {
           couponCode: couponInput.trim() || undefined,
           resellerCode: resellerInput.trim() || undefined,
           selectedApps: selectedModules,
+          selectedFeatures: [...effectiveFeatures],
+          fullErp: isFullErp || undefined,
         }),
       });
 
@@ -402,6 +534,158 @@ export default function RegisterPage() {
               })}
             </div>
 
+            {/* Granular feature selection for expanded apps */}
+            {selectedApps.size > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-text-secondary">
+                    Optional features
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFeatures(new Set());
+                      setExcludedFeatures(new Set());
+                    }}
+                    className="text-xs text-gold hover:underline"
+                  >
+                    Reset to defaults
+                  </button>
+                </div>
+                <div className="space-y-2.5">
+                  {APPS.filter((a) => selectedApps.has(a.id)).map((app) => {
+                    const moduleKeys = app.modules;
+                    const hasFeatures = moduleKeys.some((mk) => {
+                      const features = featuresForModule(mk as any);
+                      return features.some((fk) => {
+                        const def = FEATURE_REGISTRY[fk];
+                        const category = getBusinessCategory(businessType);
+                        if (def.applicableCategories && !def.applicableCategories.includes(category)) {
+                          return false;
+                        }
+                        return !def.core;
+                      });
+                    });
+
+                    return (
+                      <div
+                        key={app.id}
+                        className="border border-border rounded-xl bg-surface-elevated"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleFeatureExpand(app.id)}
+                          className="flex items-center justify-between w-full px-3 py-2.5 text-left hover:bg-surface-hover transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-text-primary">
+                              {app.label} features
+                            </span>
+                            <span className="text-[10px] text-text-muted">
+                              {hasFeatures ? "Some require extra payment" : "All included"}
+                            </span>
+                          </div>
+                          {expandedApps.has(app.id) ? (
+                            <ChevronUp className="h-4 w-4 text-text-muted" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-text-muted" />
+                          )}
+                        </button>
+
+                        {expandedApps.has(app.id) && (
+                          <div className="border-t border-border pt-2 px-1">
+                            <div className="grid grid-cols-1 gap-1.5">
+                              {moduleKeys.flatMap((mk) => {
+                                const features = featuresForModule(mk as any);
+                                return features.map((fk) => {
+                                  const def = FEATURE_REGISTRY[fk];
+                                  const category = getBusinessCategory(businessType);
+                                  // Skip non-applicable features
+                                  if (def.applicableCategories && !def.applicableCategories.includes(category)) {
+                                    return null;
+                                  }
+                                  // Core features are informational only
+                                  if (def.core) {
+                                    return (
+                                      <div
+                                        key={fk}
+                                        className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-surface text-xs text-text-secondary"
+                                      >
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                        <span className="truncate">{def.label}</span>
+                                        <span className="ml-auto text-[10px] text-text-muted">
+                                          included
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+
+                                  const price = getFeaturePrice(fk);
+                                  const isSelected = selectedFeatures.has(fk);
+                                  const isExcluded = excludedFeatures.has(fk);
+                                  const needsParent = def.requires.some((req) => {
+                                    // Check if parent feature is in effective features
+                                    return effectiveFeatures.has(req as FeatureKey);
+                                  });
+
+                                  return (
+                                    <button
+                                      key={fk}
+                                      type="button"
+                                      onClick={() => toggleFeature(fk, mk)}
+                                      disabled={!needsParent && def.requires.length > 0}
+                                      className={cn(
+                                        "flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs transition-colors",
+                                        isSelected
+                                          ? "bg-gold/10 text-gold border border-gold/30"
+                                          : isExcluded
+                                            ? "bg-surface text-text-muted line-through"
+                                            : "bg-surface-elevated text-text-secondary hover:bg-surface-hover border border-transparent",
+                                        !needsParent && def.requires.length > 0 &&
+                                          "opacity-50 cursor-not-allowed"
+                                      )}
+                                    >
+                                      {isSelected ? (
+                                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                                      ) : (
+                                        <div className="h-3.5 w-3.5 rounded border border-border flex items-center justify-center shrink-0">
+                                          {isExcluded && <XCircle className="h-3 w-3 text-text-muted" />}
+                                        </div>
+                                      )}
+                                      <span className="flex-1 truncate">{def.label}</span>
+                                      {price ? (
+                                        <span className="text-[10px] font-medium whitespace-nowrap">
+                                          {formatFeaturePrice(fk) ?? "Free"}
+                                        </span>
+                                      ) : (
+                                        <span className="text-[10px] text-text-muted">Free</span>
+                                      )}
+                                    </button>
+                                  );
+                                });
+                              })}
+                            </div>
+                            {selectedFeatures.size > 0 && (
+                              <div className="mt-2 px-2 py-1.5 bg-gold/5 rounded-md border border-gold/20">
+                                <p className="text-xs text-gold">
+                                  Additional features: <span className="font-semibold">{formatPrice(addonCost)}/mo</span>
+                                  {addonCost > 0 && (
+                                    <span className="text-text-secondary ml-1">
+                                      (on top of {formatPrice(discountedPrice)}/mo plan)
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <p className="text-xs text-text-muted">
               Everything works together — a POS sale posts to Finance, a payroll run shows up in
               your books. You can switch the rest on later from the Apps screen.
@@ -430,6 +714,11 @@ export default function RegisterPage() {
                   {a.label}
                 </span>
               ))}
+              {selectedFeatures.size > 0 && (
+                <span className="text-[10px] text-text-muted">
+                  +{selectedFeatures.size} add-on feature{selectedFeatures.size > 1 ? "s" : ""}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => setStep(1)}
@@ -466,7 +755,9 @@ export default function RegisterPage() {
               >
                 {plans.map((p) => (
                   <option key={p.value} value={p.value} disabled={p.index < minTierIndex}>
-                    {p.label}
+                    {isFullErp && p.value === "ENTERPRISE"
+                      ? `Full ERP (everything) - ${formatPrice(FULL_ERP_PRICE)}/mo`
+                      : p.label}
                     {p.index < minTierIndex ? " — needs a higher plan for your apps" : ""}
                   </option>
                 ))}

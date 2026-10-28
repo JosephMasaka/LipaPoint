@@ -9,10 +9,13 @@ import {
   VERTICAL_PLANS,
   HARDWARE_ADDONS,
   CATEGORY_DISPLAY,
-  FEATURE_DISPLAY,
   FEATURE_PRICES,
   formatFeaturePrice,
   formatPrice,
+  groupPlanFeatures,
+  FULL_ERP_FEATURES,
+  FULL_ERP_PRICE,
+  FULL_ERP_SIGNUP_HREF,
 } from "@/lib/plans";
 import { FEATURE_KEYS, FEATURE_REGISTRY } from "@/lib/module-registry";
 import type { FeatureKey } from "@/lib/module-registry";
@@ -128,14 +131,6 @@ export function PricingClient() {
                     </span>
                   </div>
                 )}
-                {category === 'RETAIL_GENERAL' && tier === 'ENTERPRISE' && (
-                  <div className="absolute -top-6 left-1/2 -translate-x-1/2">
-                    <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 rounded-full px-3 py-1 text-xs font-medium">
-                      Full ERP
-                    </span>
-                  </div>
-                )}
-
                 <div className="flex items-center gap-3 mb-4">
                   <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
                     <meta.icon className="h-5 w-5 text-gold" />
@@ -173,10 +168,18 @@ export function PricingClient() {
                     <Check className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
                     {config.limits.products === Infinity ? "Unlimited products" : `Up to ${config.limits.products} products`}
                   </li>
-                  {config.limits.features.map((feature) => (
-                    <li key={feature} className="flex items-start gap-2 text-sm text-text-secondary">
+                  {/* Grouped, not one-bullet-per-feature: entitlement is
+                      unchanged (still limits.features), only the display is
+                      bucketed so Enterprise isn't a 21-line wall. */}
+                  {groupPlanFeatures(config.limits.features).map((group) => (
+                    <li key={group.id} className="flex items-start gap-2 text-sm text-text-secondary">
                       <Check className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
-                      {FEATURE_DISPLAY[feature] || feature}
+                      <span>
+                        <span className="font-medium text-text-primary">{group.label}</span>
+                        {group.items.length > 0 && (
+                          <span> — {group.items.join(", ")}</span>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -193,6 +196,65 @@ export function PricingClient() {
               </div>
             );
           })}
+        </div>
+
+        {/* Unified Full ERP — one industry-agnostic plan above the per-vertical
+            tiers. Sells the existing ENTERPRISE entitlements at a single price
+            for every industry (see FULL_ERP_* in lib/plans). */}
+        <div className="mt-6 rounded-2xl border border-gold/50 bg-gradient-to-br from-gold/10 to-surface-elevated p-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6 mb-6">
+            <div>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/15">
+                  <Crown className="h-5 w-5 text-gold" />
+                </div>
+                <h3 className="text-xl font-bold text-text-primary">Full ERP</h3>
+                <span className="bg-gold text-black text-xs font-bold px-3 py-1 rounded-full">
+                  All industries · Everything included
+                </span>
+              </div>
+              <p className="text-sm text-text-secondary max-w-lg">
+                One plan that ignores industry boundaries — every app, every
+                feature, unlimited locations, staff and products. Buy the whole
+                ERP at one price instead of piecing tiers together.
+              </p>
+            </div>
+            <div className="md:text-right shrink-0">
+              <div className="mb-2">
+                <span className="text-4xl font-bold text-text-primary">
+                  {formatPrice(FULL_ERP_PRICE)}
+                </span>
+                <span className="text-text-muted">/month</span>
+              </div>
+              <p className="text-xs text-text-muted mb-4">
+                One flat price — every industry
+              </p>
+              <Link href={FULL_ERP_SIGNUP_HREF}>
+                <Button variant="default" size="lg">
+                  Get Started
+                </Button>
+              </Link>
+            </div>
+          </div>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3">
+            <li className="flex items-start gap-2 text-sm text-text-secondary">
+              <Check className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+              Unlimited locations, staff & products
+            </li>
+            {groupPlanFeatures(FULL_ERP_FEATURES).map((group) => (
+              <li key={group.id} className="flex items-start gap-2 text-sm text-text-secondary">
+                <Check className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+                <span>
+                  <span className="font-medium text-text-primary">{group.label}</span>
+                  {group.items.length > 0 && <span> — {group.items.join(", ")}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 text-xs text-text-muted">
+            Same price for retail, restaurants and barbershops alike — no
+            per-industry pricing to compare.
+          </p>
         </div>
 
         {/* À la carte features (sub-feature spec §6/§11): the next level down
