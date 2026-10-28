@@ -618,6 +618,11 @@ export function groupPlanFeatures(features: string[]): GroupedPlanFeatures[] {
  */
 export const FULL_ERP_TIER = "ENTERPRISE" as const;
 export const FULL_ERP_PRICE = 9999;
+/** Annual follows the same convention as every tier's pricing.annual
+ *  (monthly × 10 — two months free): 9,999/mo → 99,990/yr, so the Full ERP
+ *  card can honour the pricing page's Monthly/Annual toggle like the tier
+ *  cards do. Signup itself still charges the monthly price. */
+export const FULL_ERP_ANNUAL_PRICE = FULL_ERP_PRICE * 10;
 
 /** Everything the card promises: the union of all three verticals' ENTERPRISE
  *  feature lists, so "every industry feature" is literally what's shown. */

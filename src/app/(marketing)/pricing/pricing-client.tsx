@@ -15,6 +15,7 @@ import {
   groupPlanFeatures,
   FULL_ERP_FEATURES,
   FULL_ERP_PRICE,
+  FULL_ERP_ANNUAL_PRICE,
   FULL_ERP_SIGNUP_HREF,
 } from "@/lib/plans";
 import { FEATURE_KEYS, FEATURE_REGISTRY } from "@/lib/module-registry";
@@ -222,10 +223,17 @@ export function PricingClient() {
             <div className="md:text-right shrink-0">
               <div className="mb-2">
                 <span className="text-4xl font-bold text-text-primary">
-                  {formatPrice(FULL_ERP_PRICE)}
+                  {formatPrice(annual ? FULL_ERP_ANNUAL_PRICE : FULL_ERP_PRICE)}
                 </span>
-                <span className="text-text-muted">/month</span>
+                <span className="text-text-muted">{annual ? "/year" : "/month"}</span>
               </div>
+              {!annual ? (
+                <p className="text-xs text-gold mb-4">
+                  Save {formatPrice(FULL_ERP_PRICE * 12 - FULL_ERP_ANNUAL_PRICE)}/yr with annual
+                </p>
+              ) : (
+                <div className="mb-4" />
+              )}
               <p className="text-xs text-text-muted mb-4">
                 One flat price — every industry
               </p>
