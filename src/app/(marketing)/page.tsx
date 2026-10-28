@@ -93,7 +93,7 @@ export default function HomePage() {
                 <img
                   className="h-full w-full"
                   alt="LipaPoint Facebook"
-                  src="https://upload.wikimedia.org/wikipedia/commons/a/a7/Facebook_icon_2013_alt.svg"
+                  src="https://commons.wikimedia.org/wiki/Special:FilePath/Facebook%20icon%202013.svg"
                   width={20}
                   height={20}
                   loading="lazy"
@@ -204,7 +204,7 @@ export default function HomePage() {
               style={{ maxHeight: "460px" }}
             >
               <img
-                src="https://images.unsplash.com/photo-1553729459-afe8f2c5d8ae?auto=format&fit=crop&w=1470&q=80"
+                src="/images/lipapoint-shop-owner.jfif"
                 alt="A Kenyan shop owner using LipaPoint on a tablet"
                 width={1470}
                 height={950}
@@ -754,7 +754,7 @@ export default function HomePage() {
 {/* ============================================================
             FOOTER
             ============================================================ */}
-<footer className="border-t border-border bg-background">
+        {/*<footer className="border-t border-border bg-background">
           <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10 sm:py-14">
             <div className="flex flex-col items-center gap-4 text-center sm:flex-row">
               <Link
@@ -950,7 +950,7 @@ export default function HomePage() {
               © {new Date().getFullYear()} LipaPoint. All rights reserved.
             </div>
           </div>
-        </footer>
+        </footer>*/}
       </main>
     </>
   );
@@ -1103,4 +1103,4 @@ function CheckCircle(props: React.SVGProps<SVGSVGElement>) {
       <polyline points="22 4 12 14.01 9 11.01" />
     </svg>
   );
-}
+}
