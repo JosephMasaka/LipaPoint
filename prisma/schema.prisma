@@ -23,6 +23,9 @@ model PendingSignup {
   // Odoo-style onboarding: apps chosen before account creation, applied
   // when payment completes (module keys, e.g. ["pos","inventory"]).
   selectedApps    String[]         @default([])
+  // Granular feature selection: sub-features the customer explicitly opted
+  // into during onboarding (feature keys, e.g. ["payroll","bank-reconciliation"]).
+  selectedFeatures String[]        @default([])
   status           String           @default("PENDING")
   failureReason   String?
   transactionId   String?
@@ -53,6 +56,9 @@ model Tenant {
   taxRate          Float                  @default(16.0)
   receiptHeader    String?
   receiptFooter    String?                @default("Thank you for shopping with us!")
+  // Receipt privacy/courtesy line: print the cashier's name on receipts
+  // (POS success receipt, reprints and emailed receipts).
+  showServedBy     Boolean               @default(true)
   paystackSubCode  String?
   isActive         Boolean                @default(true)
   trialEndsAt      DateTime?
@@ -61,6 +67,13 @@ model Tenant {
   mpesaAccountName String?
   mpesaPaybill     String?
   mpesaTill        String?
+  // On-the-go pricing at the till (src/lib/price-override.ts):
+  // when enabled a cashier may type a custom price, never below
+  // setPrice − priceFloorValue (percent of, or flat amount off, the set
+  // price), and never below supplier cost for tracked-stock items.
+  priceOverrideEnabled Boolean             @default(false)
+  priceFloorMode       String              @default("PERCENT") // "PERCENT" | "AMOUNT"
+  priceFloorValue      Float               @default(0)
   resellerId       String?
   reseller         Reseller?       @relation(fields: [resellerId], references: [id], onDelete: SetNull)
   activityLogs     ActivityLog[]

@@ -465,7 +465,7 @@ export default function DashboardModulesPage() {
         
       </div>
 
-      <div class="p-4 sm:p-6 lg:p-8 space-y-6">
+      <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         <Button asChild>
           <Link href="/dashboard">
             <LayoutDashboard className="h-4 w-4 mr-2" />

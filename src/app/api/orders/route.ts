@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { generateOrderNo } from "@/lib/utils";
 import { submitOrderForEtims } from "@/lib/etims/submission";
+import { resolveLinePrice, supplierCostPerUnit, type PricePolicy } from "@/lib/price-override";
+import { isFeatureEnabled } from "@/lib/features";
+import { writeAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 
 export async function GET(request: NextRequest) {
   try {
@@ -62,10 +65,31 @@ export async function POST(request: NextRequest) {
     if (auth.response) return auth.response;
     const { user } = auth;
 
-    const tenant = await db.tenant.findUnique({ where: { id: user.tenantId }, select: { trialEndsAt: true, isActive: true } });
+    const tenant = await db.tenant.findUnique({
+      where: { id: user.tenantId },
+      select: {
+        trialEndsAt: true,
+        isActive: true,
+        // On-the-go pricing policy (src/lib/price-override.ts)
+        priceOverrideEnabled: true,
+        priceFloorMode: true,
+        priceFloorValue: true,
+      },
+    });
     if (tenant?.trialEndsAt && new Date() > tenant.trialEndsAt && !tenant.isActive) {
       return NextResponse.json({ error: "Your plan has expired. Please renew to continue processing sales." }, { status: 403 });
     }
+
+    const pricePolicy: PricePolicy = {
+      // The setting only counts while the tenant holds the sellable
+      // "Price Override" feature (spec §1) — a revoked add-on must stop the
+      // till immediately, not at the next settings save.
+      priceOverrideEnabled:
+        (tenant?.priceOverrideEnabled ?? false) &&
+        (await isFeatureEnabled(user.tenantId, "price-override")),
+      priceFloorMode: tenant?.priceFloorMode ?? "PERCENT",
+      priceFloorValue: tenant?.priceFloorValue ?? 0,
+    };
 
     const body = await request.json();
     const {
@@ -120,6 +144,17 @@ export async function POST(request: NextRequest) {
     }
 
     const orderItems: OrderItemData[] = [];
+    // Lines sold below their set price — audited after the sale commits and
+    // picked up by the Items Sold Out of Set Price report.
+    const overriddenLines: {
+      productId: string;
+      item: string;
+      setPrice: number;
+      soldPrice: number;
+      variance: number;
+      quantity: number;
+      belowSupplierPrice: boolean;
+    }[] = [];
 
     for (const item of items) {
       const product = productMap.get(item.productId);
@@ -127,17 +162,49 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Product not found` }, { status: 400 });
       }
 
-      let unitPrice = item.unitPrice || product.price;
+      let setPrice = product.price;
       let conversionFactor = 1;
       let productUomId: string | null = null;
+      let uomCost: number | null = null;
 
       if (item.productUomId) {
         const uom = product.productUoms.find((u: { id: string }) => u.id === item.productUomId);
         if (uom) {
-          unitPrice = uom.price;
+          setPrice = uom.price;
+          uomCost = uom.cost;
           conversionFactor = uom.conversionFactor;
           productUomId = uom.id;
         }
+      }
+
+      // On-the-go pricing: the requested price wins only inside the tenant's
+      // tolerance, and never below supplier price on a stock item (the till
+      // applies the identical rule before it lets the cashier reach this
+      // point — this is the authoritative re-check).
+      const pricing = resolveLinePrice({
+        itemName: product.name,
+        setPrice,
+        requestedPrice: typeof item.unitPrice === "number" ? item.unitPrice : null,
+        trackStock: product.trackStock,
+        supplierCost: supplierCostPerUnit(product.cost, conversionFactor, uomCost),
+        policy: pricePolicy,
+      });
+      if (!pricing.ok) {
+        return NextResponse.json({ error: pricing.error }, { status: 400 });
+      }
+      const unitPrice = pricing.unitPrice;
+
+      if (pricing.overridden) {
+        const supplierPrice = pricing.supplierCost;
+        overriddenLines.push({
+          productId: product.id,
+          item: product.name,
+          setPrice: pricing.setPrice,
+          soldPrice: unitPrice,
+          variance: Math.round((unitPrice - pricing.setPrice) * 100) / 100,
+          quantity: item.quantity,
+          belowSupplierPrice: supplierPrice > 0 && unitPrice < supplierPrice,
+        });
       }
 
       const baseQuantity = item.quantity * conversionFactor;
@@ -320,6 +387,22 @@ export async function POST(request: NextRequest) {
 
       return { ...newOrder, transactionId: transaction.id };
     }, { timeout: 30000 });
+
+    // Audit every line that went out below its set price — the till's
+    // bargain pricing has a financial-impact trail (ERP spec §9) and the
+    // report derives its figures from the stored unitPrice.
+    if (overriddenLines.length > 0) {
+      await writeAuditLog({
+        tenantId: user.tenantId,
+        userId: user.id,
+        action: AUDIT_ACTIONS.POS.PRICE_OVERRIDE,
+        module: "pos",
+        entity: "order",
+        entityId: order.id,
+        details: `${overriddenLines.length} line(s) sold below the set price`,
+        after: { orderNo, lines: overriddenLines },
+      });
+    }
 
     // Stock levels are only meaningful for the immediate-completion path —
     // for pending STK orders nothing has moved yet.

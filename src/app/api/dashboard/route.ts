@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { supplierCostPerUnit } from "@/lib/price-override";
 
 export async function GET() {
   const user = await getCurrentUser();
@@ -40,18 +41,48 @@ export async function GET() {
     .filter((s) => s.quantity <= s.product.lowStockAlert)
     .map((s) => ({ id: s.product.id, name: s.product.name, stock: s.quantity, lowStockAlert: s.product.lowStockAlert }));
 
-  // Top products today
+  // Top products today + today's on-the-go pricing impact, off the same
+  // item set (the Items Sold Out of Set Price report has the full history).
   const todayItems = await db.orderItem.findMany({
     where: { order: { tenantId, createdAt: { gte: todayStart }, status: { not: "CANCELLED" } } },
-    select: { quantity: true, total: true, product: { select: { name: true } } },
+    select: {
+      quantity: true,
+      total: true,
+      unitPrice: true,
+      product: { select: { name: true, price: true, cost: true, trackStock: true } },
+      productUom: { select: { price: true, cost: true, conversionFactor: true } },
+    },
   });
+
+  const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+  let todayDiscountGiven = 0;
+  let todayBelowCostLines = 0;
+  let todayBelowCostValue = 0;
 
   const productMap = new Map<string, { count: number; revenue: number }>();
   for (const item of todayItems) {
-    const existing = productMap.get(item.product.name) || { count: 0, revenue: 0 };
-    existing.count += item.quantity;
-    existing.revenue += item.total;
-    productMap.set(item.product.name, existing);
+    if (item.product) {
+      const existing = productMap.get(item.product.name) || { count: 0, revenue: 0 };
+      existing.count += item.quantity;
+      existing.revenue += item.total;
+      productMap.set(item.product.name, existing);
+
+      // Lines sold below the set price — what the bargain pricing gave away.
+      const setPrice = item.productUom?.price ?? item.product.price;
+      if (item.unitPrice < setPrice) {
+        todayDiscountGiven += (setPrice - item.unitPrice) * item.quantity;
+      }
+      // …and lines that went out under the supplier price (stock items only).
+      const supplierPrice = supplierCostPerUnit(
+        item.product.cost,
+        item.productUom?.conversionFactor ?? 1,
+        item.productUom?.cost ?? null
+      );
+      if (item.product.trackStock && supplierPrice > 0 && item.unitPrice < supplierPrice) {
+        todayBelowCostLines += 1;
+        todayBelowCostValue += (supplierPrice - item.unitPrice) * item.quantity;
+      }
+    }
   }
   const topProducts = [...productMap.entries()]
     .map(([name, data]) => ({ name, ...data }))
@@ -69,5 +100,9 @@ export async function GET() {
     recentOrders: todayOrders.slice(0, 10),
     lowStockProducts,
     topProducts,
+    // On-the-go pricing impact so far today
+    todayDiscountGiven: round2(todayDiscountGiven),
+    todayBelowCostLines,
+    todayBelowCostValue: round2(todayBelowCostValue),
   });
 }

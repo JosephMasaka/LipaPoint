@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { ReportQuery, ReportParams } from "../types";
 import { dateFilter, round2, dayKey, monthKey } from "../helpers";
+import { supplierCostPerUnit } from "@/lib/price-override";
 
 /**
  * Sales report queries (spec §2 — 18 reports off one Order/OrderItem layer).
@@ -596,7 +597,9 @@ const salesBySalesRepPerDay: ReportQuery = async (tenantId, params) => {
 // There is no `overridePrice` column, so an override is derived by comparing
 // the price actually charged on the line against the product's (or its
 // selling UoM's) set price. Any line-level deviation — the "bargain pricing"
-// feature — surfaces here.
+// feature — surfaces here, with enough context to price the impact: the
+// per-unit and extended variance, the supplier price of the line, and a
+// below-cost flag when a line went out under what we paid for it.
 const itemsSoldOutOfSetPrice: ReportQuery = async (tenantId, params) => {
   const orders = await db.order.findMany({
     where: salesWhere(tenantId, params),
@@ -606,9 +609,11 @@ const itemsSoldOutOfSetPrice: ReportQuery = async (tenantId, params) => {
       user: { select: { name: true } },
       items: {
         select: {
+          quantity: true,
           unitPrice: true,
-          product: { select: { name: true, price: true } },
-          productUom: { select: { price: true } },
+          total: true,
+          product: { select: { name: true, price: true, cost: true, trackStock: true } },
+          productUom: { select: { price: true, cost: true, conversionFactor: true } },
         },
       },
     },
@@ -616,19 +621,47 @@ const itemsSoldOutOfSetPrice: ReportQuery = async (tenantId, params) => {
   });
 
   const rows: Record<string, string | number | null>[] = [];
+  const invoices = new Set<string>();
+  let overriddenLines = 0;
+  let discountGiven = 0;
+  let belowSupplierLines = 0;
+  let belowSupplierValue = 0;
+
   for (const o of orders) {
     for (const item of o.items) {
       if (!item.product) continue;
       const setPrice = item.productUom?.price ?? item.product.price;
       const variance = round2(item.unitPrice - setPrice);
       if (variance === 0) continue;
+
+      const supplierPrice = supplierCostPerUnit(
+        item.product.cost,
+        item.productUom?.conversionFactor ?? 1,
+        item.productUom?.cost ?? null
+      );
+      const belowCost =
+        !!item.product.trackStock && supplierPrice > 0 && item.unitPrice < supplierPrice;
+      const lineVariance = round2(variance * item.quantity);
+
+      invoices.add(o.orderNo);
+      overriddenLines += 1;
+      if (lineVariance < 0) discountGiven += Math.abs(lineVariance);
+      if (belowCost) {
+        belowSupplierLines += 1;
+        belowSupplierValue += round2((supplierPrice - item.unitPrice) * item.quantity);
+      }
+
       rows.push({
         date: o.createdAt.toISOString(),
         invoiceNumber: o.orderNo,
         item: item.product.name,
+        qty: item.quantity,
         setPrice: round2(setPrice),
         soldPrice: round2(item.unitPrice),
         variance,
+        lineVariance,
+        supplierPrice: round2(supplierPrice),
+        belowCost: belowCost ? "Yes" : "No",
         cashier: o.user?.name || "Unknown",
       });
     }
@@ -640,13 +673,24 @@ const itemsSoldOutOfSetPrice: ReportQuery = async (tenantId, params) => {
       { key: "date", label: "Date", kind: "date" },
       { key: "invoiceNumber", label: "Invoice", kind: "text" },
       { key: "item", label: "Item", kind: "text" },
+      { key: "qty", label: "Qty", kind: "number" },
       { key: "setPrice", label: "Set Price", kind: "currency" },
       { key: "soldPrice", label: "Sold At", kind: "currency" },
-      { key: "variance", label: "Variance", kind: "currency" },
+      { key: "variance", label: "Variance / Unit", kind: "currency" },
+      { key: "lineVariance", label: "Line Variance", kind: "currency" },
+      { key: "supplierPrice", label: "Supplier Price", kind: "currency" },
+      { key: "belowCost", label: "Below Cost", kind: "text" },
       { key: "cashier", label: "Cashier", kind: "text" },
     ],
     rows,
-    summary: { lines: rows.length, orders: orders.length },
+    summary: {
+      lines: rows.length,
+      invoices: invoices.size,
+      overriddenLines,
+      discountGiven: round2(discountGiven),
+      belowSupplierLines,
+      belowSupplierValue: round2(belowSupplierValue),
+    },
   };
 };
 

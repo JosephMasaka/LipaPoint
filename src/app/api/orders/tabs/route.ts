@@ -1,6 +1,25 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { resolveLinePrice, supplierCostPerUnit, type PricePolicy } from "@/lib/price-override";
+import { isFeatureEnabled } from "@/lib/features";
+
+/** The tenant's on-the-go pricing policy (src/lib/price-override.ts). */
+async function pricePolicyFor(tenantId: string): Promise<PricePolicy> {
+  const row = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { priceOverrideEnabled: true, priceFloorMode: true, priceFloorValue: true },
+  });
+  return {
+    // The setting only counts while the tenant holds the "Price Override"
+    // feature (sub-feature spec §1) — mirrors /api/orders.
+    priceOverrideEnabled:
+      (row?.priceOverrideEnabled ?? false) &&
+      (await isFeatureEnabled(tenantId, "price-override")),
+    priceFloorMode: row?.priceFloorMode ?? "PERCENT",
+    priceFloorValue: row?.priceFloorValue ?? 0,
+  };
+}
 
 export async function GET() {
   const auth = await requireUserWithFeature("core-till");
@@ -40,6 +59,9 @@ export async function POST(request: NextRequest) {
 
   const orderNo = `TAB-${Date.now().toString(36).toUpperCase()}`;
 
+  const tenant = await db.tenant.findUnique({ where: { id: user.tenantId }, select: { taxRate: true } });
+  const pricePolicy = await pricePolicyFor(user.tenantId);
+
   const productIds = items.map((i: { productId: string }) => i.productId);
   const products = await db.product.findMany({
     where: { id: { in: productIds }, tenantId: user.tenantId },
@@ -47,30 +69,59 @@ export async function POST(request: NextRequest) {
   });
 
   let subtotal = 0;
-  const orderItems = items.map((item: { productId: string; quantity: number; productUomId?: string }) => {
+  const orderItems: {
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    baseQuantity: number;
+    productUomId: string | null;
+  }[] = [];
+  for (const item of items as {
+    productId: string;
+    quantity: number;
+    productUomId?: string;
+    unitPrice?: number;
+  }[]) {
     const product = products.find((p) => p.id === item.productId);
     if (!product) throw new Error(`Product not found: ${item.productId}`);
 
-    let unitPrice = product.price;
+    let setPrice = product.price;
     let conversionFactor = 1;
     let productUomId: string | null = null;
+    let uomCost: number | null = null;
 
     if (item.productUomId) {
       const uom = product.productUoms.find((u: { id: string }) => u.id === item.productUomId);
       if (uom) {
-        unitPrice = uom.price;
+        setPrice = uom.price;
+        uomCost = uom.cost;
         conversionFactor = uom.conversionFactor;
         productUomId = uom.id;
       }
     }
 
+    // On-the-go pricing — same floor rule the till applies (supplier price
+    // is hard floor for stock items, tolerance otherwise).
+    const pricing = resolveLinePrice({
+      itemName: product.name,
+      setPrice,
+      requestedPrice: typeof item.unitPrice === "number" ? item.unitPrice : null,
+      trackStock: product.trackStock,
+      supplierCost: supplierCostPerUnit(product.cost, conversionFactor, uomCost),
+      policy: pricePolicy,
+    });
+    if (!pricing.ok) {
+      return NextResponse.json({ error: pricing.error }, { status: 400 });
+    }
+    const unitPrice = pricing.unitPrice;
+
     const total = unitPrice * item.quantity;
     const baseQuantity = item.quantity * conversionFactor;
     subtotal += total;
-    return { productId: item.productId, quantity: item.quantity, unitPrice, total, baseQuantity, productUomId };
-  });
+    orderItems.push({ productId: item.productId, quantity: item.quantity, unitPrice, total, baseQuantity, productUomId });
+  }
 
-  const tenant = await db.tenant.findUnique({ where: { id: user.tenantId }, select: { taxRate: true } });
   const taxRate = tenant?.taxRate || 16;
   const taxAmount = subtotal * (taxRate / 100);
   const total = subtotal + taxAmount;
@@ -194,29 +245,60 @@ export async function PUT(request: NextRequest) {
       include: { productUoms: { where: { isActive: true } } },
     });
 
+    const pricePolicy = await pricePolicyFor(user.tenantId);
     let addedSubtotal = 0;
-    const newItems = items.map((item: { productId: string; quantity: number; productUomId?: string }) => {
+    const newItems: {
+      productId: string;
+      quantity: number;
+      unitPrice: number;
+      total: number;
+      baseQuantity: number;
+      productUomId: string | null;
+      orderId: string;
+    }[] = [];
+    for (const item of items as {
+      productId: string;
+      quantity: number;
+      productUomId?: string;
+      unitPrice?: number;
+    }[]) {
       const product = products.find((p) => p.id === item.productId);
       if (!product) throw new Error(`Product not found`);
 
-      let unitPrice = product.price;
+      let setPrice = product.price;
       let conversionFactor = 1;
       let productUomId: string | null = null;
+      let uomCost: number | null = null;
 
       if (item.productUomId) {
         const uom = product.productUoms.find((u: { id: string }) => u.id === item.productUomId);
         if (uom) {
-          unitPrice = uom.price;
+          setPrice = uom.price;
+          uomCost = uom.cost;
           conversionFactor = uom.conversionFactor;
           productUomId = uom.id;
         }
       }
 
+      // On-the-go pricing — identical floor rule to the sale path.
+      const pricing = resolveLinePrice({
+        itemName: product.name,
+        setPrice,
+        requestedPrice: typeof item.unitPrice === "number" ? item.unitPrice : null,
+        trackStock: product.trackStock,
+        supplierCost: supplierCostPerUnit(product.cost, conversionFactor, uomCost),
+        policy: pricePolicy,
+      });
+      if (!pricing.ok) {
+        return NextResponse.json({ error: pricing.error }, { status: 400 });
+      }
+      const unitPrice = pricing.unitPrice;
+
       const total = unitPrice * item.quantity;
       const baseQuantity = item.quantity * conversionFactor;
       addedSubtotal += total;
-      return { productId: item.productId, quantity: item.quantity, unitPrice, total, baseQuantity, productUomId, orderId };
-    });
+      newItems.push({ productId: item.productId, quantity: item.quantity, unitPrice, total, baseQuantity, productUomId, orderId });
+    }
 
     await db.orderItem.createMany({ data: newItems });
 

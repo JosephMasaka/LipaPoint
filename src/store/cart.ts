@@ -12,6 +12,12 @@ export interface CartItem {
   unitAbbreviation: string;
   conversionFactor: number;
   productUomId: string | null;
+  // On-the-go pricing (src/lib/price-override.ts): the catalogue price this
+  // line started at, its supplier cost, and whether the item is tracked in
+  // stock — the three inputs the floor check needs, captured at add time.
+  setPrice: number;
+  unitCost: number;
+  trackStock: boolean;
 }
 
 interface CartState {
@@ -19,6 +25,8 @@ interface CartState {
   addItem: (item: Omit<CartItem, "quantity"> & { quantity?: number }) => void;
   removeItem: (cartKey: string) => void;
   updateQuantity: (cartKey: string, quantity: number) => void;
+  /** Sets the line's selling price (on-the-go pricing). */
+  updatePrice: (cartKey: string, price: number) => void;
   clearCart: () => void;
   getSubtotal: () => number;
   getTax: (taxRate: number) => number;
@@ -73,6 +81,15 @@ export const useCartStore = create<CartState>((set, get) => ({
     set((state) => ({
       items: state.items.map((i) =>
         cartKey(i) === key ? { ...i, quantity } : i
+      ),
+    }));
+  },
+
+  updatePrice: (key, price) => {
+    const next = Number.isFinite(price) && price >= 0 ? price : 0;
+    set((state) => ({
+      items: state.items.map((i) =>
+        cartKey(i) === key ? { ...i, price: next } : i
       ),
     }));
   },

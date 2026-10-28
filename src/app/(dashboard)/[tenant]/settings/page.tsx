@@ -32,6 +32,14 @@ interface TenantSettings {
   mpesaPaybill?: string;
   mpesaTill?: string;
   mpesaAccountName?: string;
+  // On-the-go pricing at the till (src/lib/price-override.ts)
+  priceOverrideEnabled?: boolean;
+  priceFloorMode?: string;
+  priceFloorValue?: number;
+  /** Whether the tenant currently holds the sellable "Price Override" feature. */
+  priceOverrideAvailable?: boolean;
+  /** Receipt preference: print "Served by: <cashier>" on receipts. */
+  showServedBy?: boolean;
   paymentGateways?: GatewayStatus[];
 }
 
@@ -93,6 +101,9 @@ export default function SettingsPage() {
     receiptHeader: "",
     receiptFooter: "Thank you for shopping with us!",
     isActive: true,
+    priceOverrideEnabled: false,
+    priceFloorMode: "PERCENT",
+    priceFloorValue: 0,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -514,6 +525,98 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* On-the-go pricing */}
+          <Card>
+            <CardHeader>
+              <CardTitle>On-the-Go Pricing (Price Override)</CardTitle>
+              <CardDescription>
+                Let cashiers bargain at the till: type a custom price instead of the catalogue price.
+                Every deviation is recorded on the Items Sold Out of Set Price report.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="rounded-lg border border-border p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Allow custom prices at the till</p>
+                    <p className="text-xs text-text-muted mt-0.5">
+                      When off, the till always charges the product&apos;s set price.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      disabled={settings.priceOverrideAvailable === false}
+                      checked={settings.priceOverrideEnabled ?? false}
+                      onChange={(e) => setSettings({ ...settings, priceOverrideEnabled: e.target.checked })}
+                    />
+                    <div
+                      className={`h-5 w-9 rounded-full transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all ${
+                        settings.priceOverrideAvailable === false
+                          ? "bg-surface-hover opacity-50"
+                          : "bg-surface-hover peer-checked:bg-gold peer-checked:after:translate-x-4"
+                      }`}
+                    />
+                  </label>
+                </div>
+                {settings.priceOverrideAvailable === false && (
+                  <p className="mt-3 text-xs text-amber-400">
+                    The &quot;Price Override&quot; feature isn&apos;t switched on for your business yet —
+                    switch it on from the{" "}
+                    <a href={`/${settings.slug}/dashboard/modules`} className="underline">
+                      Apps screen
+                    </a>{" "}
+                    to use on-the-go pricing.
+                  </p>
+                )}
+              </div>
+
+              {(settings.priceOverrideEnabled ?? false) && settings.priceOverrideAvailable !== false && (
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-text-secondary">
+                      How far below the set price may an item be sold?
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={settings.priceFloorMode ?? "PERCENT"}
+                        onChange={(e) => setSettings({ ...settings, priceFloorMode: e.target.value })}
+                        className="rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm text-text-primary"
+                      >
+                        <option value="PERCENT">Percentage (%)</option>
+                        <option value="AMOUNT">Amount ({settings.currency})</option>
+                      </select>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={settings.priceFloorMode === "AMOUNT" ? undefined : 100}
+                        value={String(settings.priceFloorValue ?? 0)}
+                        onChange={(e) =>
+                          setSettings({ ...settings, priceFloorValue: parseFloat(e.target.value) || 0 })
+                        }
+                        className="flex-1"
+                      />
+                    </div>
+                    <p className="text-xs text-text-muted">
+                      {settings.priceFloorMode === "AMOUNT"
+                        ? `Cashiers may take up to ${settings.currency} ${settings.priceFloorValue ?? 0} off the set price. Set 0 to hold the set price.`
+                        : `Cashiers may take up to ${settings.priceFloorValue ?? 0}% off the set price. Set 0 to hold the set price.`}
+                    </p>
+                  </div>
+
+                  <div className="rounded-lg border border-gold/20 bg-gold/5 p-4 self-end">
+                    <p className="text-sm font-medium text-text-primary">Supplier price is a hard floor</p>
+                    <p className="text-xs text-text-muted mt-1">
+                      An item you track in stock can never be sold below what you pay your supplier —
+                      even when the allowance above would allow it. The till blocks the sale.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -770,7 +873,12 @@ export default function SettingsPage() {
                     <p className="text-xs text-text-muted mt-0.5">Display the cashier/staff name who processed the sale</p>
                   </div>
                   <label className="relative inline-flex cursor-pointer">
-                    <input type="checkbox" defaultChecked className="sr-only peer" />
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={settings.showServedBy ?? true}
+                      onChange={(e) => setSettings({ ...settings, showServedBy: e.target.checked })}
+                    />
                     <div className="h-5 w-9 rounded-full bg-surface-hover peer-checked:bg-gold transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-4" />
                   </label>
                 </div>
@@ -779,7 +887,7 @@ export default function SettingsPage() {
               <div className="rounded-lg border border-border bg-surface-elevated/50 p-6 font-mono text-xs text-text-secondary text-center space-y-1">
                 <p className="font-bold text-text-primary">{settings.receiptHeader || settings.name}</p>
                 <p>================================</p>
-                <p className="">Served by: Cashier Name</p>
+                {(settings.showServedBy ?? true) && <p className="">Served by: Cashier Name</p>}
                 <p>================================</p>
                 <p className="">Item 1 x2 ........ KSh 1,000</p>
                 <p className="">Item 2 x1 .......... KSh 300</p>

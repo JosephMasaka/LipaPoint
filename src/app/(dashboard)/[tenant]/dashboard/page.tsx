@@ -15,7 +15,7 @@ import { appsFromModules, APP_TASKS, type AppId } from "@/lib/apps";
 import {
   ShoppingCart, Package, TrendingUp, Users, AlertTriangle,
   ClipboardList, Clock, DollarSign, ArrowUp, ArrowDown,
-  LayoutDashboard, Calculator, HandCoins, Boxes, Globe, X, ArrowRight,
+  LayoutDashboard, Calculator, HandCoins, Boxes, Globe, X, ArrowRight, Tag,
 } from "lucide-react";
 
 /** Odoo-style "apps dashboard": launch tiles for the purchased apps, each
@@ -41,6 +41,10 @@ interface DashboardStats {
   recentOrders: { id: string; orderNo: string; total: number; status: string; tabName: string | null; createdAt: string; customerName: string | null }[];
   lowStockProducts: { id: string; name: string; stock: number; lowStockAlert: number }[];
   topProducts: { name: string; count: number; revenue: number }[];
+  /** On-the-go pricing impact so far today (see src/lib/price-override.ts). */
+  todayDiscountGiven: number;
+  todayBelowCostLines: number;
+  todayBelowCostValue: number;
 }
 
 export default function DashboardPage() {
@@ -105,6 +109,7 @@ export default function DashboardPage() {
     todaySales: 0, todayOrders: 0, openTabs: 0, monthRevenue: 0,
     activeProducts: 0, lowStockCount: 0, activeStaff: 0,
     recentOrders: [], lowStockProducts: [], topProducts: [],
+    todayDiscountGiven: 0, todayBelowCostLines: 0, todayBelowCostValue: 0,
   };
 
   return (
@@ -209,7 +214,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Second Row - Quick Stats */}
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
               <Package className="h-5 w-5 text-text-secondary" />
@@ -234,6 +239,32 @@ export default function DashboardPage() {
               <div>
                 <p className="text-lg font-bold text-text-primary">{data.activeStaff}</p>
                 <p className="text-xs text-text-muted">Staff</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* On-the-go pricing: what the till gave away today */}
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <Tag className="h-5 w-5 text-amber-400" />
+              <div>
+                <p className="text-lg font-bold text-text-primary">{formatCurrency(data.todayDiscountGiven)}</p>
+                <p className="text-xs text-text-muted">Below Set Price Today</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-4 flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-red-400" />
+              <div>
+                <p className="text-lg font-bold text-red-400">{data.todayBelowCostLines}</p>
+                <p className="text-xs text-text-muted">
+                  Sold Below Cost
+                  {data.todayBelowCostValue > 0 && (
+                    <span className="text-red-400"> · {formatCurrency(data.todayBelowCostValue)}</span>
+                  )}
+                </p>
               </div>
             </CardContent>
           </Card>

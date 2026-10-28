@@ -53,6 +53,8 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [tenantName, setTenantName] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("Thank you for shopping with us!");
+  // Receipt preference: print the cashier's name on receipts (Settings → Receipts)
+  const [showServedBy, setShowServedBy] = useState(true);
   const [mpesaPaybill, setMpesaPaybill] = useState("");
   const [mpesaTill, setMpesaTill] = useState("");
   const [emailSending, setEmailSending] = useState(false);
@@ -65,6 +67,7 @@ export default function OrdersPage() {
     }).catch(() => {});
     fetch("/api/settings").then(r => r.json()).then(d => {
       if (d?.receiptFooter) setReceiptFooter(d.receiptFooter);
+      if (typeof d?.showServedBy === "boolean") setShowServedBy(d.showServedBy);
       if (d?.mpesaPaybill) setMpesaPaybill(d.mpesaPaybill);
       if (d?.mpesaTill) setMpesaTill(d.mpesaTill);
     }).catch(() => {});
@@ -131,7 +134,7 @@ export default function OrdersPage() {
       <div class="divider"></div>
       <div class="row"><span>Order:</span><span>${order.orderNo}</span></div>
       <div class="row"><span>Date:</span><span>${formatDate(order.createdAt)}</span></div>
-      <div class="row"><span>Served by:</span><span>${order.user.name}</span></div>
+      ${showServedBy ? `<div class="row"><span>Served by:</span><span>${order.user.name}</span></div>` : ""}
       ${!isBill ? `<div class="row"><span>Payment:</span><span>${order.paymentMethod}</span></div>` : ""}
       ${order.customerName ? `<div class="row"><span>Customer:</span><span>${order.customerName}</span></div>` : ""}
       <div class="divider"></div>

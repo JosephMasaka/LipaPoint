@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS "Tenant" (
     "taxRate" DOUBLE PRECISION NOT NULL DEFAULT 16.0,
     "receiptHeader" TEXT,
     "receiptFooter" TEXT DEFAULT 'Thank you for shopping with us!',
+    "showServedBy" BOOLEAN NOT NULL DEFAULT true,
     "paystackSubCode" TEXT,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "trialEndsAt" TIMESTAMP(3),
@@ -96,6 +97,9 @@ CREATE TABLE IF NOT EXISTS "Tenant" (
     "mpesaAccountName" TEXT,
     "mpesaPaybill" TEXT,
     "mpesaTill" TEXT,
+    "priceOverrideEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "priceFloorMode" TEXT NOT NULL DEFAULT 'PERCENT',
+    "priceFloorValue" DOUBLE PRECISION NOT NULL DEFAULT 0.0,
     "resellerId" TEXT,
 
     CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")

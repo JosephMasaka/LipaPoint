@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const tenant = await db.tenant.findUnique({
       where: { id: user.tenantId },
-      select: { name: true, mpesaPaybill: true, mpesaTill: true, receiptFooter: true, taxRate: true },
+      select: { name: true, mpesaPaybill: true, mpesaTill: true, receiptFooter: true, taxRate: true, showServedBy: true },
     });
 
     const itemRows = order.items.map(i =>
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       <div style="border-top:1px dashed #ccc;margin:8px 0;"></div>
       <div style="display:flex;justify-content:space-between;"><span>Order:</span><span>${order.orderNo}</span></div>
       <div style="display:flex;justify-content:space-between;"><span>Date:</span><span>${new Date(order.createdAt).toLocaleDateString("en-KE")}</span></div>
-      <div style="display:flex;justify-content:space-between;"><span>Served by:</span><span>${order.user.name}</span></div>
+      ${tenant?.showServedBy === false ? "" : `<div style="display:flex;justify-content:space-between;"><span>Served by:</span><span>${order.user.name}</span></div>`}
       <div style="display:flex;justify-content:space-between;"><span>Payment:</span><span>${order.paymentMethod.replace("_", " ")}</span></div>
       <div style="border-top:1px dashed #ccc;margin:8px 0;"></div>
       ${itemRows}

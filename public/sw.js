@@ -255,6 +255,38 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+/**
+ * A queued write the server refused — e.g. a sale that broke the till's price
+ * floor because the owner tightened it while this device was offline.
+ *
+ * The record STAYS in the queue (a sale is never dropped silently); the
+ * reason is raised as a notification exactly once, tagged on the record so
+ * background-sync retries stay quiet instead of re-notifying forever.
+ */
+async function reportRejection(db, storeName, record, res, label) {
+  if (record.rejectNotified) return;
+
+  let reason = `The server refused it (HTTP ${res.status})`;
+  try {
+    const body = await res.clone().json();
+    if (body && body.error) reason = body.error;
+  } catch { /* non-JSON error body */ }
+
+  try {
+    const tx = db.transaction(storeName, "readwrite");
+    tx.objectStore(storeName).put({ ...record, rejectNotified: true, rejectReason: reason });
+  } catch { /* tagging is best-effort — the notification still goes out */ }
+
+  try {
+    await self.registration.showNotification("Offline sale not accepted", {
+      body: `${label}: ${reason}`,
+      icon: "/icons/icon-192.svg",
+      badge: "/icons/icon-192.svg",
+      tag: `rejected-${storeName}-${record.id}`,
+    });
+  } catch { /* notifications can be blocked */ }
+}
+
 async function syncOfflineOrders() {
   try {
     const db = await openDB();
@@ -280,6 +312,9 @@ async function syncOfflineOrders() {
               clients.forEach((client) =>
                 client.postMessage({ type: "ORDER_SYNCED", orderId: order.id, orderNo: order.data.orderNo })
               );
+            } else {
+              // Refused (price floor, stock, feature…) — keep it, but say why.
+              await reportRejection(db, "offline-orders", order, res, order.data.orderNo || "Offline sale");
             }
           } catch {
             // Will retry on next sync
@@ -431,6 +466,10 @@ async function syncOfflineActions() {
             const res = await fetch(url, fetchOpts);
             if (res.ok) {
               synced.push(action.id);
+            } else {
+              // Refused (e.g. an offline tab opened below the price floor) —
+              // keep it queued and surface the reason once.
+              await reportRejection(db, "offline-actions", action, res, action.type);
             }
           } catch {
             // Will retry on next sync

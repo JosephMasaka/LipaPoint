@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useCartStore, cartKey } from "@/store/cart";
+import { useCartStore, cartKey, type CartItem } from "@/store/cart";
+import { resolveLinePrice, supplierCostPerUnit, type PricePolicy } from "@/lib/price-override";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ interface ProductUoM {
   unitId: string;
   conversionFactor: number;
   price: number;
+  cost: number;
   isDefault: boolean;
   unit: { id: string; name: string; abbreviation: string };
 }
@@ -30,6 +32,8 @@ interface Product {
   sku: string;
   barcode: string | null;
   price: number;
+  cost: number;
+  trackStock: boolean;
   image: string | null;
   category: { id: string; name: string; color: string } | null;
   baseUnit: { id: string; name: string; abbreviation: string };
@@ -85,8 +89,20 @@ export default function POSPage() {
   const [scannerActive, setScannerActive] = useState(true);
   const [tenantName, setTenantName] = useState("");
   const [receiptFooter, setReceiptFooter] = useState("Thank you for shopping with us!");
+  // Receipt preference: print the cashier's name on receipts (Settings → Receipts)
+  const [showServedBy, setShowServedBy] = useState(true);
   const [mpesaPaybill, setMpesaPaybill] = useState("");
   const [mpesaTill, setMpesaTill] = useState("");
+
+  // On-the-go pricing (src/lib/price-override.ts) — tenant setting that lets
+  // cashiers type a custom price at the till, within the allowed tolerance
+  // and never below supplier price for stock items.
+  const [priceOverrideEnabled, setPriceOverrideEnabled] = useState(false);
+  const [priceFloorMode, setPriceFloorMode] = useState<string>("PERCENT");
+  const [priceFloorValue, setPriceFloorValue] = useState(0);
+  // …and whether the tenant actually holds the sellable "Price Override"
+  // feature (the server re-checks it on every sale).
+  const [priceOverrideAvailable, setPriceOverrideAvailable] = useState(true);
 
   // Connected STK gateways (DARAJA/PALPLUSS) — only shown as a payment
   // option when at least one is active for this tenant.
@@ -120,7 +136,7 @@ export default function POSPage() {
   const barcodeBuffer = useRef("");
   const barcodeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { items, addItem, removeItem, updateQuantity, clearCart, getSubtotal, getTax, getTotal } = useCartStore();
+  const { items, addItem, removeItem, updateQuantity, updatePrice, clearCart, getSubtotal, getTax, getTotal } = useCartStore();
 
   const [mpesaCodeModal, setMpesaCodeModal] = useState(false);
   const [mpesaCode, setMpesaCode] = useState("");
@@ -128,6 +144,43 @@ export default function POSPage() {
   const notify = (type: "success" | "error" | "info", message: string) => {
     setNotification({ type, message });
     setTimeout(() => setNotification(null), 4000);
+  };
+
+  // On-the-go pricing policy for this business — the exact same call the
+  // server makes, so the till blocks precisely what /api/orders rejects.
+  // The feature entitlement is part of the answer: no "Price Override"
+  // add-on, no bargaining at the till.
+  const canOverridePrice = priceOverrideEnabled && priceOverrideAvailable;
+
+  const pricePolicy: PricePolicy = {
+    priceOverrideEnabled: canOverridePrice,
+    priceFloorMode,
+    priceFloorValue,
+  };
+
+  const priceFor = (item: CartItem) =>
+    resolveLinePrice({
+      itemName: item.name,
+      setPrice: item.setPrice,
+      requestedPrice: item.price,
+      trackStock: item.trackStock,
+      supplierCost: item.unitCost,
+      policy: pricePolicy,
+    });
+
+  /** True while any cart line sits below its allowed minimum price. */
+  const hasPriceViolation = () => items.some((i) => !priceFor(i).ok);
+
+  /** Refuses the sale (with the reason on screen) when a line is too low. */
+  const ensurePricesAllowed = (): boolean => {
+    for (const item of items) {
+      const res = priceFor(item);
+      if (!res.ok) {
+        notify("error", res.error ?? `${item.name} is below the minimum price`);
+        return false;
+      }
+    }
+    return true;
   };
 
   const handleProductClick = (product: Product) => {
@@ -145,6 +198,9 @@ export default function POSPage() {
         unitAbbreviation: product.baseUnit.abbreviation,
         conversionFactor: 1,
         productUomId: null,
+        setPrice: product.price,
+        unitCost: supplierCostPerUnit(product.cost, 1, null),
+        trackStock: !!product.trackStock,
       });
       notify("success", `Added: ${product.name}`);
     }
@@ -163,6 +219,9 @@ export default function POSPage() {
         unitAbbreviation: uom.unit.abbreviation,
         conversionFactor: uom.conversionFactor,
         productUomId: uom.id,
+        setPrice: uom.price,
+        unitCost: supplierCostPerUnit(product.cost, uom.conversionFactor, uom.cost),
+        trackStock: !!product.trackStock,
       });
     } else {
       addItem({
@@ -176,6 +235,9 @@ export default function POSPage() {
         unitAbbreviation: product.baseUnit.abbreviation,
         conversionFactor: 1,
         productUomId: null,
+        setPrice: product.price,
+        unitCost: supplierCostPerUnit(product.cost, 1, null),
+        trackStock: !!product.trackStock,
       });
     }
     setUomProduct(null);
@@ -224,8 +286,13 @@ export default function POSPage() {
     });
     fetch("/api/settings").then(r => r.json()).then(data => {
       if (data?.receiptFooter) setReceiptFooter(data.receiptFooter);
+      if (typeof data?.showServedBy === "boolean") setShowServedBy(data.showServedBy);
       if (data?.mpesaPaybill) setMpesaPaybill(data.mpesaPaybill);
       if (data?.mpesaTill) setMpesaTill(data.mpesaTill);
+      if (typeof data?.priceOverrideEnabled === "boolean") setPriceOverrideEnabled(data.priceOverrideEnabled);
+      if (typeof data?.priceFloorMode === "string") setPriceFloorMode(data.priceFloorMode);
+      if (typeof data?.priceFloorValue === "number") setPriceFloorValue(data.priceFloorValue);
+      if (typeof data?.priceOverrideAvailable === "boolean") setPriceOverrideAvailable(data.priceOverrideAvailable);
       if (Array.isArray(data?.paymentGateways)) {
         const active = data.paymentGateways.filter(
           (g: { provider: string; isActive: boolean }) =>
@@ -233,9 +300,9 @@ export default function POSPage() {
         );
         setStkGateways(active);
       }
-      try { localStorage.setItem("lipapoint-pos-settings", JSON.stringify({ receiptFooter: data.receiptFooter || "", mpesaPaybill: data.mpesaPaybill || "", mpesaTill: data.mpesaTill || "" })); } catch {}
+      try { localStorage.setItem("lipapoint-pos-settings", JSON.stringify({ receiptFooter: data.receiptFooter || "", mpesaPaybill: data.mpesaPaybill || "", mpesaTill: data.mpesaTill || "", priceOverrideEnabled: !!data.priceOverrideEnabled, priceFloorMode: data.priceFloorMode || "PERCENT", priceFloorValue: Number(data.priceFloorValue) || 0, priceOverrideAvailable: data.priceOverrideAvailable !== false, showServedBy: data.showServedBy !== false })); } catch {}
     }).catch(() => {
-      try { const c = localStorage.getItem("lipapoint-pos-settings"); if (c) { const d = JSON.parse(c); if (d.receiptFooter) setReceiptFooter(d.receiptFooter); if (d.mpesaPaybill) setMpesaPaybill(d.mpesaPaybill); if (d.mpesaTill) setMpesaTill(d.mpesaTill); } } catch {}
+      try { const c = localStorage.getItem("lipapoint-pos-settings"); if (c) { const d = JSON.parse(c); if (d.receiptFooter) setReceiptFooter(d.receiptFooter); if (d.mpesaPaybill) setMpesaPaybill(d.mpesaPaybill); if (d.mpesaTill) setMpesaTill(d.mpesaTill); if (typeof d.priceOverrideEnabled === "boolean") setPriceOverrideEnabled(d.priceOverrideEnabled); if (typeof d.priceFloorMode === "string") setPriceFloorMode(d.priceFloorMode); if (typeof d.priceFloorValue === "number") setPriceFloorValue(d.priceFloorValue); if (typeof d.priceOverrideAvailable === "boolean") setPriceOverrideAvailable(d.priceOverrideAvailable); if (typeof d.showServedBy === "boolean") setShowServedBy(d.showServedBy); } } catch {}
     });
     fetch("/api/products").then(r => r.json()).then(data => {
       if (Array.isArray(data)) {
@@ -277,6 +344,24 @@ export default function POSPage() {
     return matchesCat && matchesSearch;
   });
 
+  /**
+   * Queue a write for background sync, surfacing the queue's refusal instead
+   * of the success toast: the queue *throws* when the tenant isn't entitled to
+   * Offline Mode (src/lib/offline-db.ts), and without this every call site
+   * would show "Saved offline" for a write that never queued — and the
+   * rejection would otherwise escape as an unhandled rejection that leaves
+   * the till stuck in its processing state.
+   */
+  const queueOffline = async (write: () => Promise<unknown>): Promise<boolean> => {
+    try {
+      await write();
+      return true;
+    } catch (e) {
+      notify("error", e instanceof Error ? e.message : "Couldn't save this offline.");
+      return false;
+    }
+  };
+
   const saveOrderOffline = async (orderData: Record<string, unknown>) => {
     const offlineOrderNo = `OFF-${Date.now().toString(36).toUpperCase()}`;
     await saveOfflineOrder({ ...orderData, orderNo: offlineOrderNo });
@@ -301,6 +386,7 @@ export default function POSPage() {
 
   const handleCheckout = async () => {
     if (items.length === 0) return;
+    if (!ensurePricesAllowed()) return;
     setProcessing(true);
 
     const orderData = {
@@ -315,7 +401,7 @@ export default function POSPage() {
 
     // If offline and payment is Cash or Mpesa Manual, save directly
     if (!navigator.onLine && (paymentMethod === "CASH" || paymentMethod === "MPESA_MANUAL")) {
-      await saveOrderOffline(orderData);
+      await queueOffline(() => saveOrderOffline(orderData));
       setProcessing(false);
       setMpesaCodeModal(false);
       setMpesaCode("");
@@ -350,14 +436,14 @@ export default function POSPage() {
         }
       } else if (data.offline || data.queued) {
         // SW returned offline response
-        await saveOrderOffline(orderData);
+        await queueOffline(() => saveOrderOffline(orderData));
       } else {
         notify("error", data.error || "Failed to process sale");
       }
     } catch {
       // Network failure — save offline if cash/mpesa manual
       if (paymentMethod === "CASH" || paymentMethod === "MPESA_MANUAL") {
-        await saveOrderOffline(orderData);
+        await queueOffline(() => saveOrderOffline(orderData));
       } else {
         notify("error", "This payment method requires an internet connection.");
       }
@@ -411,6 +497,7 @@ export default function POSPage() {
       return;
     }
     if (items.length === 0) return;
+    if (!ensurePricesAllowed()) return;
 
     setStkModal(false);
     setProcessing(true);
@@ -468,22 +555,24 @@ export default function POSPage() {
 
   const handleOpenTab = async () => {
     if (items.length === 0 || !tabName.trim()) return;
+    if (!ensurePricesAllowed()) return;
     setProcessing(true);
     const tabData = {
       tabName: tabName.trim(),
       customerName: tabCustomer.trim() || null,
-      items: items.map(i => ({ productId: i.id, quantity: i.quantity, productUomId: i.productUomId })),
+      items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price, productUomId: i.productUomId })),
     };
 
     if (!navigator.onLine) {
-      await saveOfflineAction("tab_open", tabData);
-      requestBackgroundSync();
-      clearCart();
-      setCartOpen(false);
-      setShowNewTab(false);
-      setTabName("");
-      setTabCustomer("");
-      notify("info", `Tab "${tabData.tabName}" saved offline — will sync when online`);
+      if (await queueOffline(() => saveOfflineAction("tab_open", tabData))) {
+        requestBackgroundSync();
+        clearCart();
+        setCartOpen(false);
+        setShowNewTab(false);
+        setTabName("");
+        setTabCustomer("");
+        notify("info", `Tab "${tabData.tabName}" saved offline — will sync when online`);
+      }
       setProcessing(false);
       return;
     }
@@ -507,14 +596,15 @@ export default function POSPage() {
         notify("error", data.error || "Failed to open tab");
       }
     } catch {
-      await saveOfflineAction("tab_open", tabData);
-      requestBackgroundSync();
-      clearCart();
-      setCartOpen(false);
-      setShowNewTab(false);
-      setTabName("");
-      setTabCustomer("");
-      notify("info", `Tab "${tabData.tabName}" saved offline — will sync when online`);
+      if (await queueOffline(() => saveOfflineAction("tab_open", tabData))) {
+        requestBackgroundSync();
+        clearCart();
+        setCartOpen(false);
+        setShowNewTab(false);
+        setTabName("");
+        setTabCustomer("");
+        notify("info", `Tab "${tabData.tabName}" saved offline — will sync when online`);
+      }
     } finally {
       setProcessing(false);
     }
@@ -522,18 +612,20 @@ export default function POSPage() {
 
   const handleAddToTab = async (tab: Tab) => {
     if (items.length === 0) return;
+    if (!ensurePricesAllowed()) return;
     setProcessing(true);
     const addData = {
       orderId: tab.id,
-      items: items.map(i => ({ productId: i.id, quantity: i.quantity, productUomId: i.productUomId })),
+      items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price, productUomId: i.productUomId })),
     };
 
     if (!navigator.onLine) {
-      await saveOfflineAction("tab_add", addData);
-      requestBackgroundSync();
-      clearCart();
-      setActiveTab(null);
-      notify("info", `Items queued for "${tab.tabName}" — will sync when online`);
+      if (await queueOffline(() => saveOfflineAction("tab_add", addData))) {
+        requestBackgroundSync();
+        clearCart();
+        setActiveTab(null);
+        notify("info", `Items queued for "${tab.tabName}" — will sync when online`);
+      }
       setProcessing(false);
       return;
     }
@@ -551,11 +643,12 @@ export default function POSPage() {
         notify("success", `Added to "${tab.tabName}"`);
       }
     } catch {
-      await saveOfflineAction("tab_add", addData);
-      requestBackgroundSync();
-      clearCart();
-      setActiveTab(null);
-      notify("info", `Items queued for "${tab.tabName}" — will sync when online`);
+      if (await queueOffline(() => saveOfflineAction("tab_add", addData))) {
+        requestBackgroundSync();
+        clearCart();
+        setActiveTab(null);
+        notify("info", `Items queued for "${tab.tabName}" — will sync when online`);
+      }
     } finally {
       setProcessing(false);
     }
@@ -813,7 +906,9 @@ export default function POSPage() {
                 <div className="divider"></div>
                 <div className="row"><span>Order:</span><span>{completedOrder.orderNo}</span></div>
                 <div className="row"><span>Date:</span><span>{new Date().toLocaleDateString("en-KE")}</span></div>
-                <div className="row"><span>Served by:</span><span>{completedOrder.user?.name}</span></div>
+                {showServedBy && (
+                  <div className="row"><span>Served by:</span><span>{completedOrder.user?.name}</span></div>
+                )}
                 <div className="row"><span>Payment:</span><span>{completedOrder.paymentMethod}</span></div>
                 <div className="divider"></div>
                 {completedOrder.items.map((item, i) => (
@@ -1160,16 +1255,47 @@ export default function POSPage() {
             ) : (
               items.map((item) => {
                 const key = cartKey(item);
+                const pricing = priceFor(item);
                 return (
                   <div key={key} className="flex items-center gap-2 rounded-lg border border-border bg-surface-elevated p-2">
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-text-primary truncate">{item.name}</p>
-                      <p className="text-[10px] text-text-muted">
-                        {formatCurrency(item.price)}/{item.unitAbbreviation}
-                        {item.conversionFactor > 1 && (
-                          <span className="text-gold ml-1">×{item.conversionFactor}</span>
-                        )}
-                      </p>
+                      {canOverridePrice ? (
+                        <div className="mt-1 flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            inputMode="decimal"
+                            aria-label={`Price for ${item.name}`}
+                            value={item.price}
+                            onChange={(e) => updatePrice(key, parseFloat(e.target.value))}
+                            className={cn(
+                              "w-20 rounded border bg-surface px-1.5 py-0.5 text-[11px] tabular-nums text-text-primary focus:outline-none focus:ring-1 focus:ring-gold/50",
+                              pricing.ok ? "border-border" : "border-red-500 text-red-400"
+                            )}
+                          />
+                          <span className="text-[10px] text-text-muted">/{item.unitAbbreviation}</span>
+                          {pricing.overridden && (
+                            <span className="text-[10px] text-amber-400">
+                              was {formatCurrency(item.setPrice)}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[10px] text-text-muted">
+                          {formatCurrency(item.price)}/{item.unitAbbreviation}
+                          {item.conversionFactor > 1 && (
+                            <span className="text-gold ml-1">×{item.conversionFactor}</span>
+                          )}
+                        </p>
+                      )}
+                      {!pricing.ok && (
+                        <p className="text-[10px] text-red-400 mt-0.5">
+                          Min {formatCurrency(pricing.minPrice)}
+                          {pricing.minPrice === pricing.supplierCost && " · supplier price"}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-0.5">
                       <button onClick={() => updateQuantity(key, item.quantity - 1)} className="h-6 w-6 rounded bg-surface-hover flex items-center justify-center">
@@ -1245,7 +1371,7 @@ export default function POSPage() {
                   ))}
                 </div>
 
-                <Button size="lg" className="w-full" disabled={items.length === 0 || processing} onClick={() => {
+                <Button size="lg" className="w-full" disabled={items.length === 0 || processing || hasPriceViolation()} onClick={() => {
                   if (paymentMethod === "MPESA_MANUAL") {
                     setMpesaCodeModal(true);
                   } else if (paymentMethod === "MPESA_STK") {
@@ -1295,7 +1421,7 @@ export default function POSPage() {
             />
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setMpesaCodeModal(false)}>Cancel</Button>
-              <Button className="flex-1" disabled={mpesaCode.trim().length < 8} onClick={handleCheckout}>
+              <Button className="flex-1" disabled={mpesaCode.trim().length < 8 || hasPriceViolation()} onClick={handleCheckout}>
                 Confirm & Complete
               </Button>
             </div>
