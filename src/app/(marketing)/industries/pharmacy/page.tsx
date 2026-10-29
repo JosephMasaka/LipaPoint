@@ -55,7 +55,7 @@ export default function PharmacyIndustryPage() {
             </div>
             <h3 className="text-xl font-bold text-text-primary mb-2">KRA eTIMS Invoicing</h3>
             <p className="text-text-secondary">
-              Issue eTIMS-compliant receipts and invoices, submit to KRA's OSCU in real time,
+              Issue eTIMS-compliant receipts and invoices, submit to KRA&apos;s OSCU in real time,
               and track CSIDs and VAT reconciliation from the compliance dashboard.
             </p>
           </div>
@@ -78,7 +78,7 @@ export default function PharmacyIndustryPage() {
           </h3>
           <p className="text-text-secondary mb-6">
             KRA eTIMS-ready, NSSF and NHIF integration, and statutory reporting made
-            simple. Stay aligned with Kenya's pharmaceutical regulations.
+            simple. Stay aligned with Kenya&apos;s pharmaceutical regulations.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>

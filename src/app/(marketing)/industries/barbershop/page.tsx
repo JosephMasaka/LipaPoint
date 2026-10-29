@@ -54,7 +54,7 @@ export default function BarbershopIndustryPage() {
             </div>
             <h3 className="text-xl font-bold text-text-primary mb-2">Service Catalog</h3>
             <p className="text-text-secondary">
-              Catalog of haircuts, colors, treatments, and retail products. Track what's
+              Catalog of haircuts, colors, treatments, and retail products. Track what&apos;s
               sold and set commissions for staff.
             </p>
           </div>
@@ -66,7 +66,7 @@ export default function BarbershopIndustryPage() {
             <h3 className="text-xl font-bold text-text-primary mb-2">Queue Management</h3>
             <p className="text-text-secondary">
               Manage walk-in queues, reduce wait times, and notify customers when
-              it's their turn. Track staff availability in real time.
+              it&apos;s their turn. Track staff availability in real time.
             </p>
           </div>
         </div>

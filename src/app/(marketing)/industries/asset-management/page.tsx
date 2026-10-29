@@ -25,7 +25,7 @@ export default function AssetManagementIndustryPage() {
             Built for Asset Management
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
-            Track your company's equipment, vehicles, and fixed assets with real-time
+            Track your company&apos;s equipment, vehicles, and fixed assets with real-time
             visibility and comprehensive reporting.
           </p>
         </div>
