@@ -22,6 +22,14 @@ export const TENANT_TYPE_TO_CATEGORY: Record<string, BusinessCategory> = {
   RESTAURANT: "RESTAURANT_HOSPITALITY",
   BAR: "RESTAURANT_HOSPITALITY",
   BARBERSHOP: "BARBERSHOP_SALON",
+  HUMAN_RESOURCE: "HUMAN_RESOURCE",
+  ASSET_MANAGEMENT: "ASSET_MANAGEMENT",
+  FINANCE: "FINANCE",
+  PROCUREMENT_WHOLESALE: "PROCUREMENT_WHOLESALE",
+  HEALTHCARE: "HEALTHCARE_PHARMACY",
+  EDUCATION: "EDUCATION_TRAINING",
+  LOGISTICS: "LOGISTICS_WAREHOUSING",
+  PROFESSIONAL_SERVICES: "PROFESSIONAL_SERVICES",
 };
 
 export interface PlanPricing {
@@ -728,6 +736,14 @@ export const BUSINESS_TYPES = [
   { value: "PHARMACY", label: "Pharmacy" },
   { value: "HARDWARE", label: "Hardware Store" },
   { value: "BARBERSHOP", label: "Barbershop / Salon" },
+  { value: "HUMAN_RESOURCE", label: "HR / Payroll Business" },
+  { value: "ASSET_MANAGEMENT", label: "Asset Management Firm" },
+  { value: "FINANCE", label: "Accounting / Finance Firm" },
+  { value: "PROCUREMENT_WHOLESALE", label: "Procurement / Wholesale Distributor" },
+  { value: "HEALTHCARE", label: "Healthcare / Clinic" },
+  { value: "EDUCATION", label: "School / Training Centre" },
+  { value: "LOGISTICS", label: "Logistics / Warehousing" },
+  { value: "PROFESSIONAL_SERVICES", label: "Professional Services Firm" },
 ];
 
 export function getBusinessCategory(tenantType: string): BusinessCategory {

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Search, ChevronLeft, ChevronRight, X, Eye, Power, Trash2, LogIn } from "lucide-react";
+import { BUSINESS_TYPES } from "@/lib/plans";
 
 interface Tenant {
   id: string;
@@ -118,13 +119,9 @@ export default function TenantsPage() {
           className="px-3 py-2 rounded-lg border border-border bg-surface-elevated text-text-primary text-sm"
         >
           <option value="">All Types</option>
-          <option value="RETAIL">Retail</option>
-          <option value="RESTAURANT">Restaurant</option>
-          <option value="BAR">Bar</option>
-          <option value="SUPERMARKET">Supermarket</option>
-          <option value="PHARMACY">Pharmacy</option>
-          <option value="HARDWARE">Hardware</option>
-          <option value="BARBERSHOP">Barbershop</option>
+          {BUSINESS_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>{t.label}</option>
+          ))}
         </select>
         <select
           value={tierFilter}

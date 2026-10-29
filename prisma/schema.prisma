@@ -1611,6 +1611,16 @@ enum TenantType {
   PHARMACY
   HARDWARE
   BARBERSHOP
+  // Back-office / specialised verticals — see BusinessCategory in lib/plans.
+  // Kept in sync with BUSINESS_TYPES so the register flow can offer them.
+  HUMAN_RESOURCE
+  ASSET_MANAGEMENT
+  FINANCE
+  PROCUREMENT_WHOLESALE
+  HEALTHCARE
+  EDUCATION
+  LOGISTICS
+  PROFESSIONAL_SERVICES
 }
 
 enum OrderStatus {

@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { initiateStkPush, normalizeKenyanPhone } from "@/lib/palpluss";
-import { getPlanPricing, FULL_ERP_PRICE, FULL_ERP_TIER } from "@/lib/plans";
+import { getPlanPricing, FULL_ERP_PRICE, FULL_ERP_TIER, BUSINESS_TYPES } from "@/lib/plans";
 import {
   claimCouponUse,
   quoteCoupon,
@@ -14,15 +14,10 @@ import {
 import { MODULE_KEYS } from "@/lib/modules";
 import { FEATURE_KEYS } from "@/lib/module-registry";
 
-const VALID_BUSINESS_TYPES = [
-  "RETAIL",
-  "RESTAURANT",
-  "BAR",
-  "SUPERMARKET",
-  "PHARMACY",
-  "HARDWARE",
-  "BARBERSHOP",
-] as const;
+// Single source of truth with the register form's dropdown (lib/plans), so a
+// new vertical can never show up at signup only to be rejected by the API —
+// and every accepted value is guaranteed to exist in TENANT_TYPE_TO_CATEGORY.
+const VALID_BUSINESS_TYPES = BUSINESS_TYPES.map((t) => t.value);
 type TenantType = (typeof VALID_BUSINESS_TYPES)[number];
 
 const VALID_TIERS = ["STARTER", "PROFESSIONAL", "ENTERPRISE"] as const;

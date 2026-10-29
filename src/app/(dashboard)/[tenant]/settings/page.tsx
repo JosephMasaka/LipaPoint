@@ -11,7 +11,7 @@ import {
   Receipt, Save, CheckCircle, Check, Smartphone, X
 } from "lucide-react";
 import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
-import { getPlanPricing, getPlanLimits, formatPrice, getBusinessCategory, VERTICAL_PLANS, FEATURE_DISPLAY } from "@/lib/plans";
+import { getPlanPricing, getPlanLimits, formatPrice, getBusinessCategory, VERTICAL_PLANS, FEATURE_DISPLAY, BUSINESS_TYPES } from "@/lib/plans";
 
 interface GatewayStatus {
   provider: string;
@@ -492,13 +492,11 @@ export default function SettingsPage() {
                     onChange={(e) => setSettings({ ...settings, type: e.target.value })}
                     className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm text-text-primary"
                   >
-                    <option value="RETAIL">Retail Shop</option>
-                    <option value="RESTAURANT">Restaurant</option>
-                    <option value="BAR">Bar & Lounge</option>
-                    <option value="SUPERMARKET">Supermarket</option>
-                    <option value="PHARMACY">Pharmacy</option>
-                    <option value="HARDWARE">Hardware Store</option>
-                    <option value="BARBERSHOP">Barbershop / Salon</option>
+                    {/* Rendered from BUSINESS_TYPES so a vertical added at
+                        signup is selectable here too. */}
+                    {BUSINESS_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
