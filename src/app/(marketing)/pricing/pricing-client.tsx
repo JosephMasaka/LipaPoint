@@ -35,6 +35,22 @@ const CATEGORIES: BusinessCategory[] = [
   "PROFESSIONAL_SERVICES",
 ];
 
+/** Each pricing tab's matching /industries page, so a visitor comparing a
+ *  vertical's pricing can jump straight to the industry write-up for it. */
+const CATEGORY_INDUSTRY_HREF: Record<BusinessCategory, string> = {
+  RETAIL_GENERAL: "/industries/retail",
+  RESTAURANT_HOSPITALITY: "/industries/restaurant",
+  BARBERSHOP_SALON: "/industries/barbershop",
+  HUMAN_RESOURCE: "/industries/hr-payroll",
+  ASSET_MANAGEMENT: "/industries/asset-management",
+  FINANCE: "/industries/finance",
+  PROCUREMENT_WHOLESALE: "/industries/procurement-wholesale",
+  HEALTHCARE_PHARMACY: "/industries/pharmacy",
+  EDUCATION_TRAINING: "/industries/education-training",
+  LOGISTICS_WAREHOUSING: "/industries/logistics-warehousing",
+  PROFESSIONAL_SERVICES: "/industries/professional-services",
+};
+
 const TIER_META: Record<string, { icon: typeof Zap; description: string }> = {
   STARTER: { icon: Zap, description: "Everything you need to launch your business" },
   PROFESSIONAL: { icon: Crown, description: "Scale with powerful tools and insights" },
@@ -127,9 +143,17 @@ export function PricingClient() {
             </button>
           ))}
         </div>
-        <p className="text-center text-sm text-text-muted mb-8">
-          {CATEGORY_DISPLAY[category].description}
-        </p>
+        <div className="text-center mb-8">
+          <p className="text-sm text-text-muted mb-2">
+            {CATEGORY_DISPLAY[category].description}
+          </p>
+          <Link
+            href={CATEGORY_INDUSTRY_HREF[category]}
+            className="text-sm text-gold hover:underline"
+          >
+            How LipaPoint serves {CATEGORY_DISPLAY[category].label} businesses →
+          </Link>
+        </div>
 
         {/* Monthly / Annual Toggle */}
         <div className="flex items-center justify-center gap-4 mb-12">
