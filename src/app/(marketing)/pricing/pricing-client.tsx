@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Check, Zap, Crown, Building2, Printer, ScanBarcode, Tablet } from "lucide-react";
@@ -51,6 +51,28 @@ export function PricingClient() {
   const [category, setCategory] = useState<BusinessCategory>("RETAIL_GENERAL");
   const [annual, setAnnual] = useState(false);
 
+  // Deep links: /pricing?category=FINANCE opens straight on that vertical's
+  // tab so one category's pricing can be shared as a URL. Validated against
+  // the tab list so a stale or guessed value falls back to the default
+  // instead of rendering an empty card grid. Read in an effect (not the
+  // initial state) so server render and hydration stay in step.
+  useEffect(() => {
+    const raw = new URLSearchParams(window.location.search).get("category");
+    if (raw && (CATEGORIES as readonly string[]).includes(raw)) {
+      setCategory(raw as BusinessCategory);
+    }
+  }, []);
+
+  // Keep the URL in step with the chosen tab (replaceState: no history entry
+  // per tab click, no Next router re-render). The default tab needs no param.
+  const selectCategory = (cat: BusinessCategory) => {
+    setCategory(cat);
+    const url = new URL(window.location.href);
+    if (cat === "RETAIL_GENERAL") url.searchParams.delete("category");
+    else url.searchParams.set("category", cat);
+    window.history.replaceState(null, "", url.toString());
+  };
+
   const plans = VERTICAL_PLANS[category];
   const tiers = Object.entries(plans);
 
@@ -77,7 +99,7 @@ export function PricingClient() {
           {CATEGORIES.map((cat) => (
             <button
               key={cat}
-              onClick={() => setCategory(cat)}
+              onClick={() => selectCategory(cat)}
               className={`px-5 py-2.5 rounded-full text-sm font-medium transition-all ${
                 category === cat
                   ? "bg-gold text-black"
