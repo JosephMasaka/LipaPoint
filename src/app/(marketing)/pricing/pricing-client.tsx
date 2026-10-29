@@ -51,26 +51,43 @@ export function PricingClient() {
   const [category, setCategory] = useState<BusinessCategory>("RETAIL_GENERAL");
   const [annual, setAnnual] = useState(false);
 
-  // Deep links: /pricing?category=FINANCE opens straight on that vertical's
-  // tab so one category's pricing can be shared as a URL. Validated against
-  // the tab list so a stale or guessed value falls back to the default
-  // instead of rendering an empty card grid. Read in an effect (not the
-  // initial state) so server render and hydration stay in step.
+  // Deep links: /pricing?category=FINANCE&billing=annual opens straight on
+  // that vertical's tab with the billing period pre-selected, so one
+  // category's pricing can be shared as a URL. The category is validated
+  // against the tab list so a stale or guessed value falls back to the
+  // default instead of rendering an empty card grid; anything other than
+  // billing=annual means monthly. Read in an effect (not the initial state)
+  // so server render and hydration stay in step.
   useEffect(() => {
-    const raw = new URLSearchParams(window.location.search).get("category");
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("category");
     if (raw && (CATEGORIES as readonly string[]).includes(raw)) {
       setCategory(raw as BusinessCategory);
     }
+    if (params.get("billing") === "annual") setAnnual(true);
   }, []);
 
-  // Keep the URL in step with the chosen tab (replaceState: no history entry
-  // per tab click, no Next router re-render). The default tab needs no param.
+  // Keep the URL in step with the chosen tab and billing period
+  // (replaceState: no history entry per click, no Next router re-render).
+  // Default values need no params, so the bare /pricing URL stays canonical.
+  const syncUrl = (nextCategory: BusinessCategory, nextAnnual: boolean) => {
+    const url = new URL(window.location.href);
+    if (nextCategory === "RETAIL_GENERAL") url.searchParams.delete("category");
+    else url.searchParams.set("category", nextCategory);
+    if (nextAnnual) url.searchParams.set("billing", "annual");
+    else url.searchParams.delete("billing");
+    window.history.replaceState(null, "", url.toString());
+  };
+
   const selectCategory = (cat: BusinessCategory) => {
     setCategory(cat);
-    const url = new URL(window.location.href);
-    if (cat === "RETAIL_GENERAL") url.searchParams.delete("category");
-    else url.searchParams.set("category", cat);
-    window.history.replaceState(null, "", url.toString());
+    syncUrl(cat, annual);
+  };
+
+  const toggleAnnual = () => {
+    const next = !annual;
+    setAnnual(next);
+    syncUrl(category, next);
   };
 
   const plans = VERTICAL_PLANS[category];
@@ -120,7 +137,7 @@ export function PricingClient() {
             Monthly
           </span>
           <button
-            onClick={() => setAnnual(!annual)}
+            onClick={toggleAnnual}
             className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
               annual ? "bg-gold" : "bg-surface-elevated border border-border"
             }`}
