@@ -5,16 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Monitor, CheckCircle } from "lucide-react";
-
-const businessTypes = [
-  "RETAIL",
-  "RESTAURANT",
-  "BAR",
-  "SUPERMARKET",
-  "PHARMACY",
-  "HARDWARE",
-  "BARBERSHOP",
-];
+import { BUSINESS_TYPES } from "@/lib/plans";
 
 export default function DemoRequestPage() {
   const [submitted, setSubmitted] = useState(false);
@@ -98,9 +89,9 @@ export default function DemoRequestPage() {
                     className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
                   >
                     <option value="">Select type...</option>
-                    {businessTypes.map((t) => (
-                      <option key={t} value={t}>
-                        {t.charAt(0) + t.slice(1).toLowerCase().replace("_", " ")}
+                    {BUSINESS_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>
+                        {t.label}
                       </option>
                     ))}
                   </select>
