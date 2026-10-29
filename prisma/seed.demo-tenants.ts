@@ -21,6 +21,8 @@
  *   demo-unified          All 8 modules, cross-module links end to end
  *   demo-payroll-only     The client-driven case: payroll runs, but
  *                          attendance/leave/loans/ATS are all OFF
+ *   demo-finance-firm     A NEW business vertical (TENANT_TYPE=FINANCE →
+ *                          FINANCE category): finance-only, zero POS rows
  *
  * Every demo owner signs in with password `password123`.
  */
@@ -31,16 +33,23 @@ import {
   FEATURE_REGISTRY,
   MODULE_KEYS,
   featuresForCategory,
+  featuresForModule,
 } from "../src/lib/module-registry";
 import type { FeatureKey, ModuleKey } from "../src/lib/module-registry";
-import { getBusinessCategory } from "../src/lib/plans";
+import { getBusinessCategory, TENANT_TYPE_TO_CATEGORY } from "../src/lib/plans";
 import { getEffectiveEnabledFeatures } from "../src/lib/features";
 import { ensureReportCatalog } from "../src/lib/report-catalog";
 import { seedChartOfAccounts } from "../src/lib/coa";
 
 const prisma = new PrismaClient();
 
-type TenantType = "RETAIL" | "SUPERMARKET" | "RESTAURANT" | "BARBERSHOP";
+type TenantType =
+  | "RETAIL"
+  | "SUPERMARKET"
+  | "RESTAURANT"
+  | "BARBERSHOP"
+  // One of the eight new verticals (see BUSINESS_TYPES / lib/plans).
+  | "FINANCE";
 
 interface DemoDef {
   slug: string;
@@ -163,6 +172,20 @@ const DEMOS: DemoDef[] = [
     coa: true,
     proves:
       "Payroll without Attendance/Leave/Loans/ATS — what the client actually asked for",
+  },
+  {
+    slug: "demo-finance-firm",
+    name: "Demo — Accounting Firm",
+    type: "FINANCE",
+    tier: "PROFESSIONAL",
+    // A new-vertical tenant end to end: TENANT_TYPE=FINANCE resolves to the
+    // FINANCE pricing category (plans, limits, register business type) and
+    // runs the finance module alone — no POS anywhere.
+    modules: ["finance"],
+    expected: featuresForModule("finance"),
+    coa: true,
+    proves:
+      "New vertical FINANCE: category wiring + finance-only matrix with zero POS/inventory rows",
   },
 ];
 
@@ -315,6 +338,16 @@ async function main() {
       !payrollOnly.has("loans-advances") &&
       !payrollOnly.has("ats-recruitment"),
     "demo-payroll-only: payroll feature only (no attendance/leave/loans/ATS)"
+  );
+
+  const financeFirm = await bySlug("demo-finance-firm");
+  assertOk(
+    TENANT_TYPE_TO_CATEGORY["FINANCE"] === "FINANCE",
+    "TENANT_TYPE=FINANCE maps to the FINANCE pricing category"
+  );
+  assertOk(
+    ![...financeFirm].some((k) => ["pos", "inventory"].includes(FEATURE_REGISTRY[k].moduleKey)),
+    "demo-finance-firm (FINANCE vertical) has zero pos/inventory feature rows"
   );
 
   const unified = await bySlug("demo-unified");
