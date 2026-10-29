@@ -95,6 +95,11 @@ export default function HrPayrollIndustryPage() {
           <Link href="/register">
             <Button size="lg">Get started</Button>
           </Link>
+          <p className="mt-4">
+            <Link href="/pricing?category=HUMAN_RESOURCE" className="text-sm text-gold hover:underline">
+              See Human Resource pricing →
+            </Link>
+          </p>
           <p className="mt-4 text-sm text-text-muted">
             Sign up with M-Pesa — apply your coupon code at sign-up.
           </p>

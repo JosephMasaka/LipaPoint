@@ -96,6 +96,11 @@ export default function ProcurementWholesaleIndustryPage() {
           <Link href="/register">
             <Button size="lg">Get started</Button>
           </Link>
+          <p className="mt-4">
+            <Link href="/pricing?category=PROCUREMENT_WHOLESALE" className="text-sm text-gold hover:underline">
+              See Procurement & Wholesale pricing →
+            </Link>
+          </p>
           <p className="mt-4 text-sm text-text-muted">
             Sign up with M-Pesa — apply your coupon code at sign-up.
           </p>

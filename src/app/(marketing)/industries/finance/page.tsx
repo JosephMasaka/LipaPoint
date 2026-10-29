@@ -96,6 +96,11 @@ export default function FinanceIndustryPage() {
           <Link href="/register">
             <Button size="lg">Get started</Button>
           </Link>
+          <p className="mt-4">
+            <Link href="/pricing?category=FINANCE" className="text-sm text-gold hover:underline">
+              See Finance & Accounting pricing →
+            </Link>
+          </p>
           <p className="mt-4 text-sm text-text-muted">
             Sign up with M-Pesa — apply your coupon code at sign-up.
           </p>
