@@ -4,10 +4,10 @@ import {
   FEATURE_REGISTRY,
   MODULE_CORE_FEATURE,
   expandFeatureSet,
-  modulesForTier,
 } from "./module-registry";
 import type { FeatureKey, FeatureSource, ModuleKey } from "./module-registry";
 import { grantModule } from "./modules";
+import { entitledModulesFor } from "./plans";
 
 /**
  * Sub-feature entitlement engine — server side (sub-feature spec §2/§3).
@@ -90,7 +90,13 @@ export async function provisionTenantFeatures(
   tenantId: string,
   tier: string
 ): Promise<void> {
-  const entitledModules = modulesForTier(tier);
+  // Same category-aware entitlement as provisionTenantModules — feature
+  // rows must mirror what the vertical's card actually grants at this tier.
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { type: true },
+  });
+  const entitledModules = entitledModulesFor(tier, tenant?.type);
   const existing = await db.tenantFeature.findMany({
     where: { tenantId },
     select: {

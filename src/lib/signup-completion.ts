@@ -1,8 +1,8 @@
 import { db } from "@/lib/db";
 import { sendEmail, welcomeEmail } from "@/lib/email";
-import { getPlanPricing } from "@/lib/plans";
+import { getPlanPricing, entitledModulesFor } from "@/lib/plans";
 import { recordCouponRedemption, releaseCouponUse } from "@/lib/coupons";
-import { provisionTenantModules, modulesForTier, expandModuleSet, MODULE_KEYS } from "@/lib/modules";
+import { provisionTenantModules, expandModuleSet, MODULE_KEYS } from "@/lib/modules";
 import { provisionTenantFeatures, grantFeature } from "@/lib/features";
 import { FEATURE_REGISTRY } from "@/lib/module-registry";
 import type { FeatureKey } from "@/lib/module-registry";
@@ -185,7 +185,7 @@ export async function completeSignupFromTransaction(
           (MODULE_KEYS as readonly string[]).includes(k)
         ) as (typeof MODULE_KEYS)[number][]
       );
-      const entitled = modulesForTier(tenant.tier);
+      const entitled = entitledModulesFor(tenant.tier, tenant.type);
       const toDisable = MODULE_KEYS.filter((k) => entitled.has(k) && !selected.has(k));
       if (toDisable.length > 0) {
         await db.tenantModule.updateMany({

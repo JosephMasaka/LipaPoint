@@ -11,10 +11,10 @@
 import {
   MODULE_KEYS,
   expandModuleSet,
-  minTierForModules,
   TIER_ORDER,
 } from "./module-registry";
 import type { AppKey, ModuleKey } from "./module-registry";
+import { minTierIndexForModules } from "./plans";
 
 /** Alias of the registry's AppKey so the App layer and the feature layer
  * can never disagree about how many Apps exist. */
@@ -101,20 +101,23 @@ export function appsFromModules(enabledModules: Iterable<string>): Set<AppId> {
   return out;
 }
 
-/** The tier label an app needs, e.g. "Professional & up". */
-export function appTierLabel(app: AppDefinition): string {
-  const idx = minTierForModules(app.modules);
+/** The tier label an app needs, e.g. "Professional & up". Category-aware
+ *  when the caller knows the vertical (a Finance firm sees "Starter & up"). */
+export function appTierLabel(app: AppDefinition, tenantType?: string): string {
+  const idx = minTierIndexForModules(app.modules, tenantType);
   const tier = TIER_ORDER[idx < 0 ? TIER_ORDER.length - 1 : idx];
   if (tier === "STARTER") return "Starter & up";
   if (tier === "PROFESSIONAL") return "Professional & up";
   return "Enterprise only";
 }
 
-/** Minimum tier (index into TIER_ORDER) covering a set of apps; 0 if empty. */
-export function minTierIndexForApps(appIds: Iterable<string>): number {
+/** Minimum tier (index into TIER_ORDER) covering a set of apps for this
+ *  vertical; 0 if empty. Category-aware so a vertical's own card can make
+ *  its signature app available below the base tier map. */
+export function minTierIndexForApps(appIds: Iterable<string>, tenantType?: string): number {
   const modules = modulesForApps(appIds);
   if (modules.size === 0) return 0;
-  const idx = minTierForModules(modules);
+  const idx = minTierIndexForModules(modules, tenantType);
   return idx < 0 ? TIER_ORDER.length - 1 : idx;
 }
 

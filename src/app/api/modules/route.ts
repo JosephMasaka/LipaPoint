@@ -5,9 +5,9 @@ import { routeError, parseBody } from "@/lib/api-guards";
 import {
   MODULE_KEYS,
   MODULE_REGISTRY,
-  modulesForTier,
   expandModuleSet,
 } from "@/lib/modules";
+import { entitledModulesFor } from "@/lib/plans";
 import type { ModuleKey } from "@/lib/modules";
 
 /**
@@ -37,7 +37,7 @@ export async function GET() {
       );
     }
 
-    const entitlement = modulesForTier(user.tenant.tier);
+    const entitlement = entitledModulesFor(user.tenant.tier, user.tenant.type);
     const rows = await db.tenantModule.findMany({
       where: { tenantId: user.tenantId },
       select: { moduleKey: true, enabled: true, source: true, enabledAt: true },
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       // Self-serve switches are bounded by the subscription: granting a
       // module the tier doesn't include would hand out a free upgrade.
       // Paid addon grants happen through support/billing instead.
-      const entitled = modulesForTier(user.tenant.tier);
+      const entitled = entitledModulesFor(user.tenant.tier, user.tenant.type);
       if (!entitled.has(moduleKey)) {
         return NextResponse.json(
           {

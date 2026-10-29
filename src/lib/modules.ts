@@ -1,6 +1,7 @@
 import { db } from "./db";
-import { MODULE_KEYS, expandModuleSet, modulesForTier } from "./module-registry";
+import { MODULE_KEYS, expandModuleSet } from "./module-registry";
 import type { ModuleKey, ModuleSource } from "./module-registry";
+import { entitledModulesFor } from "./plans";
 
 /**
  * ERP module gating (LipaPoint ERP spec §1/§7) — server side.
@@ -40,7 +41,14 @@ export async function provisionTenantModules(
   tenantId: string,
   tier: string
 ): Promise<void> {
-  const entitled = modulesForTier(tier);
+  // Category-aware: a vertical's own card can entitle its signature module
+  // below the base tier map (FINANCE STARTER includes finance), so the
+  // tenant's type resolves what this tier actually grants.
+  const tenant = await db.tenant.findUnique({
+    where: { id: tenantId },
+    select: { type: true },
+  });
+  const entitled = entitledModulesFor(tier, tenant?.type);
   const existing = await db.tenantModule.findMany({
     where: { tenantId },
     select: {

@@ -123,22 +123,24 @@ export default function RegisterPage() {
     setFullErp(true);
   }, []);
 
-  // The plan can't sit below what the chosen apps need — auto-fit it and
-  // say so (the server re-checks entitlement at provisioning time).
-  const minTierIndex = useMemo(() => minTierIndexForApps(selectedApps), [selectedApps]);
+  // The plan can't sit below what the chosen apps need for this vertical —
+  // derived (not stored) so the fit also *lowers* correctly: choosing
+  // FINANCE as the business type after picking the Finance app drops the
+  // requirement back to Starter instead of leaving the plan stuck on the
+  // Enterprise that RETAIL's default category had forced. The server
+  // re-checks entitlement at provisioning time.
+  const minTierIndex = useMemo(
+    () => minTierIndexForApps(selectedApps, businessType),
+    [selectedApps, businessType]
+  );
   const planIndex = plans.find((p) => p.value === selectedPlan)?.index ?? 0;
+  const effectivePlanIndex = Math.max(planIndex, minTierIndex);
+  const effectivePlan = TIER_ORDER[effectivePlanIndex];
   const planAutoFitted = planIndex < minTierIndex;
-
-  useEffect(() => {
-    if (planIndex < minTierIndex) {
-      setSelectedPlan(TIER_ORDER[minTierIndex]);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [minTierIndex]);
 
   const monthlyPrice = isFullErp
     ? FULL_ERP_PRICE
-    : VERTICAL_PLANS[getBusinessCategory(businessType)]?.[selectedPlan]?.pricing.monthly ?? 0;
+    : VERTICAL_PLANS[getBusinessCategory(businessType)]?.[effectivePlan]?.pricing.monthly ?? 0;
   const discount = couponInfo
     ? couponInfo.type === "PERCENT"
       ? (monthlyPrice * Math.min(couponInfo.value, 100)) / 100
@@ -526,7 +528,7 @@ export default function RegisterPage() {
                         {app.tagline}
                       </span>
                       <span className="mt-1.5 inline-block rounded-md bg-surface px-1.5 py-0.5 text-[10px] font-medium text-text-muted border border-border">
-                        {appTierLabel(app)}
+                        {appTierLabel(app, businessType)}
                       </span>
                     </span>
                   </button>
@@ -749,7 +751,7 @@ export default function RegisterPage() {
               <select
                 name="plan"
                 required
-                value={selectedPlan}
+                value={effectivePlan}
                 onChange={(e) => setSelectedPlan(e.target.value)}
                 className="flex h-10 w-full rounded-lg border border-border bg-surface-elevated px-3 py-2 text-sm text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/50 transition-all"
               >

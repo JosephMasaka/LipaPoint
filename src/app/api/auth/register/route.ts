@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { hashPassword } from "@/lib/auth";
 import { initiateStkPush, normalizeKenyanPhone } from "@/lib/palpluss";
-import { getPlanPricing, FULL_ERP_PRICE, FULL_ERP_TIER, BUSINESS_TYPES } from "@/lib/plans";
+import { getPlanPricing, FULL_ERP_PRICE, FULL_ERP_TIER, BUSINESS_TYPES, minTierIndexForModules } from "@/lib/plans";
 import {
   claimCouponUse,
   quoteCoupon,
@@ -12,7 +12,8 @@ import {
   validateCouponCode,
 } from "@/lib/coupons";
 import { MODULE_KEYS } from "@/lib/modules";
-import { FEATURE_KEYS } from "@/lib/module-registry";
+import { FEATURE_KEYS, TIER_ORDER } from "@/lib/module-registry";
+import { modulesForApps } from "@/lib/apps";
 
 // Single source of truth with the register form's dropdown (lib/plans), so a
 // new vertical can never show up at signup only to be rejected by the API —
@@ -64,7 +65,20 @@ export async function POST(request: NextRequest) {
     if (!VALID_BUSINESS_TYPES.includes(businessType)) {
       return NextResponse.json({ error: "Invalid business type" }, { status: 400 });
     }
-    const tier: SubscriptionTier = VALID_TIERS.includes(plan) ? plan : "STARTER";
+    let tier: SubscriptionTier = VALID_TIERS.includes(plan) ? plan : "STARTER";
+
+    // Auto-fit up — the server-side twin of the register form's
+    // minTierIndexForApps. The UI already raises the plan before submit;
+    // enforcing it here means a direct API call can't create a paid account
+    // whose entitled modules are all switched off (STARTER + Finance app →
+    // KSh 2,499 charged, zero modules enabled). Category-aware: a vertical's
+    // own card may entitle its signature app below the base tier map, so a
+    // FINANCE signup of Finance at STARTER is *not* raised. The fitted tier
+    // is what gets priced, stored on the pending row, and echoed back.
+    const minTierIdx = minTierIndexForModules(modulesForApps(apps), businessType);
+    if (minTierIdx > TIER_ORDER.indexOf(tier)) {
+      tier = TIER_ORDER[minTierIdx];
+    }
 
     const normalizedEmail = email.toLowerCase().trim();
     const normalizedPhone = normalizeKenyanPhone(phone);
@@ -192,6 +206,9 @@ export async function POST(request: NextRequest) {
           pendingSignupId: pendingSignup.id,
           completionToken,
           transactionId: txn.data.transactionId,
+          // The tier actually charged — equals the requested plan unless the
+          // auto-fit above raised it to entitle the chosen apps.
+          tier,
         },
         { status: 202 }
       );

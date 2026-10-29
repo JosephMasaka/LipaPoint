@@ -11,8 +11,14 @@ export type BusinessCategory =
   | "LOGISTICS_WAREHOUSING"
   | "PROFESSIONAL_SERVICES";
 
-import type { FeatureKey } from "./module-registry";
-import { FEATURE_REGISTRY } from "./module-registry";
+import type { FeatureKey, ModuleKey } from "./module-registry";
+import {
+  FEATURE_REGISTRY,
+  MODULE_KEYS,
+  TIER_MODULES,
+  TIER_ORDER,
+  expandModuleSet,
+} from "./module-registry";
 
 export const TENANT_TYPE_TO_CATEGORY: Record<string, BusinessCategory> = {
   RETAIL: "RETAIL_GENERAL",
@@ -748,6 +754,55 @@ export const BUSINESS_TYPES = [
 
 export function getBusinessCategory(tenantType: string): BusinessCategory {
   return TENANT_TYPE_TO_CATEGORY[tenantType] || "RETAIL_GENERAL";
+}
+
+/**
+ * Modules a vertical's pricing card explicitly names for a tier — the
+ * literal module keys in VERTICAL_PLANS[category][tier].limits.features
+ * (e.g. FINANCE STARTER names "finance", HUMAN_RESOURCE STARTER names
+ * "payroll"). VERTICAL_PLANS is the single source of truth: tiers follow
+ * the cards.
+ */
+function cardModules(category: BusinessCategory, tier: string): Set<ModuleKey> {
+  const named = VERTICAL_PLANS[category]?.[tier]?.limits.features ?? [];
+  return new Set(MODULE_KEYS.filter((key) => named.includes(key)));
+}
+
+/**
+ * Category-aware tier entitlement: the base TIER_MODULES map ∪ whatever the
+ * vertical's own card names for that tier, with hard dependencies expanded.
+ * A vertical's card never names less than the base map already grants for
+ * existing tenant types, so this only ever adds — RETAIL/RESTAURANT/
+ * BARBERSHOP entitlements are byte-identical to modulesForTier.
+ * `tenantType` is optional so every call site keeps its shape; unknown or
+ * missing types fall back to RETAIL_GENERAL (base map only).
+ */
+export function entitledModulesFor(
+  tier: string,
+  tenantType?: string
+): Set<ModuleKey> {
+  const base = TIER_MODULES[tier] ?? TIER_MODULES.STARTER;
+  const extra = cardModules(getBusinessCategory(tenantType || "RETAIL"), tier);
+  return extra.size === 0
+    ? expandModuleSet(base)
+    : expandModuleSet([...base, ...extra]);
+}
+
+/**
+ * Lowest tier (index into TIER_ORDER) that entitles every given module for
+ * this vertical, or -1 if none does. Category-aware twin of the registry's
+ * minTierForModules — used by the register flow's plan auto-fit.
+ */
+export function minTierIndexForModules(
+  keys: Iterable<ModuleKey>,
+  tenantType?: string
+): number {
+  const wanted = expandModuleSet(keys);
+  for (let i = 0; i < TIER_ORDER.length; i++) {
+    const entitled = entitledModulesFor(TIER_ORDER[i], tenantType);
+    if ([...wanted].every((key) => entitled.has(key))) return i;
+  }
+  return -1;
 }
 
 export function getPlanLimits(tier: string, tenantType?: string): PlanLimits {

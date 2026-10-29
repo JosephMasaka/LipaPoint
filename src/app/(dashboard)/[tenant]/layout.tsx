@@ -6,8 +6,8 @@ import { Tour } from "@/components/tour";
 import { PlanProvider } from "@/components/plan-guard";
 import { AIAssistant } from "@/components/ai-assistant";
 import { ImpersonationBanner } from "@/components/impersonation-banner";
-import { canAccessFeature } from "@/lib/plans";
-import { getEnabledModules, modulesForTier } from "@/lib/modules";
+import { canAccessFeature, entitledModulesFor } from "@/lib/plans";
+import { getEnabledModules } from "@/lib/modules";
 import { getEffectiveEnabledFeatures } from "@/lib/features";
 import { FEATURE_KEYS, FEATURE_REGISTRY } from "@/lib/module-registry";
 
@@ -38,7 +38,9 @@ export default async function DashboardLayout({
   // back to pure tier entitlement in that case.
   const enabledModules = await getEnabledModules(user.tenantId);
   const modules =
-    enabledModules.size > 0 ? [...enabledModules] : [...modulesForTier(user.tenant.tier)];
+    enabledModules.size > 0
+      ? [...enabledModules]
+      : [...entitledModulesFor(user.tenant.tier, user.tenant.type)];
 
   // Sub-feature keys (spec §8) drive the same nav: a tenant that bought
   // Payroll without Attendance sees the Payroll link and no Attendance link.
