@@ -2,8 +2,21 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
+
+/** Shared by the desktop bar and the mobile dropdown so the two can never
+ *  drift — below `md` the desktop nav is hidden, the dropdown is the only
+ *  way to reach these links. */
+const NAV_LINKS = [
+  { href: "/features", label: "Features" },
+  { href: "/pricing", label: "Pricing" },
+  { href: "/industries", label: "Industries" },
+  { href: "/contact", label: "Contact" },
+  { href: "/demo-request", label: "Request Demo" },
+] as const;
 
 export default function MarketingLayout({
   children,
@@ -11,6 +24,14 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   const [authSlug, setAuthSlug] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Navigating (from the dropdown or anywhere else) closes it, so a tap on
+  // a link never leaves the panel open over the page you just opened.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -32,20 +53,29 @@ export default function MarketingLayout({
             <span className="text-lg font-bold text-text-primary">LipaPoint</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6">
-            <Link href="/features" className="text-sm text-text-secondary hover:text-text-primary transition-colors">
-              Features
-            </Link>
-            <Link href="/pricing" className="text-sm text-text-secondary hover:text-text-primary transition-colors">
-              Pricing
-            </Link><Link href="/industries" className="text-sm text-text-secondary hover:text-text-primary transition-colors">Industries</Link>
-              <Link href="/contact" className="text-sm text-text-secondary hover:text-text-primary transition-colors">Contact</Link>
-            <Link href="/demo-request" className="text-sm text-text-secondary hover:text-text-primary transition-colors">
-              Request Demo
-            </Link>
+          <nav className="hidden md:flex items-center gap-6" aria-label="Main navigation">
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="text-sm text-text-secondary hover:text-text-primary transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
           </nav>
 
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary hover:border-gold/30 transition-colors"
+              aria-label={menuOpen ? "Close menu" : "Open menu"}
+              aria-expanded={menuOpen}
+              aria-controls="marketing-mobile-nav"
+              onClick={() => setMenuOpen((open) => !open)}
+            >
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
             {authSlug ? (
               <Link href={`/${authSlug}/dashboard`}>
                 <Button size="sm">Go to Dashboard</Button>
@@ -62,6 +92,32 @@ export default function MarketingLayout({
             )}
           </div>
         </div>
+
+        {menuOpen && (
+          <nav
+            id="marketing-mobile-nav"
+            aria-label="Main navigation"
+            className="md:hidden border-t border-border/50 bg-surface px-4 py-3 space-y-1"
+          >
+            {NAV_LINKS.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-text-secondary hover:bg-surface-elevated hover:text-text-primary transition-colors"
+              >
+                {link.label}
+              </Link>
+            ))}
+            {authSlug && (
+              <Link
+                href={`/${authSlug}/dashboard`}
+                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-gold hover:bg-gold/10 transition-colors"
+              >
+                Go to Dashboard
+              </Link>
+            )}
+          </nav>
+        )}
       </header>
 
       <main className="flex-1">{children}</main>
