@@ -57,12 +57,20 @@ const baseNavItems: NavItem[] = [
   { icon: ClipboardList, label: "Orders", featureKey: "core-till", href: "/orders", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER", "KITCHEN"], feature: null, module: "pos", app: "pos" },
 ];
 
+/* Nav sets shared by the newer pricing categories. No tenant type maps to
+ * them yet (TENANT_TYPE_TO_CATEGORY is untouched), so these entries are
+ * display-only today: selling verticals reuse the retail set, warehouse
+ * keeps Inventory, back-office verticals get the till's Transactions. */
+const retailNavItems: NavItem[] = [
+  { icon: Clock, label: "Tabs", featureKey: "core-till", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
+  { icon: Package, label: "Inventory", featureKey: "stock-tracking-basic", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"], feature: null, module: "inventory", app: "pos" },
+  { icon: Receipt, label: "Transactions", featureKey: "core-till", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
+];
+const warehouseNavItems: NavItem[] = [retailNavItems[1], retailNavItems[2]];
+const deskNavItems: NavItem[] = [retailNavItems[2]];
+
 const categoryNavItems: Record<BusinessCategory, NavItem[]> = {
-  RETAIL_GENERAL: [
-    { icon: Clock, label: "Tabs", featureKey: "core-till", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
-    { icon: Package, label: "Inventory", featureKey: "stock-tracking-basic", href: "/inventory", roles: ["OWNER", "ADMIN", "MANAGER", "STOCK_KEEPER"], feature: null, module: "inventory", app: "pos" },
-    { icon: Receipt, label: "Transactions", featureKey: "core-till", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
-  ],
+  RETAIL_GENERAL: retailNavItems,
   RESTAURANT_HOSPITALITY: [
     { icon: Clock, label: "Tabs", featureKey: "core-till", href: "/tabs", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: null, module: "pos", app: "pos" },
     { icon: UtensilsCrossed, label: "Tables", featureKey: "table-management", href: "/tables", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "table-management", module: "pos", app: "pos" },
@@ -80,6 +88,14 @@ const categoryNavItems: Record<BusinessCategory, NavItem[]> = {
     { icon: CalendarDays, label: "Scheduling", featureKey: "staff-scheduling", href: "/scheduling", roles: ["OWNER", "ADMIN", "MANAGER", "CASHIER"], feature: "staff-scheduling", module: "pos", app: "pos" },
     { icon: Receipt, label: "Transactions", featureKey: "core-till", href: "/transactions", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "pos", app: "pos" },
   ],
+  HUMAN_RESOURCE: deskNavItems,
+  ASSET_MANAGEMENT: deskNavItems,
+  FINANCE: deskNavItems,
+  PROCUREMENT_WHOLESALE: retailNavItems,
+  HEALTHCARE_PHARMACY: retailNavItems,
+  EDUCATION_TRAINING: deskNavItems,
+  LOGISTICS_WAREHOUSING: warehouseNavItems,
+  PROFESSIONAL_SERVICES: deskNavItems,
 };
 
 // ERP back-office links (Phase 1): shown only when the tenant's module

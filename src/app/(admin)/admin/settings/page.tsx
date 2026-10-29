@@ -10,6 +10,14 @@ const CATEGORY_LABELS: Record<BusinessCategory, string> = {
   RETAIL_GENERAL: "Retail / General",
   RESTAURANT_HOSPITALITY: "Restaurant / Hospitality",
   BARBERSHOP_SALON: "Barbershop / Salon",
+  HUMAN_RESOURCE: "Human Resource",
+  ASSET_MANAGEMENT: "Asset Management",
+  FINANCE: "Finance / Accounting",
+  PROCUREMENT_WHOLESALE: "Procurement / Wholesale",
+  HEALTHCARE_PHARMACY: "Healthcare / Pharmacy",
+  EDUCATION_TRAINING: "Education / Training",
+  LOGISTICS_WAREHOUSING: "Logistics / Warehousing",
+  PROFESSIONAL_SERVICES: "Professional Services",
 };
 
 const TIERS = ["STARTER", "PROFESSIONAL", "ENTERPRISE"] as const;

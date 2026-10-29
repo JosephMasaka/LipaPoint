@@ -9,8 +9,6 @@ import {
   VERTICAL_PLANS,
   HARDWARE_ADDONS,
   CATEGORY_DISPLAY,
-  FEATURE_PRICES,
-  formatFeaturePrice,
   formatPrice,
   groupPlanFeatures,
   FULL_ERP_FEATURES,
@@ -18,11 +16,23 @@ import {
   FULL_ERP_ANNUAL_PRICE,
   FULL_ERP_SIGNUP_HREF,
 } from "@/lib/plans";
-import { FEATURE_KEYS, FEATURE_REGISTRY } from "@/lib/module-registry";
-import type { FeatureKey } from "@/lib/module-registry";
+import { FEATURE_KEYS, FEATURE_REGISTRY, MODULE_REGISTRY } from "@/lib/module-registry";
+import type { FeatureKey, ModuleKey } from "@/lib/module-registry";
 import { APPS } from "@/lib/apps";
 
-const CATEGORIES: BusinessCategory[] = ["RETAIL_GENERAL", "RESTAURANT_HOSPITALITY", "BARBERSHOP_SALON"];
+const CATEGORIES: BusinessCategory[] = [
+  "RETAIL_GENERAL",
+  "RESTAURANT_HOSPITALITY",
+  "BARBERSHOP_SALON",
+  "ASSET_MANAGEMENT",
+  "FINANCE",
+  "HUMAN_RESOURCE",
+  "PROCUREMENT_WHOLESALE",
+  "HEALTHCARE_PHARMACY",
+  "EDUCATION_TRAINING",
+  "LOGISTICS_WAREHOUSING",
+  "PROFESSIONAL_SERVICES",
+];
 
 const TIER_META: Record<string, { icon: typeof Zap; description: string }> = {
   STARTER: { icon: Zap, description: "Everything you need to launch your business" },
@@ -280,17 +290,27 @@ export function PricingClient() {
             </p>
           </div>
 
+          {/* Every non-core feature is independently switchable from the
+              Apps screen (sub-feature spec §6) — grouped by app, then by
+              module, mirroring how the tier cards group their bullets.
+              Deliberately price-free: the old per-feature KES figures were
+              pulled from this page; they still drive the register flow's
+              add-on picker via FEATURE_PRICES in lib/plans. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {APPS.map((app) => {
               const rows = FEATURE_KEYS.filter((key) => {
                 const def = FEATURE_REGISTRY[key as FeatureKey];
-                return (
-                  def.appKey === app.id &&
-                  !def.core &&
-                  Boolean(FEATURE_PRICES[key as FeatureKey])
-                );
+                return def.appKey === app.id && !def.core;
               });
               if (rows.length === 0) return null;
+
+              const byModule = new Map<ModuleKey, string[]>();
+              for (const key of rows) {
+                const def = FEATURE_REGISTRY[key as FeatureKey];
+                const bucket = byModule.get(def.moduleKey) ?? [];
+                bucket.push(def.label);
+                byModule.set(def.moduleKey, bucket);
+              }
 
               return (
                 <div
@@ -300,24 +320,26 @@ export function PricingClient() {
                   <h3 className="font-bold text-text-primary mb-1">
                     {app.label}
                   </h3>
-                  <p className="text-xs text-text-muted mb-4">
-                    Add-on features · billed monthly on top of any plan
-                  </p>
-                  <ul className="space-y-2.5">
-                    {rows.map((key) => (
-                      <li
-                        key={key}
-                        className="flex items-start justify-between gap-3 text-sm"
-                      >
-                        <span className="text-text-secondary">
-                          {FEATURE_REGISTRY[key as FeatureKey].label}
-                        </span>
-                        <span className="shrink-0 font-medium text-text-primary text-right">
-                          {formatFeaturePrice(key)}
-                        </span>
-                      </li>
+                  <p className="text-xs text-text-muted mb-4">{app.tagline}</p>
+                  <div className="space-y-4">
+                    {[...byModule.entries()].map(([moduleKey, labels]) => (
+                      <div key={moduleKey}>
+                        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted mb-2">
+                          {MODULE_REGISTRY[moduleKey].label}
+                        </p>
+                        <ul className="flex flex-wrap gap-2">
+                          {labels.map((label) => (
+                            <li
+                              key={label}
+                              className="rounded-full border border-border px-2.5 py-1 text-xs text-text-secondary"
+                            >
+                              {label}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
                     ))}
-                  </ul>
+                  </div>
                 </div>
               );
             })}

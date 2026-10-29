@@ -1,4 +1,15 @@
-export type BusinessCategory = "RETAIL_GENERAL" | "RESTAURANT_HOSPITALITY" | "BARBERSHOP_SALON";
+export type BusinessCategory =
+  | "RETAIL_GENERAL"
+  | "RESTAURANT_HOSPITALITY"
+  | "BARBERSHOP_SALON"
+  | "HUMAN_RESOURCE"
+  | "ASSET_MANAGEMENT"
+  | "FINANCE"
+  | "PROCUREMENT_WHOLESALE"
+  | "HEALTHCARE_PHARMACY"
+  | "EDUCATION_TRAINING"
+  | "LOGISTICS_WAREHOUSING"
+  | "PROFESSIONAL_SERVICES";
 
 import type { FeatureKey } from "./module-registry";
 import { FEATURE_REGISTRY } from "./module-registry";
@@ -309,6 +320,343 @@ export const VERTICAL_PLANS: Record<
       pricing: { monthly: 4499, annual: 44990 },
     },
   },
+
+  /* ------------------------------------------------------------------ *
+   * Back-office / specialised verticals
+   *
+   * Same three-tier shape as the original verticals: STARTER = the
+   * vertical's own core, PROFESSIONAL = core + insights + first report
+   * suite, ENTERPRISE = core + the full ERP backbone (finance, procurement,
+   * eTIMS, payroll, assets + the four report suites + platform), so every
+   * Enterprise card still promises the same Full ERP union. Limits stay on
+   * the shared 300/3,000/∞ products · 1/2/∞ locations · 2/5/∞ staff ladder.
+   * Pricing follows the existing convention: annual = monthly × 10.
+   *
+   * No tenant type maps to these categories yet (TENANT_TYPE_TO_CATEGORY
+   * is untouched), so they currently price the marketing page only —
+   * billing for existing tenants is unaffected.
+   * ------------------------------------------------------------------ */
+  HUMAN_RESOURCE: {
+    STARTER: {
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: ["payroll", "staff-scheduling", "expenses", "customers"],
+      },
+      pricing: { monthly: 1999, annual: 19990 },
+    },
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "payroll", "staff-scheduling", "expenses", "customers",
+          "finance", "analytics", "ai-assistant", "sales-reports",
+        ],
+      },
+      pricing: { monthly: 3999, annual: 39990 },
+    },
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "payroll", "staff-scheduling", "expenses", "customers",
+          "finance", "analytics", "ai-assistant",
+          "procurement", "etims", "assets",
+          "api-access", "custom-reports",
+          "sales-reports", "stock-reports", "customer-reports", "cashier-reports",
+        ],
+      },
+      pricing: { monthly: 6999, annual: 69990 },
+    },
+  },
+
+  ASSET_MANAGEMENT: {
+    STARTER: {
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: ["assets", "expenses", "customers", "inventory"],
+      },
+      pricing: { monthly: 1499, annual: 14990 },
+    },
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "assets", "expenses", "customers", "inventory",
+          "finance", "analytics", "ai-assistant", "stock-reports",
+        ],
+      },
+      pricing: { monthly: 3499, annual: 34990 },
+    },
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "assets", "expenses", "customers", "inventory",
+          "finance", "analytics", "ai-assistant",
+          "procurement", "etims", "payroll",
+          "api-access", "custom-reports",
+          "sales-reports", "stock-reports", "customer-reports", "cashier-reports",
+        ],
+      },
+      pricing: { monthly: 5999, annual: 59990 },
+    },
+  },
+
+  FINANCE: {
+    STARTER: {
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: ["finance", "expenses", "customers", "orders"],
+      },
+      pricing: { monthly: 2499, annual: 24990 },
+    },
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "finance", "expenses", "customers", "orders",
+          "procurement", "analytics", "ai-assistant", "sales-reports",
+        ],
+      },
+      pricing: { monthly: 4999, annual: 49990 },
+    },
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "finance", "expenses", "customers", "orders",
+          "procurement", "analytics", "ai-assistant",
+          "etims", "payroll", "assets",
+          "api-access", "custom-reports",
+          "sales-reports", "stock-reports", "customer-reports", "cashier-reports",
+        ],
+      },
+      pricing: { monthly: 7999, annual: 79990 },
+    },
+  },
+
+  PROCUREMENT_WHOLESALE: {
+    STARTER: {
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: [
+          "pos", "orders", "tabs", "inventory", "expenses", "customers",
+          "procurement",
+        ],
+      },
+      pricing: { monthly: 1999, annual: 19990 },
+    },
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "pos", "orders", "tabs", "inventory", "expenses", "customers",
+          "procurement", "discounts", "analytics", "stock-records",
+          "daily-summary", "ai-assistant", "sales-reports", "stock-reports",
+        ],
+      },
+      pricing: { monthly: 4499, annual: 44990 },
+    },
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "pos", "orders", "tabs", "inventory", "expenses", "customers",
+          "procurement", "discounts", "analytics", "stock-records",
+          "daily-summary", "ai-assistant",
+          "finance", "etims", "payroll", "assets",
+          "api-access", "custom-reports",
+          "sales-reports", "stock-reports", "customer-reports", "cashier-reports",
+        ],
+      },
+      pricing: { monthly: 6999, annual: 69990 },
+    },
+  },
+
+  HEALTHCARE_PHARMACY: {
+    STARTER: {
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: [
+          "pos", "orders", "tabs", "inventory", "expenses", "customers",
+        ],
+      },
+      pricing: { monthly: 1499, annual: 14990 },
+    },
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "pos", "orders", "tabs", "inventory", "expenses", "customers",
+          "discounts", "analytics", "stock-records", "daily-summary",
+          "ai-assistant", "sales-reports", "stock-reports",
+        ],
+      },
+      pricing: { monthly: 3499, annual: 34990 },
+    },
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "pos", "orders", "tabs", "inventory", "expenses", "customers",
+          "discounts", "analytics", "stock-records", "daily-summary",
+          "ai-assistant",
+          "finance", "procurement", "etims", "payroll", "assets",
+          "api-access", "custom-reports",
+          "sales-reports", "stock-reports", "customer-reports", "cashier-reports",
+        ],
+      },
+      pricing: { monthly: 5999, annual: 59990 },
+    },
+  },
+
+  EDUCATION_TRAINING: {
+    STARTER: {
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: ["customers", "expenses", "staff-scheduling", "orders"],
+      },
+      pricing: { monthly: 1499, annual: 14990 },
+    },
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "customers", "expenses", "staff-scheduling", "orders",
+          "payroll", "finance", "analytics", "ai-assistant", "sales-reports",
+        ],
+      },
+      pricing: { monthly: 3499, annual: 34990 },
+    },
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "customers", "expenses", "staff-scheduling", "orders",
+          "payroll", "finance", "analytics", "ai-assistant",
+          "procurement", "etims", "assets",
+          "api-access", "custom-reports",
+          "sales-reports", "stock-reports", "customer-reports", "cashier-reports",
+        ],
+      },
+      pricing: { monthly: 5999, annual: 59990 },
+    },
+  },
+
+  LOGISTICS_WAREHOUSING: {
+    STARTER: {
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: ["orders", "inventory", "expenses", "customers"],
+      },
+      pricing: { monthly: 1999, annual: 19990 },
+    },
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "orders", "inventory", "expenses", "customers",
+          "stock-records", "daily-summary", "analytics", "ai-assistant",
+          "sales-reports", "stock-reports",
+        ],
+      },
+      pricing: { monthly: 3999, annual: 39990 },
+    },
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "orders", "inventory", "expenses", "customers",
+          "stock-records", "daily-summary", "analytics", "ai-assistant",
+          "finance", "procurement", "etims", "payroll", "assets",
+          "api-access", "custom-reports",
+          "sales-reports", "stock-reports", "customer-reports", "cashier-reports",
+        ],
+      },
+      pricing: { monthly: 6999, annual: 69990 },
+    },
+  },
+
+  PROFESSIONAL_SERVICES: {
+    STARTER: {
+      limits: {
+        products: 300,
+        locations: 1,
+        staff: 2,
+        features: ["customers", "expenses", "finance", "orders"],
+      },
+      pricing: { monthly: 1499, annual: 14990 },
+    },
+    PROFESSIONAL: {
+      limits: {
+        products: 3000,
+        locations: 2,
+        staff: 5,
+        features: [
+          "customers", "expenses", "finance", "orders",
+          "analytics", "ai-assistant", "sales-reports", "customer-reports",
+        ],
+      },
+      pricing: { monthly: 2999, annual: 29990 },
+    },
+    ENTERPRISE: {
+      limits: {
+        products: Infinity,
+        locations: Infinity,
+        staff: Infinity,
+        features: [
+          "customers", "expenses", "finance", "orders",
+          "analytics", "ai-assistant",
+          "procurement", "etims", "payroll", "assets",
+          "api-access", "custom-reports",
+          "sales-reports", "stock-reports", "customer-reports", "cashier-reports",
+        ],
+      },
+      pricing: { monthly: 5999, annual: 59990 },
+    },
+  },
 };
 
 export interface HardwareAddon {
@@ -328,6 +676,14 @@ export const CATEGORY_DISPLAY: Record<BusinessCategory, { label: string; descrip
   RETAIL_GENERAL: { label: "Retail & General", description: "Shops, supermarkets, pharmacies, hardware" },
   RESTAURANT_HOSPITALITY: { label: "Restaurant & Hospitality", description: "Restaurants, bars, lounges, cafes" },
   BARBERSHOP_SALON: { label: "Barbershop & Salon", description: "Barbershops, salons, spas" },
+  HUMAN_RESOURCE: { label: "Human Resource", description: "Payroll bureaus, staffing agencies, HR teams" },
+  ASSET_MANAGEMENT: { label: "Asset Management", description: "Asset registers, depreciation, maintenance & disposal" },
+  FINANCE: { label: "Finance & Accounting", description: "Accounting firms, bookkeepers, finance departments" },
+  PROCUREMENT_WHOLESALE: { label: "Procurement & Wholesale", description: "Distributors, wholesalers and B2B suppliers" },
+  HEALTHCARE_PHARMACY: { label: "Healthcare & Pharmacy", description: "Pharmacies, clinics and medical stores" },
+  EDUCATION_TRAINING: { label: "Education & Training", description: "Schools, colleges, training centres and academies" },
+  LOGISTICS_WAREHOUSING: { label: "Logistics & Warehousing", description: "Transport, courier, freight and storage" },
+  PROFESSIONAL_SERVICES: { label: "Professional Services", description: "Agencies, consultancies and client-billing firms" },
 };
 
 export const FEATURE_DISPLAY: Record<string, string> = {
