@@ -199,32 +199,32 @@ Deliberately generous: nobody loses access on cutover. The granularity only chan
 
 The live file already encodes several of these as flat strings inside each tier's `features` array: `table-management`, `menu-management`, `kitchen-display`, `online-ordering`, `delivery-management`, `appointments`, `service-catalog`, `queue-management`, `staff-scheduling`, `discounts` (→ `discounts-coupons`), `stock-records`, `finance`, `procurement`, `etims`, `payroll`, `assets`. **These map onto §1's feature keys — don't rename or duplicate.** What changes: each tier's array becomes shorthand for "grant these `TenantFeature` rows," and every one of them also becomes independently purchasable outside a tier.
 
-À la carte pricing (placeholder KES — validate before publishing, standing caveat from every prior pricing table in this project):
+À la carte pricing (revised ≈50% down from the original placeholder table, rounded to the nearest KES 100 — the old figures were judged ridiculous for add-ons stacked on top of a plan; kept in lockstep with `FEATURE_PRICES` so feature-registry.check.ts step 7 still reconciles them):
 
 | Feature | Price | Feature | Price |
 |---|---|---|---|
-| `payroll` | KES 2,500/mo + 400/employee | `price-override` | KES 500/mo |
-| `attendance` | KES 1,000/mo | `discounts-coupons` | KES 500/mo |
-| `leave-management` | KES 800/mo | `multi-till-cashier` | KES 1,200/mo |
-| `loans-advances` | KES 800/mo | `barcode-scanning` | KES 800/mo |
-| `ats-recruitment` | KES 1,500/mo | `table-management` | KES 1,500/mo |
-| `general-ledger` | KES 3,000/mo | `menu-management` | KES 1,500/mo |
-| `bank-reconciliation` | KES 1,200/mo | `kitchen-display` | KES 2,000/mo |
-| `credit-debit-notes` | KES 800/mo | `online-ordering` | KES 2,500/mo |
-| `financial-statements` | KES 1,500/mo | `delivery-management` | KES 2,000/mo |
-| `purchase-orders` | KES 1,500/mo | `appointments` | KES 1,000/mo |
-| `supplier-invoicing` | KES 1,500/mo | `service-catalog` | KES 800/mo |
-| `depreciation` | KES 1,500/mo | `queue-management` | KES 800/mo |
-| `maintenance-tracking` | KES 1,000/mo | `staff-scheduling` | KES 1,200/mo |
-| `disposal-management` | KES 800/mo | `loyalty-program` (CRM) | KES 1,500/mo |
-| `etims-submission` | KES 2,500/mo | `loyalty-program-pos` | included free with `loyalty-program` |
-| `etims-compliance-dashboard` | KES 1,000/mo | `offline-mode` | KES 2,500/mo |
-| `customer-statements` | KES 800/mo | `stock-records` | KES 1,000/mo |
-| `withholding-tax-tracking` | KES 500/mo | `reorder-alerts` | KES 800/mo |
-| | | `stock-valuation` | KES 1,200/mo |
-| | | `multi-location-transfers` | KES 1,200/mo |
-| | | `expiry-tracking` | KES 800/mo |
-| | | `physical-stock-take` | KES 800/mo |
+| `payroll` | KES 1,500/mo + 250/employee | `price-override` | KES 300/mo |
+| `attendance` | KES 500/mo | `discounts-coupons` | KES 300/mo |
+| `leave-management` | KES 400/mo | `multi-till-cashier` | KES 600/mo |
+| `loans-advances` | KES 400/mo | `barcode-scanning` | KES 400/mo |
+| `ats-recruitment` | KES 800/mo | `table-management` | KES 800/mo |
+| `general-ledger` | KES 3,000/mo | `menu-management` | KES 800/mo |
+| `bank-reconciliation` | KES 600/mo | `kitchen-display` | KES 1,000/mo |
+| `credit-debit-notes` | KES 400/mo | `online-ordering` | KES 1,200/mo |
+| `financial-statements` | KES 800/mo | `delivery-management` | KES 1,000/mo |
+| `purchase-orders` | KES 800/mo | `appointments` | KES 500/mo |
+| `supplier-invoicing` | KES 800/mo | `service-catalog` | KES 400/mo |
+| `depreciation` | KES 800/mo | `queue-management` | KES 400/mo |
+| `maintenance-tracking` | KES 500/mo | `staff-scheduling` | KES 600/mo |
+| `disposal-management` | KES 400/mo | `loyalty-program` (CRM) | KES 800/mo |
+| `etims-submission` | KES 1,200/mo | `loyalty-program-pos` | included free with `loyalty-program` |
+| `etims-compliance-dashboard` | KES 500/mo | `offline-mode` | KES 1,200/mo |
+| `customer-statements` | KES 400/mo | `stock-records` | KES 500/mo |
+| `withholding-tax-tracking` | KES 300/mo | `reorder-alerts` | KES 400/mo |
+| | | `stock-valuation` | KES 600/mo |
+| | | `multi-location-transfers` | KES 600/mo |
+| | | `expiry-tracking` | KES 400/mo |
+| | | `physical-stock-take` | KES 400/mo |
 
 Core features (`employee-records`, `general-ledger`, `supplier-management`, `asset-register`, `customer-records`, `core-till`, `stock-tracking-basic`) are never priced — they're the free floor that makes any billable sibling usable.
 

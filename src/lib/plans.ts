@@ -800,7 +800,10 @@ export function checkUsage(
  * spec's price table is a misprint and is deliberately not priced here).
  *
  * Two standing caveats carried over from the spec (handoff D6):
- *  - the KES figures are PLACEHOLDERS until product validates them;
+ *  - the KES figures were revised down (≈50%, rounded to the nearest KES
+ *    100) after the original placeholder table was judged ridiculous for
+ *    add-ons that stack on top of a plan — spec §6's table was updated in
+ *    lockstep, so feature-registry.check.ts still reconciles the two;
  *  - none of this renames or duplicates the flat strings already living in
  *    each tier's `limits.features` array — those stay as they are, and only
  *    mean "these TenantFeature rows are granted".
@@ -817,59 +820,59 @@ export interface FeaturePrice {
 
 export const FEATURE_PRICES: Partial<Record<FeatureKey, FeaturePrice>> = {
   /* payroll module */
-  payroll: { monthly: 2500, perEmployee: 400 },
-  attendance: { monthly: 1000 },
-  "leave-management": { monthly: 800 },
-  "loans-advances": { monthly: 800 },
-  "ats-recruitment": { monthly: 1500 },
+  payroll: { monthly: 1500, perEmployee: 250 },
+  attendance: { monthly: 500 },
+  "leave-management": { monthly: 400 },
+  "loans-advances": { monthly: 400 },
+  "ats-recruitment": { monthly: 800 },
 
   /* finance module */
-  "bank-reconciliation": { monthly: 1200 },
-  "credit-debit-notes": { monthly: 800 },
-  "financial-statements": { monthly: 1500 },
+  "bank-reconciliation": { monthly: 600 },
+  "credit-debit-notes": { monthly: 400 },
+  "financial-statements": { monthly: 800 },
 
   /* procurement module */
-  "purchase-orders": { monthly: 1500 },
-  "supplier-invoicing": { monthly: 1500 },
+  "purchase-orders": { monthly: 800 },
+  "supplier-invoicing": { monthly: 800 },
 
   /* assets module */
-  depreciation: { monthly: 1500 },
-  "maintenance-tracking": { monthly: 1000 },
-  "disposal-management": { monthly: 800 },
+  depreciation: { monthly: 800 },
+  "maintenance-tracking": { monthly: 500 },
+  "disposal-management": { monthly: 400 },
 
   /* etims module */
-  "etims-submission": { monthly: 2500 },
-  "etims-compliance-dashboard": { monthly: 1000 },
+  "etims-submission": { monthly: 1200 },
+  "etims-compliance-dashboard": { monthly: 500 },
 
   /* crm module */
-  "customer-statements": { monthly: 800 },
-  "withholding-tax-tracking": { monthly: 500 },
-  "loyalty-program": { monthly: 1500 },
+  "customer-statements": { monthly: 400 },
+  "withholding-tax-tracking": { monthly: 300 },
+  "loyalty-program": { monthly: 800 },
 
   /* pos module */
-  "price-override": { monthly: 500 },
-  "discounts-coupons": { monthly: 500 },
-  "multi-till-cashier": { monthly: 1200 },
-  "barcode-scanning": { monthly: 800 },
-  "table-management": { monthly: 1500 },
-  "menu-management": { monthly: 1500 },
-  "kitchen-display": { monthly: 2000 },
-  "online-ordering": { monthly: 2500 },
-  "delivery-management": { monthly: 2000 },
-  appointments: { monthly: 1000 },
-  "service-catalog": { monthly: 800 },
-  "queue-management": { monthly: 800 },
-  "staff-scheduling": { monthly: 1200 },
+  "price-override": { monthly: 300 },
+  "discounts-coupons": { monthly: 300 },
+  "multi-till-cashier": { monthly: 600 },
+  "barcode-scanning": { monthly: 400 },
+  "table-management": { monthly: 800 },
+  "menu-management": { monthly: 800 },
+  "kitchen-display": { monthly: 1000 },
+  "online-ordering": { monthly: 1200 },
+  "delivery-management": { monthly: 1000 },
+  appointments: { monthly: 500 },
+  "service-catalog": { monthly: 400 },
+  "queue-management": { monthly: 400 },
+  "staff-scheduling": { monthly: 600 },
   "loyalty-program-pos": { monthly: 0, includedWith: "loyalty-program" },
-  "offline-mode": { monthly: 2500 },
+  "offline-mode": { monthly: 1200 },
 
   /* inventory module */
-  "stock-records": { monthly: 1000 },
-  "reorder-alerts": { monthly: 800 },
-  "stock-valuation": { monthly: 1200 },
-  "multi-location-transfers": { monthly: 1200 },
-  "expiry-tracking": { monthly: 800 },
-  "physical-stock-take": { monthly: 800 },
+  "stock-records": { monthly: 500 },
+  "reorder-alerts": { monthly: 400 },
+  "stock-valuation": { monthly: 600 },
+  "multi-location-transfers": { monthly: 600 },
+  "expiry-tracking": { monthly: 400 },
+  "physical-stock-take": { monthly: 400 },
 };
 
 /** Price of a feature add-on, or null when the feature is free/core. */

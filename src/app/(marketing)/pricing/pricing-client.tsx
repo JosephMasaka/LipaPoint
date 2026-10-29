@@ -9,6 +9,7 @@ import {
   VERTICAL_PLANS,
   HARDWARE_ADDONS,
   CATEGORY_DISPLAY,
+  formatFeaturePrice,
   formatPrice,
   groupPlanFeatures,
   FULL_ERP_FEATURES,
@@ -292,10 +293,8 @@ export function PricingClient() {
 
           {/* Every non-core feature is independently switchable from the
               Apps screen (sub-feature spec §6) — grouped by app, then by
-              module, mirroring how the tier cards group their bullets.
-              Deliberately price-free: the old per-feature KES figures were
-              pulled from this page; they still drive the register flow's
-              add-on picker via FEATURE_PRICES in lib/plans. */}
+              module, mirroring how the tier cards group their bullets, with
+              each feature's revised à la carte price alongside it. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {APPS.map((app) => {
               const rows = FEATURE_KEYS.filter((key) => {
@@ -304,11 +303,11 @@ export function PricingClient() {
               });
               if (rows.length === 0) return null;
 
-              const byModule = new Map<ModuleKey, string[]>();
+              const byModule = new Map<ModuleKey, FeatureKey[]>();
               for (const key of rows) {
                 const def = FEATURE_REGISTRY[key as FeatureKey];
                 const bucket = byModule.get(def.moduleKey) ?? [];
-                bucket.push(def.label);
+                bucket.push(key as FeatureKey);
                 byModule.set(def.moduleKey, bucket);
               }
 
@@ -322,18 +321,23 @@ export function PricingClient() {
                   </h3>
                   <p className="text-xs text-text-muted mb-4">{app.tagline}</p>
                   <div className="space-y-4">
-                    {[...byModule.entries()].map(([moduleKey, labels]) => (
+                    {[...byModule.entries()].map(([moduleKey, featureKeys]) => (
                       <div key={moduleKey}>
                         <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted mb-2">
                           {MODULE_REGISTRY[moduleKey].label}
                         </p>
-                        <ul className="flex flex-wrap gap-2">
-                          {labels.map((label) => (
+                        <ul className="space-y-2.5">
+                          {featureKeys.map((key) => (
                             <li
-                              key={label}
-                              className="rounded-full border border-border px-2.5 py-1 text-xs text-text-secondary"
+                              key={key}
+                              className="flex items-center justify-between gap-3 text-sm"
                             >
-                              {label}
+                              <span className="text-text-secondary">
+                                {FEATURE_REGISTRY[key].label}
+                              </span>
+                              <span className="shrink-0 font-medium text-text-primary text-right">
+                                {formatFeaturePrice(key)}
+                              </span>
                             </li>
                           ))}
                         </ul>
