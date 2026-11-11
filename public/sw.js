@@ -1,8 +1,26 @@
-const CACHE_VERSION = "lipapoint-v7";
+/**
+ * LipaPoint service worker.
+ *
+ * Two jobs: keep the till shell usable with no network, and drain the offline
+ * write queue in the background. Offline Mode is free for every tenant and
+ * plan, so nothing here is gated.
+ *
+ * The queue contract (record fields, retry timing, request mapping) is shared
+ * with src/lib/offline-sync.ts. A service worker can't import that module, so
+ * the few pure helpers are mirrored below — keep them in step (pinned by
+ * offline-mode.check.ts on the TS side).
+ */
+
+const CACHE_VERSION = "lipapoint-v8";
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 const API_CACHE = `${CACHE_VERSION}-api`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
+
+const DB_NAME = "lipapoint-offline";
+const DB_VERSION = 2;
+const CLAIM_TTL_MS = 2 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 20_000;
 
 const STATIC_ASSETS = [
   "/offline.html",
@@ -27,6 +45,7 @@ const API_CACHE_ROUTES = [
   "/api/transactions",
   "/api/users",
   "/api/roles",
+  "/api/features",
 ];
 
 // Install: cache shell assets
@@ -56,19 +75,28 @@ self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  if (request.method !== "GET") {
-    if (url.pathname.startsWith("/api/")) {
-      event.respondWith(
-        fetch(request).catch(() =>
-          new Response(JSON.stringify({ queued: true, offline: true }), {
-            status: 202,
+  // The connectivity probe must always hit the network: answering it from a
+  // cache would tell the till it's online while nothing can reach the server.
+  if (url.pathname === "/api/health") {
+    event.respondWith(
+      fetch(request).catch(
+        () =>
+          new Response(JSON.stringify({ ok: false, offline: true }), {
+            status: 503,
             headers: { "Content-Type": "application/json" },
           })
-        )
-      );
-    }
+      )
+    );
     return;
   }
+
+  // Mutations are never answered by this worker. Synthesising a success here
+  // (the old 202) made a page believe a write had landed when it had not —
+  // and the offline queue's own replay POST is intercepted by this same
+  // handler, so a fabricated 202 deleted queued sales instead of retrying
+  // them. Letting the browser perform the request means a dead network is a
+  // real fetch failure, which is exactly the signal callers queue on.
+  if (request.method !== "GET") return;
 
   // API routes: network-first with cache fallback
   if (url.pathname.startsWith("/api/")) {
@@ -77,11 +105,12 @@ self.addEventListener("fetch", (event) => {
       event.respondWith(networkFirstAPI(request));
     } else {
       event.respondWith(
-        fetch(request).catch(() =>
-          new Response(JSON.stringify({ error: "Offline" }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          })
+        fetch(request).catch(
+          () =>
+            new Response(JSON.stringify({ error: "Offline" }), {
+              status: 503,
+              headers: { "Content-Type": "application/json" },
+            })
         )
       );
     }
@@ -89,7 +118,8 @@ self.addEventListener("fetch", (event) => {
   }
 
   // RSC requests — client-side navigation in Next.js App Router
-  const isRSC = request.headers.get("RSC") === "1" ||
+  const isRSC =
+    request.headers.get("RSC") === "1" ||
     request.headers.get("Next-Router-State-Tree") !== null;
 
   if (isRSC) {
@@ -153,7 +183,6 @@ async function findCachedHTMLPage(tenantSlug) {
       !keyUrl.pathname.startsWith(`${tenantPrefix}api/`);
   });
 
-  // Return first available HTML page
   for (const key of dashboardKeys) {
     const response = await cache.match(key);
     if (response) {
@@ -182,13 +211,12 @@ async function handleRSC(request) {
     }
     return response;
   } catch {
-    // Try cached RSC response by pathname
     const cache = await caches.open(DYNAMIC_CACHE);
     const cached = await cache.match(cacheKey);
     if (cached) return cached;
 
-    // Fallback: redirect browser to do a full page navigation
-    // This triggers handleNavigation which can serve cached HTML
+    // Fallback: redirect browser to do a full page navigation, which
+    // handleNavigation can answer from the page cache.
     return Response.redirect(url.href, 302);
   }
 }
@@ -210,7 +238,6 @@ async function networkFirstAPI(request) {
     const cached = await cache.match(cacheKey);
     if (cached) return cached;
 
-    // Try matching just the pathname (without query params) for base routes
     const baseKey = new Request(url.pathname);
     const baseCached = await cache.match(baseKey);
     if (baseCached) return baseCached;
@@ -246,116 +273,43 @@ async function staleWhileRevalidate(request) {
   return new Response("Offline", { status: 503 });
 }
 
-// Background Sync: retry failed orders and actions
-self.addEventListener("sync", (event) => {
-  if (event.tag === "sync-orders") {
-    event.waitUntil(
-      Promise.all([syncOfflineOrders(), syncOfflineActions()])
-    );
-  }
-});
+/* ------------------------------------------------------------------ *
+ * Offline write queue (mirrors src/lib/offline-sync.ts)
+ * ------------------------------------------------------------------ */
 
-/**
- * A queued write the server refused — e.g. a sale that broke the till's price
- * floor because the owner tightened it while this device was offline.
- *
- * The record STAYS in the queue (a sale is never dropped silently); the
- * reason is raised as a notification exactly once, tagged on the record so
- * background-sync retries stay quiet instead of re-notifying forever.
- */
-async function reportRejection(db, storeName, record, res, label) {
-  if (record.rejectNotified) return;
-
-  let reason = `The server refused it (HTTP ${res.status})`;
-  try {
-    const body = await res.clone().json();
-    if (body && body.error) reason = body.error;
-  } catch { /* non-JSON error body */ }
-
-  try {
-    const tx = db.transaction(storeName, "readwrite");
-    tx.objectStore(storeName).put({ ...record, rejectNotified: true, rejectReason: reason });
-  } catch { /* tagging is best-effort — the notification still goes out */ }
-
-  try {
-    await self.registration.showNotification("Offline sale not accepted", {
-      body: `${label}: ${reason}`,
-      icon: "/icons/icon-192.svg",
-      badge: "/icons/icon-192.svg",
-      tag: `rejected-${storeName}-${record.id}`,
-    });
-  } catch { /* notifications can be blocked */ }
+function retryDelayMs(attempts) {
+  return Math.min(10_000 * 2 ** Math.max(0, attempts - 1), 2 * 60 * 1000);
 }
 
-async function syncOfflineOrders() {
-  try {
-    const db = await openDB();
-    const tx = db.transaction("offline-orders", "readonly");
-    const store = tx.objectStore("offline-orders");
-    const request = store.getAll();
+function classifyFailure(status) {
+  if (status === 408 || status === 425 || status === 429) return "retry";
+  if (status >= 400 && status < 500) return "reject";
+  return "retry";
+}
 
-    return new Promise((resolve, reject) => {
-      request.onsuccess = async () => {
-        const orders = request.result;
-        const synced = [];
-
-        for (const order of orders) {
-          try {
-            const res = await fetch("/api/orders", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(order.data),
-            });
-            if (res.ok) {
-              synced.push(order.id);
-              const clients = await self.clients.matchAll();
-              clients.forEach((client) =>
-                client.postMessage({ type: "ORDER_SYNCED", orderId: order.id, orderNo: order.data.orderNo })
-              );
-            } else {
-              // Refused (price floor, stock, feature…) — keep it, but say why.
-              await reportRejection(db, "offline-orders", order, res, order.data.orderNo || "Offline sale");
-            }
-          } catch {
-            // Will retry on next sync
-          }
-        }
-
-        if (synced.length > 0) {
-          const deleteTx = db.transaction("offline-orders", "readwrite");
-          const deleteStore = deleteTx.objectStore("offline-orders");
-          synced.forEach((id) => deleteStore.delete(id));
-
-          self.registration.showNotification("LipaPoint", {
-            body: `${synced.length} offline order(s) synced successfully`,
-            icon: "/icons/icon-192.svg",
-            badge: "/icons/icon-192.svg",
-            tag: "sync-complete",
-          });
-        }
-
-        resolve();
-      };
-      request.onerror = reject;
-    });
-  } catch (e) {
-    console.error("Sync failed:", e);
-  }
+function isDue(record, now) {
+  if (record.rejectedAt) return false;
+  if (record.syncingAt && now - Date.parse(record.syncingAt) < CLAIM_TTL_MS) return false;
+  const next = record.nextAttemptAt ? Date.parse(record.nextAttemptAt) : 0;
+  return !Number.isFinite(next) || next <= now;
 }
 
 function openDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("lipapoint-offline", 2);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
       if (!db.objectStoreNames.contains("offline-orders")) {
         db.createObjectStore("offline-orders", { keyPath: "id", autoIncrement: true });
       }
+      if (!db.objectStoreNames.contains("offline-actions")) {
+        db.createObjectStore("offline-actions", { keyPath: "id", autoIncrement: true });
+      }
       if (!db.objectStoreNames.contains("cached-products")) {
         db.createObjectStore("cached-products", { keyPath: "id" });
       }
-      if (!db.objectStoreNames.contains("offline-actions")) {
-        db.createObjectStore("offline-actions", { keyPath: "id", autoIncrement: true });
+      if (!db.objectStoreNames.contains("cached-settings")) {
+        db.createObjectStore("cached-settings", { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -363,135 +317,250 @@ function openDB() {
   });
 }
 
-async function syncOfflineActions() {
-  try {
-    const db = await openDB();
-    const tx = db.transaction("offline-actions", "readonly");
-    const store = tx.objectStore("offline-actions");
-    const request = store.getAll();
+function buildOrderRequest(data) {
+  return { url: "/api/orders", method: "POST", body: data };
+}
 
-    return new Promise((resolve, reject) => {
-      request.onsuccess = async () => {
-        const actions = request.result;
-        const synced = [];
-
-        for (const action of actions) {
-          try {
-            let url = "";
-            let method = "POST";
-            let body = {};
-
-            switch (action.type) {
-              case "stock_add":
-                url = "/api/stock";
-                body = { action: "addStock", ...action.data };
-                break;
-              case "stock_initialize":
-                url = "/api/stock";
-                body = { action: "initialize", ...action.data };
-                break;
-              case "tab_open":
-                url = "/api/orders/tabs";
-                body = action.data;
-                break;
-              case "tab_add":
-                url = "/api/orders/tabs";
-                method = "PUT";
-                body = { action: "add", ...action.data };
-                break;
-              case "expense_add":
-                url = "/api/expenses";
-                body = action.data;
-                break;
-              case "unit_create":
-                url = "/api/units";
-                body = action.data;
-                break;
-              case "unit_conversion":
-                url = "/api/units";
-                method = "PUT";
-                body = action.data;
-                break;
-              case "product_create":
-                url = "/api/products";
-                body = action.data;
-                break;
-              case "product_update":
-                url = "/api/products/" + action.data._productId;
-                method = "PUT";
-                body = action.data;
-                break;
-              case "location_add":
-                url = "/api/locations";
-                body = action.data;
-                break;
-              case "location_update":
-                url = "/api/locations";
-                method = "PUT";
-                body = action.data;
-                break;
-              case "user_create":
-                url = "/api/users";
-                body = action.data;
-                break;
-              case "user_toggle":
-                url = "/api/users/" + action.data._userId;
-                method = "PATCH";
-                body = { isActive: action.data.isActive };
-                break;
-              case "user_delete":
-                url = "/api/users/" + action.data._userId;
-                method = "DELETE";
-                break;
-              case "role_create":
-                url = "/api/roles";
-                body = action.data;
-                break;
-              case "role_update":
-                url = "/api/roles";
-                method = "PUT";
-                body = action.data;
-                break;
-              case "settings_update":
-                url = "/api/settings";
-                method = "PUT";
-                body = action.data;
-                break;
-              default:
-                continue;
-            }
-
-            const fetchOpts = { method, headers: { "Content-Type": "application/json" } };
-            if (method !== "DELETE") fetchOpts.body = JSON.stringify(body);
-            const res = await fetch(url, fetchOpts);
-            if (res.ok) {
-              synced.push(action.id);
-            } else {
-              // Refused (e.g. an offline tab opened below the price floor) —
-              // keep it queued and surface the reason once.
-              await reportRejection(db, "offline-actions", action, res, action.type);
-            }
-          } catch {
-            // Will retry on next sync
-          }
-        }
-
-        if (synced.length > 0) {
-          const deleteTx = db.transaction("offline-actions", "readwrite");
-          const deleteStore = deleteTx.objectStore("offline-actions");
-          synced.forEach((id) => deleteStore.delete(id));
-        }
-
-        resolve();
-      };
-      request.onerror = reject;
-    });
-  } catch (e) {
-    console.error("Action sync failed:", e);
+function buildActionRequest(type, data) {
+  switch (type) {
+    case "stock_add":
+      return { url: "/api/stock", method: "POST", body: { action: "addStock", ...data } };
+    case "stock_initialize":
+      return { url: "/api/stock", method: "POST", body: { action: "initialize", ...data } };
+    case "tab_open":
+      return { url: "/api/orders/tabs", method: "POST", body: data };
+    case "tab_add":
+      return { url: "/api/orders/tabs", method: "PUT", body: { action: "add", ...data } };
+    case "expense_add":
+      return { url: "/api/expenses", method: "POST", body: data };
+    case "unit_create":
+      return { url: "/api/units", method: "POST", body: data };
+    case "unit_conversion":
+      return { url: "/api/units", method: "PUT", body: data };
+    case "product_create":
+      return { url: "/api/products", method: "POST", body: data };
+    case "product_update":
+      return { url: "/api/products/" + data._productId, method: "PUT", body: data };
+    case "location_add":
+      return { url: "/api/locations", method: "POST", body: data };
+    case "location_update":
+      return { url: "/api/locations", method: "PUT", body: data };
+    case "user_create":
+      return { url: "/api/users", method: "POST", body: data };
+    case "user_toggle":
+      return { url: "/api/users/" + data._userId, method: "PATCH", body: { isActive: data.isActive } };
+    case "user_delete":
+      return { url: "/api/users/" + data._userId, method: "DELETE" };
+    case "role_create":
+      return { url: "/api/roles", method: "POST", body: data };
+    case "role_update":
+      return { url: "/api/roles", method: "PUT", body: data };
+    case "settings_update":
+      return { url: "/api/settings", method: "PUT", body: data };
+    default:
+      return null;
   }
 }
 
-// Push Notifications
+/** Claims the records this worker may replay, atomically. */
+function claimDue(db, storeName, now) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    const store = tx.objectStore(storeName);
+    const request = store.getAll();
+    let claimed = [];
+    request.onsuccess = () => {
+      claimed = request.result.filter((record) => isDue(record, now));
+      const stamp = new Date(now).toISOString();
+      claimed.forEach((record) => store.put({ ...record, syncingAt: stamp }));
+    };
+    tx.oncomplete = () => resolve(claimed);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
+  });
+}
+
+function deleteRecord(db, storeName, id) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    tx.objectStore(storeName).delete(id);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+function putRecord(db, storeName, record) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readwrite");
+    tx.objectStore(storeName).put(record);
+    tx.oncomplete = resolve;
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function notifyClients(message) {
+  try {
+    const clients = await self.clients.matchAll({ includeUncontrolled: true });
+    clients.forEach((client) => client.postMessage(message));
+  } catch {
+    /* no clients */
+  }
+}
+
+/**
+ * A queued write the server refused (price floor, stock, validation…). The
+ * record STAYS in the queue — a sale is never dropped silently — and the
+ * reason is raised as a notification exactly once.
+ */
+async function reportRejection(db, storeName, record, reason) {
+  if (record.rejectedAt) return;
+  await putRecord(db, storeName, {
+    ...record,
+    syncingAt: null,
+    attempts: (record.attempts || 0) + 1,
+    lastAttemptAt: new Date().toISOString(),
+    rejectedAt: new Date().toISOString(),
+    rejectReason: reason,
+    lastError: reason,
+  });
+
+  try {
+    await self.registration.showNotification("Offline change not accepted", {
+      body: `${record.data && record.data.orderNo ? record.data.orderNo : record.type || "Offline change"}: ${reason}`,
+      icon: "/icons/icon-192.svg",
+      badge: "/icons/icon-192.svg",
+      tag: `rejected-${storeName}-${record.id}`,
+    });
+  } catch {
+    /* notifications can be blocked */
+  }
+}
+
+async function replayOne(db, storeName, record, request) {
+  if (!request) {
+    await reportRejection(db, storeName, record, "Unknown change type");
+    return "rejected";
+  }
+
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timer = controller ? setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS) : null;
+
+  try {
+    const response = await fetch(request.url, {
+      method: request.method,
+      headers: {
+        "Content-Type": "application/json",
+        "x-idempotency-key": record.clientRef || `legacy-${storeName}-${record.id}`,
+      },
+      body: request.method === "DELETE" ? undefined : JSON.stringify(request.body || {}),
+      signal: controller ? controller.signal : undefined,
+    });
+
+    if (response.ok) {
+      await deleteRecord(db, storeName, record.id);
+      return "synced";
+    }
+
+    let reason = `The server refused it (HTTP ${response.status})`;
+    try {
+      const body = await response.clone().json();
+      if (body && body.error) reason = body.error;
+    } catch {
+      /* non-JSON error body */
+    }
+
+    if (classifyFailure(response.status) === "reject") {
+      await reportRejection(db, storeName, record, reason);
+      return "rejected";
+    }
+
+    const attempts = (record.attempts || 0) + 1;
+    const now = Date.now();
+    await putRecord(db, storeName, {
+      ...record,
+      syncingAt: null,
+      attempts,
+      lastAttemptAt: new Date(now).toISOString(),
+      nextAttemptAt: new Date(now + retryDelayMs(attempts)).toISOString(),
+      lastError: reason,
+    });
+    return "retried";
+  } catch {
+    const attempts = (record.attempts || 0) + 1;
+    const now = Date.now();
+    await putRecord(db, storeName, {
+      ...record,
+      syncingAt: null,
+      attempts,
+      lastAttemptAt: new Date(now).toISOString(),
+      nextAttemptAt: new Date(now + retryDelayMs(attempts)).toISOString(),
+      lastError: "No connection to the server",
+    });
+    return "retried";
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function runSync() {
+  let synced = 0;
+  try {
+    const db = await openDB();
+    const now = Date.now();
+
+    // Sales first: money before bookkeeping.
+    for (const order of await claimDue(db, "offline-orders", now)) {
+      const outcome = await replayOne(db, "offline-orders", order, buildOrderRequest(order.data));
+      if (outcome === "synced") {
+        synced++;
+        await notifyClients({
+          type: "ORDER_SYNCED",
+          orderId: order.id,
+          orderNo: order.data && order.data.orderNo,
+        });
+      }
+    }
+
+    for (const action of await claimDue(db, "offline-actions", now)) {
+      const outcome = await replayOne(
+        db,
+        "offline-actions",
+        action,
+        buildActionRequest(action.type, action.data)
+      );
+      if (outcome === "synced") synced++;
+    }
+
+    if (synced > 0) {
+      try {
+        await self.registration.showNotification("LipaPoint", {
+          body: `${synced} offline change(s) synced successfully`,
+          icon: "/icons/icon-192.svg",
+          badge: "/icons/icon-192.svg",
+          tag: "sync-complete",
+        });
+      } catch {
+        /* notifications can be blocked */
+      }
+    }
+  } catch (error) {
+    console.error("Offline sync failed:", error);
+  } finally {
+    await notifyClients({ type: "QUEUE_CHANGED" });
+  }
+}
+
+// Background Sync: replay whatever is due
+self.addEventListener("sync", (event) => {
+  if (event.tag === "sync-orders") {
+    event.waitUntil(runSync());
+  }
+});
+
+/* ------------------------------------------------------------------ *
+ * Push notifications
+ * ------------------------------------------------------------------ */
+
 self.addEventListener("push", (event) => {
   let data = { title: "LipaPoint", body: "You have a new notification" };
 
@@ -567,6 +636,9 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
   }
+  if (event.data?.type === "SYNC_QUEUE") {
+    event.waitUntil(runSync());
+  }
   if (event.data?.type === "CACHE_URLS") {
     event.waitUntil(
       caches.open(DYNAMIC_CACHE).then((cache) =>
@@ -585,6 +657,7 @@ async function warmCache(urls) {
 
   for (const url of urls) {
     try {
+      if (url === "/api/health") continue;
       if (url.startsWith("/api/")) {
         const cacheKey = new Request(url);
         const existing = await apiCache.match(cacheKey);

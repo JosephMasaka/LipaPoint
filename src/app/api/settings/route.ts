@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canonicalCounty } from "@/lib/kenya-counties";
 import { isFeatureEnabled } from "@/lib/features";
 import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 export async function GET() {
   try {
@@ -46,6 +47,11 @@ export async function PUT(request: Request) {
     if (user.role !== "OWNER" && user.role !== "ADMIN") {
       return NextResponse.json({ error: "Only an owner or admin can change business settings." }, { status: 403 });
     }
+
+    // Settings changed offline are replayed until they land (PUT is
+    // idempotent anyway, but the receipt keeps the response consistent).
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
 
     const body = await request.json();
     const {
@@ -141,7 +147,7 @@ export async function PUT(request: Request) {
     // Location and business type change which peers we compare against.
     if (county !== undefined || city !== undefined || type) invalidateIntelligence(user.tenantId);
 
-    return NextResponse.json(tenant);
+    return recordSyncResponse(request, user.tenantId, NextResponse.json(tenant));
   } catch (error) {
     console.error("Settings PUT error:", error);
     return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });

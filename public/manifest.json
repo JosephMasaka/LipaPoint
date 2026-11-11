@@ -1,7 +1,7 @@
 {
-  "name": "LipaPoint POS",
+  "name": "LipaPoint ERP",
   "short_name": "LipaPoint",
-  "description": "Kenya's #1 POS system. M-Pesa payments, inventory management, real-time analytics, staff tracking & multi-location support for restaurants, bars, retail shops, supermarkets and pharmacies.",
+  "description": "Kenya's all-in-one ERP. Point of sale, M-Pesa payments, inventory, statutory payroll, accounting, fixed assets and KRA eTIMS for restaurants, bars, retail shops, supermarkets and pharmacies.",
   "id": "lipapoint-pos",
   "start_url": "/login?source=pwa",
   "scope": "/",
@@ -46,18 +46,18 @@
   ],
   "screenshots": [
     {
-      "src": "/icons/icon-512.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
+      "src": "/images/screenshots/dashboard-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
       "form_factor": "wide",
-      "label": "LipaPoint POS Dashboard"
+      "label": "LipaPoint ERP Dashboard — sales, operations and compliance at a glance"
     },
     {
-      "src": "/icons/icon-512.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml",
+      "src": "/images/screenshots/dashboard-narrow.png",
+      "sizes": "720x1280",
+      "type": "image/png",
       "form_factor": "narrow",
-      "label": "LipaPoint POS Mobile"
+      "label": "LipaPoint ERP Mobile — today's sales and operations"
     }
   ],
   "prefer_related_applications": false,

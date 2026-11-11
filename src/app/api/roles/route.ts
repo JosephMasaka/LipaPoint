@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 const SYSTEM_ROLES = ["OWNER", "ADMIN", "MANAGER", "CASHIER", "STOCK_KEEPER", "KITCHEN"];
 
@@ -58,6 +59,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Only owners and admins can manage roles" }, { status: 403 });
     }
 
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
+
     const body = await request.json();
     const { role, permissions, description } = body;
 
@@ -81,7 +85,7 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(saved);
+    return recordSyncResponse(request, user.tenantId, NextResponse.json(saved));
   } catch (error) {
     console.error("PUT /api/roles error:", error);
     return NextResponse.json({ error: "Failed to save role permissions" }, { status: 500 });
@@ -92,6 +96,10 @@ export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    // (a queued role created offline is replayed until it lands)
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
 
     if (!["OWNER", "ADMIN"].includes(user.role)) {
       return NextResponse.json({ error: "Only owners and admins can create roles" }, { status: 403 });
@@ -127,7 +135,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(created, { status: 201 });
+    return recordSyncResponse(
+      request,
+      user.tenantId,
+      NextResponse.json(created, { status: 201 })
+    );
   } catch (error) {
     console.error("POST /api/roles error:", error);
     return NextResponse.json({ error: "Failed to create role" }, { status: 500 });

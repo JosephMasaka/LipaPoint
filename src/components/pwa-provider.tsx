@@ -3,8 +3,11 @@
 import { createContext, useContext, useEffect, useState, useRef } from "react";
 import { WifiOff, Download, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { syncOfflineOrders, syncOfflineActions, getOfflineOrders, getOfflineActions, getPendingCount } from "@/lib/offline-db";
-import { refreshOfflineEntitlement } from "@/lib/offline-entitlement";
+import {
+  OFFLINE_QUEUE_EVENT,
+  getPendingCount,
+  syncQueue,
+} from "@/lib/offline-db";
 
 interface PWAContextType {
   isOnline: boolean;
@@ -43,9 +46,6 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    // Warm the `offline-mode` entitlement cache (sub-feature spec §9 step 8)
-    // so the offline write queue has an answer before the browser goes dark.
-    void refreshOfflineEntitlement();
   }, []);
 
   // Online/offline detection
@@ -56,19 +56,16 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     const goOnline = async () => {
       setIsOnline(true);
       try {
-
-        const orders = await getOfflineOrders();
-        const actions = await getOfflineActions();
-        const totalPending = orders.length + actions.length;
+        const totalPending = await getPendingCount();
         if (totalPending > 0) {
           setSyncMessage(`Syncing ${totalPending} offline item(s)...`);
-          const orderResult = await syncOfflineOrders();
-          const actionResult = await syncOfflineActions();
-          const totalSynced = orderResult.synced + actionResult.synced;
-          if (totalSynced > 0) {
-            setSyncMessage(`${totalSynced} item(s) synced!`);
-            setPendingOfflineOrders(0);
+          const result = await syncQueue();
+          if (result.synced > 0) {
+            setSyncMessage(`${result.synced} item(s) synced!`);
+          } else if (result.rejected > 0) {
+            setSyncMessage(`${result.rejected} offline item(s) need attention`);
           }
+          setPendingOfflineOrders(await getPendingCount());
           setTimeout(() => setSyncMessage(""), 4000);
         }
       } catch {}
@@ -120,18 +117,22 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
     }
   }, [mounted]);
 
-  // Check pending offline items
+  // Check pending offline items — live on queue changes (every tab announces
+  // them) with a slow poll as the fallback.
   useEffect(() => {
     if (!mounted) return;
     const checkPending = async () => {
       try {
-        const count = await getPendingCount();
-        setPendingOfflineOrders(count);
+        setPendingOfflineOrders(await getPendingCount());
       } catch {}
     };
     checkPending();
+    window.addEventListener(OFFLINE_QUEUE_EVENT, checkPending);
     const interval = setInterval(checkPending, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      window.removeEventListener(OFFLINE_QUEUE_EVENT, checkPending);
+      clearInterval(interval);
+    };
   }, [mounted]);
 
   // Listen for SW messages
@@ -141,7 +142,7 @@ export function PWAProvider({ children }: { children: React.ReactNode }) {
       if (event.data?.type === "ORDER_SYNCED") {
         setSyncMessage("Order synced successfully");
         setTimeout(() => setSyncMessage(""), 4000);
-        getOfflineOrders().then((o) => setPendingOfflineOrders(o.length)).catch(() => {});
+        getPendingCount().then(setPendingOfflineOrders).catch(() => {});
       }
     };
     navigator.serviceWorker.addEventListener("message", handler);

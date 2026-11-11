@@ -1,6 +1,7 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 export async function PUT(
   request: NextRequest,
@@ -10,6 +11,9 @@ export async function PUT(
     const auth = await requireUserWithFeature("stock-tracking-basic");
     if (auth.response) return auth.response;
     const { user } = auth;
+
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
 
     const { id } = await params;
     const body = await request.json();
@@ -63,7 +67,7 @@ export async function PUT(
       });
     }
 
-    return NextResponse.json(product);
+    return recordSyncResponse(request, user.tenantId, NextResponse.json(product));
   } catch (error) {
     console.error("PUT /api/products/[id] error:", error);
     return NextResponse.json({ error: "Failed to update product" }, { status: 500 });

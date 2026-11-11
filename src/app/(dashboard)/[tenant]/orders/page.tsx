@@ -151,7 +151,7 @@ export default function OrdersPage() {
       ${(mpesaPaybill || mpesaTill) ? `<div class="divider"></div>` : ""}
       ${isBill ? `<div class="center" style="font-size:10px;color:#666;">This is a bill, not a receipt.</div><div class="center" style="font-size:10px;color:#666;">Payment has not been confirmed.</div>` : `<div class="center">${receiptFooter}</div>`}
       <div class="divider"></div>
-      <div class="center" style="font-size:9px;margin-top:4px;color:#888">Powered by LipaPoint POS</div>
+      <div class="center" style="font-size:9px;margin-top:4px;color:#888">Powered by LipaPoint ERP</div>
       <div class="center" style="font-size:9px;color:#888">Dev: Joseph Masaka | 0791298382</div>
       <script>window.print(); window.close();</script>
       </body></html>

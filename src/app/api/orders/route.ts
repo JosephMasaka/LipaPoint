@@ -6,6 +6,7 @@ import { submitOrderForEtims } from "@/lib/etims/submission";
 import { resolveLinePrice, supplierCostPerUnit, type PricePolicy } from "@/lib/price-override";
 import { isFeatureEnabled } from "@/lib/features";
 import { writeAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 export async function GET(request: NextRequest) {
   try {
@@ -64,6 +65,12 @@ export async function POST(request: NextRequest) {
     const auth = await requireUserWithFeature("core-till");
     if (auth.response) return auth.response;
     const { user } = auth;
+
+    // Offline sales replay until they land. If the first attempt committed and
+    // only its reply was lost, this returns the original order instead of
+    // ringing up a second sale (src/lib/idempotency.ts).
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
 
     const tenant = await db.tenant.findUnique({
       where: { id: user.tenantId },
@@ -428,19 +435,23 @@ export async function POST(request: NextRequest) {
       ? null
       : await submitOrderForEtims(user.tenantId, order.id, { userId: user.id });
 
-    return NextResponse.json(
-      {
-        ...order,
-        stockLevels,
-        etims: etims
-          ? {
-              status: etims.status,
-              kraInvoiceNumber: etims.kraInvoiceNumber,
-              qrCodeUrl: etims.qrCodeUrl,
-            }
-          : null,
-      },
-      { status: 201 }
+    return recordSyncResponse(
+      request,
+      user.tenantId,
+      NextResponse.json(
+        {
+          ...order,
+          stockLevels,
+          etims: etims
+            ? {
+                status: etims.status,
+                kraInvoiceNumber: etims.kraInvoiceNumber,
+                qrCodeUrl: etims.qrCodeUrl,
+              }
+            : null,
+        },
+        { status: 201 }
+      )
     );
   } catch (error) {
     console.error("POST /api/orders error:", error);

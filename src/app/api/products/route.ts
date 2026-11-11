@@ -1,4 +1,5 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getPlanLimits } from "@/lib/plans";
@@ -75,6 +76,11 @@ export async function POST(request: NextRequest) {
     if (auth.response) return auth.response;
     const { user } = auth;
 
+    // A product queued offline is replayed until it lands — never create the
+    // same product twice because the first reply was lost.
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
+
     const limits = getPlanLimits(user.tenant.tier, user.tenant.type);
     const productCount = await db.product.count({ where: { tenantId: user.tenantId, isActive: true } });
     if (productCount >= limits.products) {
@@ -131,7 +137,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(product, { status: 201 });
+    return recordSyncResponse(
+      request,
+      user.tenantId,
+      NextResponse.json(product, { status: 201 })
+    );
   } catch (error) {
     console.error("POST /api/products error:", error);
     return NextResponse.json(

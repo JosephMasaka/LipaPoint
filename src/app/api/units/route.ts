@@ -1,6 +1,7 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 export async function GET() {
   const auth = await requireUserWithFeature("stock-tracking-basic");
@@ -25,6 +26,11 @@ export async function POST(request: NextRequest) {
   if (auth.response) return auth.response;
   const { user } = auth;
 
+  // Queued offline unit changes replay until they land; a replay of a request
+  // that already committed returns its original body.
+  const replay = await replaySyncResponse(request, user.tenantId);
+  if (replay) return replay;
+
   const body = await request.json();
   const { name, abbreviation } = body;
 
@@ -36,13 +42,20 @@ export async function POST(request: NextRequest) {
     data: { name, abbreviation, tenantId: user.tenantId },
   });
 
-  return NextResponse.json(unit, { status: 201 });
+  return recordSyncResponse(
+    request,
+    user.tenantId,
+    NextResponse.json(unit, { status: 201 })
+  );
 }
 
 export async function PUT(request: NextRequest) {
   const auth = await requireUserWithFeature("stock-tracking-basic");
   if (auth.response) return auth.response;
   const { user } = auth;
+
+  const replay = await replaySyncResponse(request, user.tenantId);
+  if (replay) return replay;
 
   const body = await request.json();
   const { fromUnitId, toUnitId, factor } = body;
@@ -57,5 +70,5 @@ export async function PUT(request: NextRequest) {
     create: { fromUnitId, toUnitId, factor },
   });
 
-  return NextResponse.json(conversion);
+  return recordSyncResponse(request, user.tenantId, NextResponse.json(conversion));
 }

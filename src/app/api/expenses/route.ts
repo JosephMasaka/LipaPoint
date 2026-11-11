@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,6 +35,11 @@ export async function POST(request: NextRequest) {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // A queued offline expense is replayed until it succeeds — never book it
+    // twice because the first reply was lost.
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
+
     const body = await request.json();
     const { date, category, description, amount } = body;
 
@@ -52,7 +58,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(expense, { status: 201 });
+    return recordSyncResponse(
+      request,
+      user.tenantId,
+      NextResponse.json(expense, { status: 201 })
+    );
   } catch (error) {
     console.error("POST /api/expenses error:", error);
     return NextResponse.json({ error: "Failed to create expense" }, { status: 500 });

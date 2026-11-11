@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 export async function PATCH(
   request: NextRequest,
@@ -15,6 +16,9 @@ export async function PATCH(
     if (!["OWNER", "ADMIN", "MANAGER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
 
     const { id } = await params;
     const body = await request.json();
@@ -50,7 +54,7 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json(updated);
+    return recordSyncResponse(request, user.tenantId, NextResponse.json(updated));
   } catch (error) {
     console.error("PATCH /api/users/[id] error:", error);
     return NextResponse.json({ error: "Failed to update user" }, { status: 500 });
@@ -70,6 +74,9 @@ export async function DELETE(
     if (!["OWNER", "ADMIN"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
 
     const { id } = await params;
 
@@ -91,7 +98,11 @@ export async function DELETE(
 
     await db.user.delete({ where: { id } });
 
-    return NextResponse.json({ success: true });
+    return recordSyncResponse(
+      request,
+      user.tenantId,
+      NextResponse.json({ success: true })
+    );
   } catch (error) {
     console.error("DELETE /api/users/[id] error:", error);
     return NextResponse.json({ error: "Failed to delete user" }, { status: 500 });

@@ -1,4 +1,5 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { resolveLinePrice, supplierCostPerUnit, type PricePolicy } from "@/lib/price-override";
@@ -42,6 +43,11 @@ export async function POST(request: NextRequest) {
   const auth = await requireUserWithFeature("core-till");
   if (auth.response) return auth.response;
   const { user } = auth;
+
+  // Offline Mode replays a queued "open tab" until it succeeds — return the
+  // original response for a retry instead of opening the tab twice.
+  const replay = await replaySyncResponse(request, user.tenantId);
+  if (replay) return replay;
 
   const body = await request.json();
   const { tabName, items, customerName, customerPhone } = body;
@@ -144,13 +150,20 @@ export async function POST(request: NextRequest) {
     include: { items: { include: { product: { select: { name: true } } } } },
   });
 
-  return NextResponse.json(order, { status: 201 });
+  return recordSyncResponse(
+    request,
+    user.tenantId,
+    NextResponse.json(order, { status: 201 })
+  );
 }
 
 export async function PUT(request: NextRequest) {
   const auth = await requireUserWithFeature("core-till");
   if (auth.response) return auth.response;
   const { user } = auth;
+
+  const replay = await replaySyncResponse(request, user.tenantId);
+  if (replay) return replay;
 
   const body = await request.json();
   const { orderId, items, action } = body;
@@ -234,7 +247,7 @@ export async function PUT(request: NextRequest) {
       return closedOrder;
     });
 
-    return NextResponse.json(updated);
+    return recordSyncResponse(request, user.tenantId, NextResponse.json(updated));
   }
 
   // Add items to tab
@@ -314,7 +327,7 @@ export async function PUT(request: NextRequest) {
       include: { items: { include: { product: { select: { name: true } } } } },
     });
 
-    return NextResponse.json(updated);
+    return recordSyncResponse(request, user.tenantId, NextResponse.json(updated));
   }
 
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -1,4 +1,5 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getPlanLimits } from "@/lib/plans";
@@ -34,6 +35,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
+
     const limits = getPlanLimits(user.tenant.tier, user.tenant.type);
     const count = await db.location.count({ where: { tenantId: user.tenantId, isActive: true } });
     if (count >= limits.locations) {
@@ -54,7 +58,11 @@ export async function POST(request: NextRequest) {
       include: { registers: { select: { id: true, name: true, isActive: true } } },
     });
 
-    return NextResponse.json(location, { status: 201 });
+    return recordSyncResponse(
+      request,
+      user.tenantId,
+      NextResponse.json(location, { status: 201 })
+    );
   } catch (error) {
     console.error("POST /api/locations error:", error);
     return NextResponse.json({ error: "Failed to create location" }, { status: 500 });
@@ -70,6 +78,9 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
+
     const { id, name, address, phone, isActive } = await request.json();
     if (!id) return NextResponse.json({ error: "Location ID is required" }, { status: 400 });
 
@@ -83,7 +94,7 @@ export async function PUT(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(location);
+    return recordSyncResponse(request, user.tenantId, NextResponse.json(location));
   } catch (error) {
     console.error("PUT /api/locations error:", error);
     return NextResponse.json({ error: "Failed to update location" }, { status: 500 });

@@ -1,4 +1,5 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -46,6 +47,12 @@ export async function POST(request: NextRequest) {
     if (auth.response) return auth.response;
     const { user } = auth;
 
+    // Offline Mode replays queued stock changes; a retry of a request that
+    // already landed returns its original response instead of adding the
+    // same stock twice.
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
+
     const body = await request.json();
     const { action, date, locationId, records } = body;
 
@@ -54,6 +61,18 @@ export async function POST(request: NextRequest) {
     }
 
     const recordDate = new Date(date);
+
+    // Validate before writing: a queued stock change that references another
+    // tenant's location (or a location/product deleted while the till was
+    // offline) must fail as a 4xx so the queue marks it for a human instead of
+    // retrying a foreign-key error forever.
+    const location = await db.location.findFirst({
+      where: { id: locationId, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    if (!location) {
+      return NextResponse.json({ error: "Location not found" }, { status: 404 });
+    }
 
     if (action === "initialize") {
       const products = await db.product.findMany({
@@ -87,7 +106,11 @@ export async function POST(request: NextRequest) {
       });
 
       await db.$transaction(upserts);
-      return NextResponse.json({ message: "Stock records initialized", count: upserts.length });
+      return recordSyncResponse(
+        request,
+        user.tenantId,
+        NextResponse.json({ message: "Stock records initialized", count: upserts.length })
+      );
     }
 
     if (action === "update" && records) {
@@ -131,13 +154,25 @@ export async function POST(request: NextRequest) {
 
       await db.$transaction(stockUpdates);
 
-      return NextResponse.json({ message: "Stock records updated" });
+      return recordSyncResponse(
+        request,
+        user.tenantId,
+        NextResponse.json({ message: "Stock records updated" })
+      );
     }
 
     if (action === "addStock") {
       const { productId, quantity } = body;
       if (!productId || !quantity) {
         return NextResponse.json({ error: "productId and quantity required" }, { status: 400 });
+      }
+
+      const product = await db.product.findFirst({
+        where: { id: productId, tenantId: user.tenantId },
+        select: { id: true },
+      });
+      if (!product) {
+        return NextResponse.json({ error: "Product not found" }, { status: 404 });
       }
 
       // Update actual stock
@@ -176,7 +211,11 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      return NextResponse.json({ message: "Stock added" });
+      return recordSyncResponse(
+        request,
+        user.tenantId,
+        NextResponse.json({ message: "Stock added" })
+      );
     }
 
     if (action === "import") {
@@ -266,7 +305,11 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return NextResponse.json({ message: "Import complete", created, updated, total: items.length });
+      return recordSyncResponse(
+        request,
+        user.tenantId,
+        NextResponse.json({ message: "Import complete", created, updated, total: items.length })
+      );
     }
 
     return NextResponse.json({ error: "Invalid action" }, { status: 400 });

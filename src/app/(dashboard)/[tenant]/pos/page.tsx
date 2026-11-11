@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
 import { saveOfflineOrder, saveOfflineAction, requestBackgroundSync, cacheProducts } from "@/lib/offline-db";
+import { newClientRef } from "@/lib/offline-sync";
 import { notifyOrderComplete, notifyOfflineOrder, notifyLowStock } from "@/lib/notifications";
 import { NetworkStatus } from "@/components/pwa-provider";
 import {
@@ -345,12 +346,10 @@ export default function POSPage() {
   });
 
   /**
-   * Queue a write for background sync, surfacing the queue's refusal instead
-   * of the success toast: the queue *throws* when the tenant isn't entitled to
-   * Offline Mode (src/lib/offline-db.ts), and without this every call site
-   * would show "Saved offline" for a write that never queued — and the
-   * rejection would otherwise escape as an unhandled rejection that leaves
-   * the till stuck in its processing state.
+   * Queue a write for background sync and surface a storage failure instead
+   * of the success toast. Offline Mode is free on every plan, so the queue
+   * itself never refuses — but storage can (quota, private mode), and without
+   * this a cashier would see "Saved offline" for a sale that never queued.
    */
   const queueOffline = async (write: () => Promise<unknown>): Promise<boolean> => {
     try {
@@ -362,9 +361,15 @@ export default function POSPage() {
     }
   };
 
-  const saveOrderOffline = async (orderData: Record<string, unknown>) => {
+  /**
+   * `clientRef` is the idempotency key the live POST used. Reusing it here
+   * makes the queued copy safe to replay even when the sale actually reached
+   * the server and only the reply was lost — the replay then returns that same
+   * order instead of ringing up a second one.
+   */
+  const saveOrderOffline = async (orderData: Record<string, unknown>, clientRef?: string) => {
     const offlineOrderNo = `OFF-${Date.now().toString(36).toUpperCase()}`;
-    await saveOfflineOrder({ ...orderData, orderNo: offlineOrderNo });
+    await saveOfflineOrder({ ...orderData, orderNo: offlineOrderNo }, clientRef);
     requestBackgroundSync();
     setCompletedOrder({
       id: `offline-${Date.now()}`,
@@ -399,9 +404,13 @@ export default function POSPage() {
       total: getTotal(taxRate),
     };
 
+    // One key for this sale for its whole life: the live POST below, and any
+    // queued retry of it, share one idempotency key.
+    const clientRef = newClientRef();
+
     // If offline and payment is Cash or Mpesa Manual, save directly
     if (!navigator.onLine && (paymentMethod === "CASH" || paymentMethod === "MPESA_MANUAL")) {
-      await queueOffline(() => saveOrderOffline(orderData));
+      await queueOffline(() => saveOrderOffline(orderData, clientRef));
       setProcessing(false);
       setMpesaCodeModal(false);
       setMpesaCode("");
@@ -411,7 +420,7 @@ export default function POSPage() {
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-idempotency-key": clientRef },
         body: JSON.stringify(orderData),
       });
 
@@ -436,14 +445,14 @@ export default function POSPage() {
         }
       } else if (data.offline || data.queued) {
         // SW returned offline response
-        await queueOffline(() => saveOrderOffline(orderData));
+        await queueOffline(() => saveOrderOffline(orderData, clientRef));
       } else {
         notify("error", data.error || "Failed to process sale");
       }
     } catch {
       // Network failure — save offline if cash/mpesa manual
       if (paymentMethod === "CASH" || paymentMethod === "MPESA_MANUAL") {
-        await queueOffline(() => saveOrderOffline(orderData));
+        await queueOffline(() => saveOrderOffline(orderData, clientRef));
       } else {
         notify("error", "This payment method requires an internet connection.");
       }
@@ -705,7 +714,7 @@ export default function POSPage() {
       <div class="center" style="font-size:10px;color:#666;">This is a bill, not a receipt.</div>
       <div class="center" style="font-size:10px;color:#666;">Payment has not been confirmed.</div>
       <div class="divider"></div>
-      <div class="center" style="font-size:9px;color:#888">Powered by LipaPoint POS</div>
+      <div class="center" style="font-size:9px;color:#888">Powered by LipaPoint ERP</div>
       <div class="center" style="font-size:9px;color:#888">Dev: Joseph Masaka | 0791298382</div>
       <script>window.print(); window.close();</script>
       </body></html>
@@ -936,7 +945,7 @@ export default function POSPage() {
                 )}
                 <div className="center">{receiptFooter}</div>
                 <div className="divider"></div>
-                <div className="center" style={{fontSize: "9px", marginTop: "4px", color: "#888"}}>Powered by LipaPoint POS</div>
+                <div className="center" style={{fontSize: "9px", marginTop: "4px", color: "#888"}}>Powered by LipaPoint ERP</div>
                 <div className="center" style={{fontSize: "9px", color: "#888"}}>Dev: Joseph Masaka | 0791298382</div>
               </div>
             </div>

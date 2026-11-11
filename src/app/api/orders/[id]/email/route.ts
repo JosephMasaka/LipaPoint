@@ -63,7 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ${mpesaInfo ? `<div style="border-top:1px dashed #ccc;margin:8px 0;"></div><div style="text-align:center;font-size:11px;color:#666;">${mpesaInfo}</div>` : ""}
       <div style="border-top:1px dashed #ccc;margin:8px 0;"></div>
       <div style="text-align:center;font-style:italic;color:#666;">${tenant?.receiptFooter || "Thank you!"}</div>
-      <div style="text-align:center;font-size:9px;color:#999;margin-top:8px;">Powered by LipaPoint POS | Dev: Joseph Masaka | 0791298382</div>
+      <div style="text-align:center;font-size:9px;color:#999;margin-top:8px;">Powered by LipaPoint ERP | Dev: Joseph Masaka | 0791298382</div>
     `;
 
     const emailContent = receiptEmail(order.customerName || "", order.orderNo, receiptHtml);

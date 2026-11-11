@@ -99,6 +99,7 @@ model Tenant {
   stockRecords     StockRecord[]
   tables           Table[]
   paymentGateways  TenantPaymentGateway[]
+  syncReceipts     SyncReceipt[]
   transactions     Transaction[]
   unitsOfMeasure   UnitOfMeasure[]
   users            User[]
@@ -667,6 +668,28 @@ model TenantFeature {
 
   @@unique([tenantId, featureKey])
   @@index([tenantId, moduleKey])
+}
+
+/// Exactly-once replay for Offline Mode (src/lib/idempotency.ts).
+///
+/// A queued offline write is replayed until it succeeds; if the request
+/// landed but its reply was lost, the retry must not apply it twice. The
+/// sync client sends a stable `x-idempotency-key` (its `clientRef`) and the
+/// route stores the successful response here, so a replay returns the
+/// original body instead of creating a second sale/expense/stock movement.
+model SyncReceipt {
+  id        String   @id @default(cuid())
+  tenantId  String
+  key       String
+  method    String
+  path      String
+  status    Int
+  body      Json
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId, createdAt])
 }
 
 model ChartOfAccount {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, hashPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPlanLimits } from "@/lib/plans";
+import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 export async function GET() {
   try {
@@ -46,6 +47,11 @@ export async function POST(request: NextRequest) {
     if (!["OWNER", "ADMIN", "MANAGER"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
+
+    // A staff member added offline is replayed until the server accepts it —
+    // never create the same user twice on a retry.
+    const replay = await replaySyncResponse(request, user.tenantId);
+    if (replay) return replay;
 
     const limits = getPlanLimits(user.tenant.tier, user.tenant.type);
     const staffCount = await db.user.count({ where: { tenantId: user.tenantId, isActive: true } });
@@ -95,7 +101,11 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(newUser, { status: 201 });
+    return recordSyncResponse(
+      request,
+      user.tenantId,
+      NextResponse.json(newUser, { status: 201 })
+    );
   } catch (error) {
     console.error("POST /api/users error:", error);
     return NextResponse.json(
