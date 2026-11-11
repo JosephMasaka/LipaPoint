@@ -1,0 +1,203 @@
+LIPAPOINT ERP - CREATIFY INPUT SHEET
+One field per line. Paste each line into the matching field in Creatify. Facts verified November 2026.
+====================================================================
+
+PRODUCT NAME: LipaPoint ERP
+
+PRODUCT URL: https://lipapoint.co.ke
+
+CATEGORY: All-in-one ERP / business management software for Kenyan SMEs
+
+TARGET MARKET: Kenya
+
+LANGUAGE: Kenyan English
+
+VIDEO LENGTH: 30 seconds (plus 15s and 6s cutdowns)
+
+ASPECT RATIO: 9:16 vertical master; 1:1 and 16:9 variants
+
+SHORT DESCRIPTION: LipaPoint ERP is an all-in-one business management system for Kenyan businesses. It brings point of sale, M-Pesa and card payments, inventory, purchasing, staff and statutory payroll, accounting and KRA eTIMS invoicing into one system - so an owner can see sales, stock, cash and profit without rebuilding the numbers in a spreadsheet.
+
+LONG DESCRIPTION: LipaPoint ERP runs the whole business from one login. On the counter it handles cash, M-Pesa (including STK Push) and card payments, split payments and receipts, and it keeps working when the internet drops. Behind the counter it tracks stock per location, flags reorders and expiries, and records transfers and stock-takes. On the finance side it keeps the general ledger, bank reconciliation and financial statements in step with every sale, while KRA eTIMS invoices are issued from the same transaction. Staff records, scheduling and payroll - PAYE, NSSF, SHIF and housing levy - post into the same books. Owners get daily summaries and reports by hour, item, sales rep, payment method and cashier, plus an AI assistant. Plans start at KSh 999 a month for a single-till retail shop, with no setup fees and no lock-in.
+
+PRIMARY AUDIENCE: Kenyan owner-operators of growing retail SMEs - independent mini-supermarkets, hardware stores, pharmacies and general shops with 2 to 5 tills, 3 to 25 staff and one to three branches. Typically 30 to 45 years old, hands-on, running KSh 800,000 to 5,000,000 in monthly sales. They already use a basic till or POS, Excel or a notebook, WhatsApp for supplier orders, and pay a bookkeeper monthly. They are the person who locks up, counts the cash and still answers stock questions on a Sunday.
+
+SECONDARY AUDIENCES: Restaurant and bar owners (food cost, waste, shift reconciliation); pharmacy owners (expiry losses, stock control, eTIMS); growing wholesalers and distributors (multi-warehouse stock, supplier accounts, cash tied up in dead lines).
+
+AUDIENCE TO EXCLUDE: Large chains and manufacturers already running SAP, Oracle or Microsoft Dynamics; single-table kiosks with no staff and no compliance exposure; NGOs and public institutions with long procurement cycles.
+
+PAIN 1: Closing the day takes one to two hours of matching the till, the M-Pesa messages and the cash drawer - and it still does not balance.
+
+PAIN 2: Stock is invisible: fast movers run out, dead stock ties up cash, and shrinkage only shows up at stock-take.
+
+PAIN 3: KRA eTIMS and VAT paperwork is manual, delayed and worrying - invoices live in a separate system from sales.
+
+PAIN 4: The books are rebuilt every month from three or four sources, so the owner never knows true margin per branch or product.
+
+PAIN 5: Discounts, voids and price overrides leave no trail, so cash shortages and staff accountability are guesswork.
+
+PAIN 6: With more than one branch, the owner drives between shops to compare them because there is no single view.
+
+PAIN 7: Statutory payroll - PAYE, NSSF, SHIF, housing levy - is a monthly scramble done in a spreadsheet.
+
+DESIRED OUTCOME: An owner finishes the day with certainty instead of paperwork: one screen that already knows what sold on each till, what came in by M-Pesa, what stock is low and what the day actually earned. No reconciling, no spreadsheet.
+
+KEY BENEFITS: Every till, M-Pesa payment and cash movement reconciled in one daily summary; stock, reorders, expiries and transfers visible before they become losses; KRA eTIMS invoices issued from the same sale on Enterprise plans; one set of books that payroll, purchases and sales all post into; cashier, discount and void trails that make shortages visible; offline selling with sync when the connection returns.
+
+PRODUCT PROOF POINTS: Point of sale with cash, M-Pesa (including STK Push), card and split payments; offline mode free on every plan; inventory by location with reorder alerts, expiry tracking, transfers and stock-takes; purchasing and supplier accounts; KRA eTIMS invoicing; payroll with PAYE, NSSF, SHIF and housing levy; general ledger, bank reconciliation, financial statements, fixed assets and depreciation; reports by hour, day, item, sales rep, payment method, cashier and tax; AI assistant.
+
+OFFER / PRICING: Retail Starter KSh 999/month (1 till, 2 staff); Retail Professional KSh 2,499/month (2 locations, 3,000 products, 5 staff); Retail Enterprise KSh 5,999/month (unlimited locations, finance, procurement, eTIMS, payroll, assets); Full ERP KSh 9,999/month. No setup fees. Cancel anytime. No hardware required.
+
+PRICE LINE FOR AD: Plans from KSh 999 a month.
+
+CALL TO ACTION: Visit lipapoint.co.ke to see plans and start today. No setup fees, cancel anytime.
+
+CTA URL: https://lipapoint.co.ke/pricing
+
+TONE: Warm, direct, Kenyan, no hype. Speaks like a fellow business owner, not a software vendor. Short sentences, real shop sounds, natural light. Confidence comes from specificity - tills, M-Pesa messages, stock-take - not adjectives.
+
+BIG IDEA: "The two-minute close." Open on the ritual every owner hates - counting, matching, re-keying - then cut to the same owner walking out of the shop while the day's numbers are already waiting on the phone.
+
+HOOK 1: If closing your shop means two hours with a calculator, this is for you.
+
+HOOK 2: You know what you sold today. Do you know what you actually made?
+
+HOOK 3: Your till, your M-Pesa and your books should agree. They don't - do they?
+
+SCRIPT 30S - 0 TO 3S: Handheld close-up of the owner's hands on a calculator beside a cash drawer, phone buzzing with M-Pesa messages. VO: "If closing your shop means two hours with a calculator..." On-screen: "Two hours to close?"
+
+SCRIPT 30S - 3 TO 7S: Quick cuts of Excel rows, a folder of invoices, an empty shelf, the accountant's WhatsApp. VO: "...matching M-Pesa, counting cash and chasing stock..." On-screen: "M-Pesa. Cash. Stock. Books."
+
+SCRIPT 30S - 7 TO 14S: Over-the-shoulder view of the LipaPoint daily summary - sales by till, M-Pesa total, cash expected, top items. VO: "LipaPoint ERP puts your tills, payments, stock, staff and books in one place." On-screen: "One system. One set of numbers."
+
+SCRIPT 30S - 14 TO 21S: Tap into stock alerts and the reorder list; swipe to the payroll run; an eTIMS receipt prints. VO: "See what sold, what is missing and what to reorder - before you lock the door." On-screen: "Know before you close."
+
+SCRIPT 30S - 21 TO 26S: The owner walks out, lights off, phone in hand showing the day summary, a small satisfied nod. VO: "One system. Built for Kenyan businesses." On-screen: "Close the shop, not the spreadsheet."
+
+SCRIPT 30S - 26 TO 30S: Logo on a dark background, price line and URL, receipt printer in the sound bed. VO: "LipaPoint ERP. Plans from KSh 999 a month. No setup fees. Start at lipapoint.co.ke." On-screen: "lipapoint.co.ke - plans from KSh 999/mo"
+
+SCRIPT 15S: VO: "Closing your shop shouldn't take two hours. LipaPoint ERP puts your tills, M-Pesa, stock and books in one place - so you know your numbers before you lock the door. Plans from KSh 999 a month at lipapoint.co.ke."
+
+ON-SCREEN TEXT: Two hours to close? / M-Pesa. Cash. Stock. Books. / One system. One set of numbers. / Know before you close. / Close the shop, not the spreadsheet. / lipapoint.co.ke
+
+AVATAR / TALENT: Kenyan business owner, 35 to 45, confident and relaxed, in a real shop aisle or behind the counter. One owner, one location, no voice-of-god narrator.
+
+VOICE: Kenyan English, conversational, mid-tempo, warm and assured. Avoid an announcer read.
+
+MUSIC: Light Afro-pop or warm percussion bed, ducked under the voice. No corporate stock track.
+
+B-ROLL SHOT LIST: Cash drawer opening; receipt printing; generic M-Pesa confirmation screen; shelf with a visible gap; storeroom boxes; stock-take clipboard; four app screens (daily summary, stock alerts, payroll run, eTIMS receipt); owner locking up and walking into the evening; optional second branch exterior.
+
+CAPTIONS: Burned in, high contrast, 2 to 4 words per line, upper-middle placement.
+
+DELIVERABLES: 30s 9:16 master; 15s 9:16 cutdown; 6s bumper; 1:1 and 16:9 versions; static end card with logo, promise, price line and URL.
+
+CLAIMS TO AVOID: Do not invent customer counts, ratings, awards or percentages - no "10,000 businesses", "99% accuracy" or "saves 20 hours". Do not promise that LipaPoint files or pays taxes for the customer. Do not claim a specific payback period or guaranteed reduction in shrinkage. Do not use real customer names, receipts or M-Pesa screenshots without written consent. Do not show a competitor's logo or imply affiliation. Do not imply eTIMS or payroll is included on every plan - both are Enterprise features.
+
+VERIFY BEFORE RECORDING: Confirm the advertised price floor on the live pricing page. The catalogue starts at KSh 999/month (Retail and Barbershop Starter); restaurant plans start at KSh 1,499/month.
+
+SOURCE OF TRUTH: https://lipapoint.co.ke/pricing and the live plan catalogue.
+
+====================================================================
+PHARMACY & DISPENSARY BLOCK
+Use this block instead of the retail fields above when the campaign targets pharmacies.
+Facts verified November 2026 against the healthcare plan catalogue.
+====================================================================
+
+PRODUCT NAME: LipaPoint ERP
+
+PRODUCT URL: https://lipapoint.co.ke
+
+CATEGORY: Pharmacy management system / ERP for Kenyan pharmacies and dispensaries
+
+TARGET MARKET: Kenya
+
+LANGUAGE: Kenyan English
+
+VIDEO LENGTH: 30 seconds (plus 15s and 6s cutdowns)
+
+ASPECT RATIO: 9:16 vertical master; 1:1 and 16:9 variants
+
+SHORT DESCRIPTION: LipaPoint ERP is an all-in-one pharmacy management system for Kenyan pharmacies and dispensaries. It tracks medicine stock with expiry dates, connects prescription and over-the-counter sales to the same inventory, and runs cash, M-Pesa and card payments, purchasing, payroll, accounting and KRA eTIMS invoicing from one system.
+
+LONG DESCRIPTION: LipaPoint ERP runs the dispensary counter and the back office together. Every item carries an expiry date, with alerts before stock reaches its deadline, and stock is tracked per branch. Prescription and over-the-counter sales both draw down the same inventory, so the shelf count and the sales record agree, and controlled items are accounted for. Cash, M-Pesa including STK Push, and card payments reconcile against the shift and the till, with a trail for discounts and voids. Purchasing and supplier accounts feed the same books; payroll handles PAYE, NSSF, SHIF and housing levy; and KRA eTIMS invoices issue from the same sale on Enterprise plans. Owners see daily summaries and stock, sales and cashier reports by branch. Healthcare plans start at KSh 1,499 a month, with no setup fees and no lock-in.
+
+PRIMARY AUDIENCE: Kenyan pharmacist-owners of independent pharmacies, medical stores and small dispensaries - one to three branches, 2 to 10 staff, KSh 700,000 to 4,000,000 in monthly sales. Typically 28 to 50 years old, behind the counter most days, personally checking expiry dates, approving supplier orders and handling compliance records.
+
+SECONDARY AUDIENCES: Small clinic dispensaries (stock, expiry and dispensing records with limited staff); medical stores and wholesalers (bulk stock, transfers, supplier accounts); multi-branch pharmacy groups (branch-level stock and margin comparison).
+
+AUDIENCE TO EXCLUDE: Hospital pharmacies running an enterprise clinical or hospital information system; large pharmaceutical distributors with warehouse-management systems; unlicensed retailers.
+
+PAIN 1: Expiry write-offs - short-dated stock is discovered during a shelf check or stock-take, after the money has already been spent.
+
+PAIN 2: Fast movers run out while slow stock occupies shelf space and working capital.
+
+PAIN 3: Prescription and over-the-counter sales are recorded separately from stock, so the count and the records drift apart.
+
+PAIN 4: Controlled items need a clean accountability trail, and manual registers make that hard to prove.
+
+PAIN 5: KRA eTIMS and VAT records sit apart from sales, so inspection and month end become a paperwork scramble.
+
+PAIN 6: Cash, M-Pesa and card takings are reconciled by hand, and staff discounts or voids leave no clear trail.
+
+PAIN 7: Stock transfers between branches are untracked, so each branch's position is a guess.
+
+PAIN 8: Statutory payroll - PAYE, NSSF, SHIF, housing levy - is a monthly spreadsheet exercise.
+
+DESIRED OUTCOME: A pharmacist moves short-dated stock before it becomes a write-off, and closes the day with stock, sales and records in agreement. The promise: sell it before it expires.
+
+KEY BENEFITS: Expiry dates and automatic alerts on every item, before the deadline; medicine stock per branch with low-stock alerts, reorders, transfers and stock-takes; prescription and OTC sales drawing down the same stock, with controlled items accounted for; shift reconciliation across cash, M-Pesa, card, discounts and voids; daily summaries and stock, sales and cashier reports by branch; purchasing, supplier accounts, payroll and eTIMS on Enterprise - one set of records.
+
+PRODUCT PROOF POINTS: Medicine stock with expiry dates and automatic alerts; stock by branch with low-stock alerts, reorders, transfers and stock-takes; prescription and over-the-counter sales drawing down the same inventory; controlled items accounted for; cash, M-Pesa (including STK Push) and card payments reconciled per shift and till; discount and void trails; daily summaries and cashier reports; purchasing and supplier accounts; general ledger, bank reconciliation and financial statements; payroll with PAYE, NSSF, SHIF and housing levy; KRA eTIMS invoicing; fixed assets and depreciation; AI assistant; offline mode free on every plan.
+
+OFFER / PRICING: Pharmacy Starter KSh 1,499/month (1 location, 2 staff); Pharmacy Professional KSh 3,499/month (2 locations, 5 staff, stock records, analytics, daily summary, discounts, AI, reports); Pharmacy Enterprise KSh 5,999/month (unlimited locations, finance, procurement, eTIMS, payroll, assets). No setup fees. Cancel anytime. No hardware required.
+
+PRICE LINE FOR AD: Pharmacy plans from KSh 1,499 a month.
+
+CALL TO ACTION: Visit lipapoint.co.ke to see pharmacy plans and start today. No setup fees, cancel anytime.
+
+CTA URL: https://lipapoint.co.ke/pricing
+
+TONE: Calm, precise and respectful of the profession. Kenyan, practical, zero hype. Talk about expiry dates, shelf counts, dispensing records and the month-end file. Never suggest the software makes clinical decisions. No fear-mongering about regulators, no miracle claims.
+
+BIG IDEA: "The box at the back." A pharmacist reads dates along the shelf and finds a box that will expire before it sells. In the old story it goes in the write-off bin; here it is flagged, moved and sold - the difference between finding out too late and finding out in time.
+
+HOOK 1: That box at the back already has an expiry date - and a price you've paid.
+
+HOOK 2: Expiry is a silent loss. See it before the shelf does.
+
+HOOK 3: Your stock-take shouldn't be where you discover what expired.
+
+SCRIPT 30S - 0 TO 3S: Dispensary shelf; the pharmacist's finger runs along dates and stops on a box at the back. VO: "That box at the back already has an expiry date." On-screen: "It's already paid for."
+
+SCRIPT 30S - 3 TO 7S: Quick cuts of a write-off bin, a supplier invoice, a folder of invoices, a manual stock sheet. VO: "...and a price you've already paid." On-screen: "...and a date."
+
+SCRIPT 30S - 7 TO 14S: Screen recording of expiry alerts by item and branch; a prescription and an OTC sale both drawing down stock. VO: "LipaPoint ERP tracks every item's expiry and stock across your branches - so you sell it before you write it off." On-screen: "Sell it before it expires."
+
+SCRIPT 30S - 14 TO 20S: Low-stock reorder, daily summary, eTIMS receipt printing at the counter. VO: "Reorder fast movers, keep dispensing records straight, and issue eTIMS invoices from the same sale." On-screen: "Records that agree."
+
+SCRIPT 30S - 20 TO 25S: Pharmacist locks the dispensary, phone showing the day's summary, a calm nod. VO: "One system for the pharmacy. Built for Kenya." On-screen: "Stock. Sales. Records."
+
+SCRIPT 30S - 25 TO 30S: Logo on a dark background, price line and URL. VO: "LipaPoint ERP. Pharmacy plans from KSh 1,499 a month. No setup fees. lipapoint.co.ke." On-screen: "lipapoint.co.ke - from KSh 1,499/mo"
+
+SCRIPT 15S: VO: "That box at the back already has an expiry date - and a price you've paid. LipaPoint ERP tracks expiry and stock across your branches, so you sell it before you write it off. Pharmacy plans from KSh 1,499 a month at lipapoint.co.ke."
+
+ON-SCREEN TEXT: It's already paid for. / Sell it before it expires. / Records that agree. / Stock. Sales. Records. / lipapoint.co.ke
+
+AVATAR / TALENT: Kenyan pharmacist-owner, 30 to 48, white coat, in a real dispensary aisle. Confident, economical movement, reads dates like a habit. No voice-of-god narrator.
+
+VOICE: Kenyan English, measured and clear, as if explaining a process to a colleague. Never salesy.
+
+MUSIC: Quiet dispensary ambience; sparse, low-key bed. No dramatic stings.
+
+B-ROLL SHOT LIST: Pharmacist reading expiry dates along a shelf; the box at the back; a write-off bin; dispensary counter and prescription slip; eTIMS receipt printing; storeroom cartons and a delivery note; stock-take sheet; branch transfer box; app screens for expiry alerts, stock by branch, daily summary, low-stock reorder and eTIMS receipt; closing the dispensary with the phone summary in hand.
+
+CAPTIONS: Burned in, high contrast, 2 to 4 words per line.
+
+DELIVERABLES: 30s 9:16 master; 15s 9:16 cutdown; 6s bumper; 1:1 and 16:9 versions; static end card with logo, promise, price line and URL.
+
+CLAIMS TO AVOID: No clinical decision support, diagnosis, dosage advice or interaction checking - the product is not a clinical tool. No regulatory approval, PPB certification or licensing claim. No invented percentages - not "eliminates expiry losses", "cuts shrinkage by 40%" or "guarantees compliance". Do not imply payroll or eTIMS is included on Starter or Professional - both are Enterprise features. Do not show real patient data, prescriptions, medicine prices or customer names without written consent.
+
+VERIFY BEFORE RECORDING: Confirm the advertised floor on the live pricing page. Pharmacy plans start at KSh 1,499/month; the site-wide floor is KSh 999/month (Retail and Barbershop Starter).
+
+SOURCE OF TRUTH: https://lipapoint.co.ke/pricing and the live plan catalogue.
