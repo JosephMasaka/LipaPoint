@@ -46,6 +46,8 @@ interface FeatureInfo {
   key: string;
   label: string;
   core: boolean;
+  /** Free on every plan (Offline Mode) — always on, no switch. */
+  free?: boolean;
   requires: string[];
   moduleKey: string;
   enabled: boolean;
@@ -201,7 +203,7 @@ export default function DashboardModulesPage() {
   }
 
   async function toggleFeature(feature: FeatureInfo) {
-    if (feature.core || busy) return;
+    if (feature.core || feature.free || busy) return;
     setInfo(null);
     setError(null);
     setBusy(true);
@@ -253,22 +255,25 @@ export default function DashboardModulesPage() {
 
   const renderFeature = (feature: FeatureInfo, moduleEnabled: boolean) => {
     const dimmed = !moduleEnabled;
+    const included = feature.core || feature.free;
     return (
       <button
         key={feature.key}
         type="button"
-        disabled={feature.core || dimmed || busy}
+        disabled={included || dimmed || busy}
         onClick={() => toggleFeature(feature)}
         title={
-          feature.core
-            ? "Core feature — always included with this module"
-            : dimmed
-              ? `Turn on ${feature.moduleKey} to configure this feature`
-              : undefined
+          feature.free
+            ? "Free on every plan — always on"
+            : feature.core
+              ? "Core feature — always included with this module"
+              : dimmed
+                ? `Turn on ${feature.moduleKey} to configure this feature`
+                : undefined
         }
         className={cn(
           "w-full flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-left transition-colors",
-          feature.core
+          included
             ? "bg-surface-hover/30 cursor-not-allowed opacity-80"
             : dimmed
               ? "bg-surface-hover/20 cursor-not-allowed opacity-60"
@@ -281,19 +286,19 @@ export default function DashboardModulesPage() {
           <span
             className={cn(
               "flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-[4px] border",
-              feature.enabled && !feature.core
+              feature.enabled && !included
                 ? "border-emerald-500 bg-emerald-500 text-white"
-                : feature.core
+                : included
                   ? "border-gold/50 bg-gold/10 text-gold"
                   : "border-border bg-surface-elevated"
             )}
           >
-            {feature.enabled && !feature.core && (
+            {feature.enabled && !included && (
               <svg width="9" height="9" viewBox="0 0 10 10" fill="none" aria-hidden="true">
                 <path d="M1.5 5L4.5 8L8.5 2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
-            {feature.core && <Lock className="h-2.5 w-2.5" />}
+            {included && <Lock className="h-2.5 w-2.5" />}
           </span>
           <span
             className={cn(
@@ -305,7 +310,7 @@ export default function DashboardModulesPage() {
           </span>
         </span>
         <span className="shrink-0 text-[10px] uppercase tracking-wide text-text-muted">
-          {feature.core ? "Free" : feature.enabled ? "On" : "Off"}
+          {included ? "Free" : feature.enabled ? "On" : "Off"}
         </span>
       </button>
     );

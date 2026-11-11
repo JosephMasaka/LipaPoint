@@ -35,7 +35,9 @@ The skill file's §4.1 names the Apps explicitly: **POS, Finance & HR** (its own
 
 ## 1. Full Feature Taxonomy (all 8 modules)
 
-Every module gets exactly one **core** feature: free, auto-granted the instant any sibling in that module is purchased, because it's the minimum needed for the sibling to function (you can't run Payroll with zero employee records; you can't sell physical goods with zero stock tracking). Everything else is **billable** and independently purchasable.
+Every module gets exactly one **core** feature: free, auto-granted the instant any sibling in that module is purchased, because it's the minimum needed for the sibling to function (you can't run Payroll with zero employee records; you can't sell physical goods with zero stock tracking). Everything else is **billable** and independently purchasable — with one exception: `offline-mode` is marked **free**.
+
+**`offline-mode` is free for every tenant on every plan** (product decision, 2026-11-04). The offline write queue is what lets a till keep trading when the internet drops, so it isn't an upsell: `FEATURE_REGISTRY["offline-mode"].free = true`, `isFeatureEnabled` answers `true` without touching the database, a tier re-sync can never switch it off, and it has no module dependency (a tenant running only Finance still gets offline writes). "free" is deliberately distinct from "core": core is the free *floor of a module* and still tracks that module's entitlement, while free ignores tier and module alike. `core`/`billable`/`free` are the three row types below.
 
 ### Payroll App → `payroll` module (the client-driven case: Payroll without the rest of HR)
 
@@ -109,7 +111,7 @@ Every module gets exactly one **core** feature: free, auto-granted the instant a
 | `queue-management` | billable | — | `appointments` | Barbershop/Salon |
 | `staff-scheduling` | billable | — | `employee-records` *(cross-module, Payroll App)* | Barbershop/Salon primarily |
 | `loyalty-program-pos` | billable | — | `loyalty-program` *(cross-module, CRM App — this is the till-side redemption UI; the ledger lives in CRM)* | all |
-| `offline-mode` | billable | `core-till` | — | all *(bigger build, scope separately — see §9)* |
+| `offline-mode` | **free** | — | — | all — free on every plan, no module dependency |
 
 ### Point of Sale App → `inventory` module
 
@@ -218,7 +220,7 @@ The live file already encodes several of these as flat strings inside each tier'
 | `maintenance-tracking` | KES 500/mo | `staff-scheduling` | KES 600/mo |
 | `disposal-management` | KES 400/mo | `loyalty-program` (CRM) | KES 800/mo |
 | `etims-submission` | KES 1,200/mo | `loyalty-program-pos` | included free with `loyalty-program` |
-| `etims-compliance-dashboard` | KES 500/mo | `offline-mode` | KES 1,200/mo |
+| `etims-compliance-dashboard` | KES 500/mo | | |
 | `customer-statements` | KES 400/mo | `stock-records` | KES 500/mo |
 | `withholding-tax-tracking` | KES 300/mo | `reorder-alerts` | KES 400/mo |
 | | | `stock-valuation` | KES 600/mo |
@@ -227,6 +229,8 @@ The live file already encodes several of these as flat strings inside each tier'
 | | | `physical-stock-take` | KES 400/mo |
 
 Core features (`employee-records`, `general-ledger`, `supplier-management`, `asset-register`, `customer-records`, `core-till`, `stock-tracking-basic`) are never priced — they're the free floor that makes any billable sibling usable.
+
+`offline-mode` is the other unpriced row: it was KES 1,200/mo and is now free on every plan (see §1). `FEATURE_PRICES["offline-mode"]` stays as `{ monthly: 0 }` so every pricing surface renders "Free" rather than "Contact sales", and the checker rejects any positive price for a free feature.
 
 ---
 
@@ -280,6 +284,6 @@ The skill's §4.2 and §5 describe a **two-level** purchase experience that this
 5. Vertical filtering (§7) wired into the picker and any pricing page.
 6. Apps screen tree UI + sidebar nav (§8).
 7. Pricing table (§6) wired into `pricing-config.ts` / wherever à la carte purchase actually lives.
-8. `offline-mode` — separately scoped, materially bigger than everything else on this list; don't let it block shipping the rest.
+8. `offline-mode` — **built and free on every plan** (2026-11-04): queue engine (claims, backoff, permanent-failure handling, manual retry/discard), order/action replays behind server-side idempotency receipts, connectivity probe, queue inspector, service-worker background sync. No entitlement gate exists any more; see the handoff's session log for the details.
 9. Resolve the CRM discrepancy (§0) — a five-minute product decision, but do it before §1's CRM rows get built, not after.
 10. Rebuild/verify the demo tenants against §10's expected grant table, adding `demo-payroll-only` — this is the acceptance test for the whole spec, not optional polish at the end.

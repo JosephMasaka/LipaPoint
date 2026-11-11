@@ -77,6 +77,9 @@ export async function GET() {
             key,
             label: FEATURE_REGISTRY[key].label,
             core: FEATURE_REGISTRY[key].core,
+            // Free on every plan (Offline Mode): the Apps screen shows these
+            // as always-on and offers no switch.
+            free: FEATURE_REGISTRY[key].free === true,
             requires: FEATURE_REGISTRY[key].requires,
             moduleKey: FEATURE_REGISTRY[key].moduleKey,
             enabled: enabled.has(key),
@@ -118,6 +121,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unknown feature" }, { status: 400 });
     }
     const def = FEATURE_REGISTRY[featureKey];
+
+    // Free-for-everyone features have no switch: granting is a no-op and
+    // revoking is refused, so the billing story stays "free" everywhere.
+    if (def.free) {
+      return NextResponse.json(
+        { error: `${def.label} is free on every plan — there's nothing to turn on or off.` },
+        { status: 409 }
+      );
+    }
 
     const category = getBusinessCategory(user.tenant.type);
     if (!featuresForCategory(category).includes(featureKey)) {

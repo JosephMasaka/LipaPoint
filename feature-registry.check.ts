@@ -40,6 +40,7 @@ function check(ok: boolean, label: string, detail = "") {
 interface SpecRow {
   key: string;
   core: boolean;
+  free: boolean;
   module: string;
   requires: string[];
   soft: string[];
@@ -71,11 +72,13 @@ function parseSpec(): SpecRow[] {
     const second = cells[1].replace(/\*/g, "").trim();
     // eTIMS rows carry a parenthetical note: "billable *(no core — …)*".
     const isCore = second === "core";
+    const isFree = second === "free";
     const isBillable = second.startsWith("billable");
-    if (!isCore && !isBillable) continue;
+    if (!isCore && !isFree && !isBillable) continue;
     rows.push({
       key: keyMatch[1],
       core: isCore,
+      free: isFree,
       module: modKey,
       requires: cellKeys(cells[2]),
       soft: cells[3] ? cellKeys(cells[3]) : [],
@@ -108,6 +111,8 @@ for (const row of spec) {
   const problems: string[] = [];
   if (def.moduleKey !== row.module) problems.push(`module ${def.moduleKey}≠${row.module}`);
   if (def.core !== row.core) problems.push(`core ${def.core}≠${row.core}`);
+  if ((def.free === true) !== row.free) problems.push(`free ${def.free === true}≠${row.free}`);
+  if (def.free && def.core) problems.push("a feature can't be both core and free");
   const hard = [...def.requires].sort().join(",");
   const specHard = [...row.requires].sort().join(",");
   if (hard !== specHard) problems.push(`requires [${hard}]≠[${specHard}]`);
@@ -122,9 +127,18 @@ for (const row of spec) {
  * ------------------------------------------------------------------ */
 console.log("\n2. Counts");
 const coreCount = FEATURE_KEYS.filter((k) => FEATURE_REGISTRY[k].core).length;
+const freeCount = FEATURE_KEYS.filter((k) => FEATURE_REGISTRY[k].free).length;
 check(FEATURE_KEYS.length === 46, `46 features total (got ${FEATURE_KEYS.length})`);
 check(coreCount === 7, `7 core features (got ${coreCount})`);
-check(FEATURE_KEYS.length - coreCount === 39, `39 billable features (got ${FEATURE_KEYS.length - coreCount})`);
+check(freeCount === 1, `1 free-for-everyone feature (got ${freeCount})`);
+check(
+  FEATURE_KEYS.length - coreCount - freeCount === 38,
+  `38 billable features (got ${FEATURE_KEYS.length - coreCount - freeCount})`
+);
+check(
+  FEATURE_REGISTRY["offline-mode"].free === true,
+  "offline-mode is free on every plan"
+);
 
 /* ------------------------------------------------------------------ *
  * 3. Structural invariants
@@ -325,13 +339,17 @@ for (const [key, expected] of specPrices) {
   }
 }
 for (const key of FEATURE_KEYS) {
-  const core = FEATURE_REGISTRY[key].core;
-  const priced = Boolean(FEATURE_PRICES[key]);
-  if (core && priced) {
+  const def = FEATURE_REGISTRY[key];
+  const price = FEATURE_PRICES[key];
+  if (def.core && price) {
     priceProblems++;
     console.error(`    ${key}: CORE feature must never be priced`);
   }
-  if (!core && !priced) {
+  if (def.free && price && (price.monthly !== 0 || price.includedWith)) {
+    priceProblems++;
+    console.error(`    ${key}: FREE feature must cost 0 (got ${JSON.stringify(price)})`);
+  }
+  if (!def.core && !def.free && !price) {
     priceProblems++;
     console.error(`    ${key}: billable feature has no à la carte price`);
   }

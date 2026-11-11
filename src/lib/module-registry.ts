@@ -79,7 +79,7 @@ export const MODULE_REGISTRY: Record<ModuleKey, ModuleDefinition> = {
   etims: {
     key: "etims",
     label: "eTIMS Tax Compliance",
-    description: "KRA OSCU invoice submission and compliance dashboard",
+    description: "KRA OSCU/VSCU invoice submission and compliance dashboard",
     requires: ["finance"],
     group: "backoffice",
   },
@@ -186,6 +186,15 @@ export interface FeatureDefinition {
   label: string;
   /** Core features are free and auto-granted whenever the module is active. */
   core: boolean;
+  /**
+   * Free for every tenant, on every plan, even with the parent module
+   * switched off. Free features are always enabled (see
+   * `isFeatureEnabled`), can't be revoked, and are never priced — they are a
+   * product guarantee, not an entitlement. Distinct from `core`, which is
+   * the free floor *of a module* and therefore still tracks that module's
+   * tier/entitlement.
+   */
+  free?: boolean;
   /** Hard dependencies — always enabled together (transitively). */
   requires: FeatureKey[];
   /** Soft dependencies — degrade gracefully instead of blocking
@@ -259,8 +268,9 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
 /**
  * The single source of truth for sub-features (spec §1 — 46 entries:
- * 7 core + 39 billable; the spec's prose "41 / 8 / 33" total is a miscount,
- * its own per-module tables sum to this — see handoff D8).
+ * 7 core + 1 free ("offline-mode") + 38 billable; the spec's prose
+ * "41 / 8 / 33" total is a miscount, its own per-module tables sum to this —
+ * see handoff D8).
  *
  * Vertical filtering uses the spec's §7 rule — only where the spec is
  * explicit (restaurant-only and barbershop-only POS capabilities) do we set
@@ -449,8 +459,13 @@ export const FEATURE_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
     softRequires: ["loyalty-program"],
   },
   "offline-mode": {
+    // Free for every tenant on every plan (product decision, 2026-11-04):
+    // the write queue is what keeps a till trading when the internet drops,
+    // so it can't be a paid extra. Deliberately has no hard dependency — a
+    // tenant without the POS module still gets offline writes for the apps
+    // it does run.
     key: "offline-mode", moduleKey: "pos", appKey: "pos",
-    label: "Offline Mode", core: false, requires: ["core-till"],
+    label: "Offline Mode", core: false, free: true, requires: [],
   },
 
   /* inventory module */
@@ -495,6 +510,11 @@ export const MODULE_CORE_FEATURE: Partial<Record<ModuleKey, FeatureKey>> = {
   crm: "customer-records",
   payroll: "employee-records",
 };
+
+/** True for keys every tenant gets free, regardless of plan or module. */
+export function isFreeFeature(key: FeatureKey): boolean {
+  return FEATURE_REGISTRY[key].free === true;
+}
 
 /** All features belonging to one module, in registry order. */
 export function featuresForModule(moduleKey: ModuleKey): FeatureKey[] {

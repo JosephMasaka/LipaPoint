@@ -919,7 +919,9 @@ export const FEATURE_PRICES: Partial<Record<FeatureKey, FeaturePrice>> = {
   "queue-management": { monthly: 400 },
   "staff-scheduling": { monthly: 600 },
   "loyalty-program-pos": { monthly: 0, includedWith: "loyalty-program" },
-  "offline-mode": { monthly: 1200 },
+  // Free on every plan (FEATURE_REGISTRY["offline-mode"].free): kept as a 0
+  // entry so the pricing surfaces render "Free" instead of "Contact sales".
+  "offline-mode": { monthly: 0 },
 
   /* inventory module */
   "stock-records": { monthly: 500 },
@@ -1074,6 +1076,10 @@ export function formatFeaturePrice(feature: string): string | null {
     return `Included with ${host}`;
   }
   if (price.monthly === 0) return "Free";
-  const base = `KES ${price.monthly.toLocaleString("en-KE")}/mo`;
-  return price.perEmployee ? `${base} + ${price.perEmployee}/employee` : base;
+  // Same "KSh 1,200" notation as formatPrice so every pricing surface
+  // (tier cards, module bundles, register add-ons, feature page) agrees.
+  const base = `${formatPrice(price.monthly)}/mo`;
+  return price.perEmployee
+    ? `${base} + ${formatPrice(price.perEmployee)}/employee`
+    : base;
 }

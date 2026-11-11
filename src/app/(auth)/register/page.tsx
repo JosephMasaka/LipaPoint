@@ -169,8 +169,9 @@ export default function RegisterPage() {
           if (def.applicableCategories && !def.applicableCategories.includes(category)) {
             continue;
           }
-          // Core features are always included if the module is enabled
-          if (def.core) {
+          // Core features are always included if the module is enabled, and
+          // free-for-everyone features (Offline Mode) are always included.
+          if (def.core || def.free) {
             features.add(fk);
           }
           // Billable features: include if explicitly selected or not excluded
@@ -606,8 +607,9 @@ export default function RegisterPage() {
                                   if (def.applicableCategories && !def.applicableCategories.includes(category)) {
                                     return null;
                                   }
-                                  // Core features are informational only
-                                  if (def.core) {
+                                  // Core and free-for-everyone features are
+                                  // informational only (nothing to buy)
+                                  if (def.core || def.free) {
                                     return (
                                       <div
                                         key={fk}

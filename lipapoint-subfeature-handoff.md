@@ -15,13 +15,13 @@
 
 | Item | State |
 |---|---|
-| Build stage | **Spec §9 steps 1–10 all landed, built and verified** (2026-10-27): engine, migration, all guard swaps, soft-dep degrade, vertical filter, Apps tree UI, feature-keyed nav, `FEATURE_PRICES` + the /pricing à la carte table, the §10 demo-tenant matrix, and the step-8 `offline-mode` entitlement gate. `tsc`, lint (0 errors across 92 files), `next build`, `feature-registry.check.ts`, `offline-entitlement.check.ts`, live HTTP smoke and headless-Chrome screenshots all pass. **Session 7 closed §11 marketing copy** (features-page granularity blurb + cross-link, pricing FAQ, metadata). **Still open: D6 price validation before publishing, optional offline UX polish.** |
+| Build stage | **Spec §9 steps 1–10 all landed, built and verified** (2026-10-27): engine, migration, all guard swaps, soft-dep degrade, vertical filter, Apps tree UI, feature-keyed nav, `FEATURE_PRICES` + the /pricing à la carte table, the §10 demo-tenant matrix, and step 8 offline mode. **Session 8 (2026-11-04) made Offline Mode free on every plan and rebuilt it properly** (product decision): the paid entitlement gate is gone, the queue engine has cross-tab claims, exponential backoff, permanent-refusal handling and manual retry/discard, every replay carries an idempotency key backed by `SyncReceipt`, connectivity is probed, and the indicator is a full queue inspector. `tsc` clean, lint 0 errors, `feature-registry.check.ts` + `offline-mode.check.ts` green, live HTTP idempotency + offline-sale E2E pass. **Still open: D6 price validation before publishing.** |
 | Spec status | Received and read; §9 build order is the plan of record |
 | `src/` working tree | **Clean for this feature** — no uncommitted source edits relating to granularity (only the previous session's work, already committed) |
 | Repo baseline | HEAD `e89c636` "updated registration/onboarding, added HR and payroll, added finance and procurement, added etims, added asset management, Fixed UI theme issues, other simple mods" (2026-10-27 01:43) |
 | Untracked / uncommitted | 7 deleted spec docs (`lipapoint-erp-spec*.md`, `lipapoint-reports-spec.md`, gap analyses, `report-engine.spec-check.md`, `lipapoint-reports-gap-analysis.xlsx`), plus `LipaPoint-Session-Change-Report.docx`, `lipapoint-erp-saas-ui.skill.md`, `lipapoint-subfeature-granularity-spec.md`, this file |
 | Prior session record | `LipaPoint-Session-Change-Report.docx` — the Oct 26–27 session (theme fixes, `/api/modules`, Apps screen, reports UI, Odoo onboarding, app switcher, `/industries`) |
-| First action on resume | Spec §9 is complete. Remaining: D6 price validation before publishing (product call) and (optional) offline queue UX polish |
+| First action on resume | Spec §9 is complete. Remaining: D6 price validation before publishing (product call). Offline Mode is free on every plan and has its own policy/contract check (`offline-mode.check.ts`) |
 
 ### Extra requirements added by the user mid-session (not in the spec)
 
@@ -91,7 +91,7 @@ Checked against the working tree on 2026-10-27. Use these; do not re-derive them
 | 5 | Vertical filtering (spec §7) wired into picker + pricing | **Done** | `GET /api/features` filters with `featuresForCategory(getBusinessCategory(tenant.type))` — verified live: a BAR tenant sees 43/46 features, Restaurant sees `kitchen-display`; demo tenants prove Retail 15 / Restaurant 20 / Barbershop 18 POS+inventory features |
 | 6 | Apps screen tree UI + sidebar nav (spec §8) | **Done** | `dashboard/modules/page.tsx` rebuilt as App → Module → Feature cards (core = locked "Free", billable = checkboxes); new `src/app/api/features/route.ts` (GET tree session-only, POST grant/revoke OWNER/ADMIN); `sidebar.tsx` nav items now carry `featureKey` (28 items) and the layout passes the effective enabled-feature set |
 | 7 | À la carte pricing wired into `plans.ts` (spec §6; **file name corrected — see §3**) | **Done** | `FEATURE_PRICES` + `getFeaturePrice()` + `formatFeaturePrice()` in `src/lib/plans.ts` — all 39 billable keys priced (loyalty-program-pos = `includedWith`), core keys never priced. Invariant-checked against the spec's §6 table by `feature-registry.check.ts` §7. **D6 still open: KES figures are placeholders** |
-| 8 | `offline-mode` — separately scoped, do **not** let it block the rest | **Entitlement slice done** | The paid feature is now enforced where it matters: `src/lib/offline-entitlement.ts` (5-min cached probe of `/api/features`, documented fail-open fallbacks) gates `saveOfflineOrder`/`saveOfflineAction` in `src/lib/offline-db.ts` — denial dispatches an event and **throws**, so no caller can show "Saved offline" for a write that never queued, and `OfflineIndicator` explains why on screen. PWAProvider warms the probe on load. Policy covered by `offline-entitlement.check.ts` (13 assertions). Still open: richer offline UX (queue inspector, per-call-site messaging) if product wants it |
+| 8 | `offline-mode` — separately scoped, do **not** let it block the rest | **Done — free on every plan (session 8)** | Offline Mode is no longer sold: `FEATURE_REGISTRY["offline-mode"].free = true` (distinct from `core` — ignores tier *and* module), `isFeatureEnabled` returns true without a DB read, tier re-syncs can only leave it on, `revokeFeature`/`POST /api/features` refuse to switch it off, and `FEATURE_PRICES` is 0 so every surface says "Free". The client probe (`src/lib/offline-entitlement.ts`) is **deleted** — the write path has no gate, so a till never needs a network round-trip to queue a sale. Queue engine (`src/lib/offline-sync.ts` + `offline-db.ts`): atomic cross-tab/SW claims, 10s→2min exponential backoff, 4xx = permanent refusal kept for a human, per-item retry/discard, live queue inspector in `OfflineIndicator`, `/api/health` connectivity probe. Replays carry `x-idempotency-key` → `SyncReceipt` (migration 0006) so a lost reply never duplicates a sale/expense/stock change. Migration 0005 normalises every tenant's row. Covered by `offline-mode.check.ts` |
 | 9 | Resolve CRM discrepancy (spec §0) | **Done (D1)** | CRM stays the 6th app — no code change needed, `apps.ts` already ships it |
 | 10 | Rebuild demo tenants against spec §10 matrix, add `demo-payroll-only` | **Done** | `prisma/seed.demo-tenants.ts` (idempotent, never truncates — only touches `demo-*` slugs). 7 tenants seeded with exact `TenantFeature` sets + assertions, all passing: retail 15 / restaurant 20 / barbershop 18, finance-hr 7, assets-only 4, unified 38, payroll-only 3. Sign in `owner+<slug>@lipapoint.co.ke` / `password123` |
 | **R1** | **Reports preserved + mapped to features** (§5 below) | **Done — built + verified** | `src/lib/reports/feature-map.ts` (59 keys, D7 code-side map) + gate in `src/app/api/reports/[key]/route.ts`; live-tested, see §5.5 |
@@ -460,3 +460,43 @@ Post-build (same day): **0** `requireUserWithModule("…")` call sites, 2 sessio
      Matches `prisma/seed.demo-tenants.ts`'s `FINANCE_HR` / `ASSETS_ONLY` expected sets exactly.
   Verified: `tsc` clean (temp script removed), 0 lint errors on the 3 changed marketing files,
   `/pricing` and `/features` 200 with the new copy present in the served HTML.
+- **2026-11-04 (session 8)** — **Offline Mode: free for all tenants + rebuilt end to end.**
+  1. **Free on every plan.** `FeatureDefinition.free` is a new third row type next to
+     core/billable: free features are always enabled, ignore tier *and* module (a Finance-only
+     tenant still gets offline writes), are never revocable, and are never priced.
+     `offline-mode` moved from billable/KES 1,200 to `free: true, requires: []`; the spec §1 row,
+     §6 table, §9 step 8 and the pricing/marketing copy were updated with it. `FEATURE_PRICES`
+     keeps `{ monthly: 0 }` so `formatFeaturePrice()` renders "Free" instead of "Contact sales".
+     `prisma/migrations/0005_offline_mode_free.sql` normalised all 18 tenants' rows to
+     `enabled=true, source=core` (verified against the dev DB).
+  2. **No entitlement gate in the write path.** `src/lib/offline-entitlement.ts` and its 13-
+     assertion check are deleted; `saveOfflineOrder`/`saveOfflineAction` queue unconditionally
+     (a sale is never lost to a stale cache or a probe that can't reach the server in the dark).
+     Free features short-circuit in `isFeatureEnabled` / `getEffectiveEnabledFeatures`; the Apps
+     screen shows Offline Mode as a locked "Free" row (no switch); `POST /api/features` answers
+     409 for it.
+  3. **Queue engine rebuilt** (`src/lib/offline-sync.ts` pure contract + `src/lib/offline-db.ts`
+     storage/loop): atomic claims inside the select transaction (page, other tabs and the service
+     worker can't replay the same sale; a 2-min stale claim is reclaimable), sales replayed before
+     bookkeeping, 10s→2min exponential backoff, 4xx treated as a permanent refusal that stays in
+     the queue with the server's reason instead of retrying forever, per-item retry/discard, and
+     `BroadcastChannel` + window events so every tab's status updates live. Legacy records (no
+     `clientRef`/`attempts`) are normalised, never stranded.
+  4. **Exactly-once replays.** `src/lib/idempotency.ts` + `SyncReceipt`
+     (`prisma/migrations/0006_sync_receipts.sql`): every replayed request sends
+     `x-idempotency-key` (the queue record's `clientRef`), and the 10 endpoints the queue writes
+     to (`orders`, `orders/tabs` POST+PUT, `stock`, `expenses`, `units` POST+PUT, `products`
+     POST + PUT /[id], `locations` POST+PUT, `users` POST + PATCH/DELETE /[id], `roles` POST+PUT,
+     `settings` PUT) return the stored response instead of applying the change twice. Receipts are
+     tenant-scoped, key-validated and expire after 7 days. No header = zero overhead for normal calls.
+  5. **Honest connectivity + UX.** `/api/health` (uncached, never SW-cached) backs a real probe,
+     so a till on a dead uplink stops claiming to be online; `OfflineIndicator` is now a status
+     pill + queue inspector (pending/retrying/needs-attention, amount, server reason, retry,
+     discard with confirm, sync now, retry all, last-sync time). The service worker was rewritten
+     to the same claim/backoff/idempotency contract, and it no longer caches `/api/health`.
+  Verified: `npx tsc --noEmit` clean (only pre-existing `tmp/` script errors remain),
+  `next lint` 0 errors, `next build` exit 0, `feature-registry.check.ts` (
+  46 features, 7 core, 1 free, 38 billable) and `offline-mode.check.ts` green, plus live E2E against
+  a running server: repeated POST /api/orders with one idempotency key produces exactly one order,
+  and an offline sale queued in the browser syncs to the DB exactly once. Details in the session 8
+  log above and in `offline-mode.check.ts`.

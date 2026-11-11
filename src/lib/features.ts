@@ -4,6 +4,7 @@ import {
   FEATURE_REGISTRY,
   MODULE_CORE_FEATURE,
   expandFeatureSet,
+  isFreeFeature,
 } from "./module-registry";
 import type { FeatureKey, FeatureSource, ModuleKey } from "./module-registry";
 import { grantModule } from "./modules";
@@ -114,6 +115,36 @@ export async function provisionTenantFeatures(
     const def = FEATURE_REGISTRY[featureKey];
     const current = byKey.get(featureKey);
 
+    // Free-for-everyone features (e.g. Offline Mode) ignore both the tier and
+    // the parent module: they're a product guarantee, so a re-sync can only
+    // ever leave them on. "core" keeps them out of `deriveActiveModules`,
+    // which is what stops a free POS feature from activating the POS module
+    // for a tenant that doesn't run it.
+    if (def.free) {
+      if (!current) {
+        return db.tenantFeature.create({
+          data: {
+            tenantId,
+            moduleKey: def.moduleKey,
+            featureKey,
+            enabled: true,
+            source: "core",
+            planTier: tier,
+            enabledAt: now,
+          },
+        });
+      }
+      return db.tenantFeature.update({
+        where: { id: current.id },
+        data: {
+          enabled: true,
+          source: "core",
+          planTier: tier,
+          enabledAt: current.enabledAt ?? now,
+        },
+      });
+    }
+
     // Addon/manual rows are explicit business decisions (including the
     // onboarding opt-out for apps the customer didn't pick) — a tier sync
     // must never flip them.
@@ -167,6 +198,10 @@ export async function grantFeature(
   featureKey: FeatureKey,
   source: Extract<FeatureSource, "addon" | "manual"> = "addon"
 ): Promise<void> {
+  // Free features are already on for every tenant — nothing to grant and no
+  // row to rewrite (the tier re-sync owns those rows).
+  if (isFreeFeature(featureKey)) return;
+
   const needed = expandFeatureSet([featureKey]);
   const now = new Date();
 
@@ -219,8 +254,14 @@ export async function revokeFeature(
   featureKey: FeatureKey
 ): Promise<void> {
   const def = FEATURE_REGISTRY[featureKey];
-  if (def.core) {
-    throw new FeatureDependencyError(featureKey, [], `"${featureKey}" is a core feature and can't be disabled`);
+  if (def.core || def.free) {
+    throw new FeatureDependencyError(
+      featureKey,
+      [],
+      def.free
+        ? `"${def.label}" is free on every plan and can't be switched off`
+        : `"${featureKey}" is a core feature and can't be disabled`
+    );
   }
 
   const enabledRows = await db.tenantFeature.findMany({
@@ -255,6 +296,10 @@ export async function isFeatureEnabled(
   tenantId: string,
   featureKey: FeatureKey
 ): Promise<boolean> {
+  // Free-for-everyone features never consult the database: no tier, module,
+  // revoked add-on row or stale cache can take them away.
+  if (isFreeFeature(featureKey)) return true;
+
   const row = await db.tenantFeature.findUnique({
     where: { tenantId_featureKey: { tenantId, featureKey } },
     select: { enabled: true },
@@ -277,9 +322,11 @@ export async function getEnabledFeatures(
     where: { tenantId, enabled: true },
     select: { featureKey: true },
   });
-  return new Set(
+  const out = new Set(
     rows.map((row) => row.featureKey).filter(isFeatureKey)
   );
+  for (const key of FEATURE_KEYS) if (isFreeFeature(key)) out.add(key);
+  return out;
 }
 
 /**
@@ -306,6 +353,10 @@ export async function getEffectiveEnabledFeatures(
 
   const out = new Set<FeatureKey>();
   for (const key of FEATURE_KEYS) {
+    if (isFreeFeature(key)) {
+      out.add(key);
+      continue;
+    }
     const row = byKey.get(key);
     const enabled = row !== undefined ? row : moduleOn.has(FEATURE_REGISTRY[key].moduleKey);
     if (enabled) out.add(key);
