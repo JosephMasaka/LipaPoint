@@ -5,7 +5,7 @@ import { requireUserWithFeature, routeError, parseBody } from "@/lib/api-guards"
 /**
  * POST /api/etims/retry — bulk retry of the unreachable pile.
  *
- * Only re-sends rows still `pending` (OSCU was down / timed out). Rows
+ * Only re-sends rows still `pending` (KRA was down / timed out). Rows
  * `rejected` by KRA are intentionally skipped: their payload is wrong and
  * resending it unchanged would just hammer KRA and fail again — those need
  * a human fix first. Body: { limit? }.

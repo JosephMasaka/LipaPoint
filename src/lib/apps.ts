@@ -68,7 +68,7 @@ export const APPS: AppDefinition[] = [
   {
     id: "etims",
     label: "KRA eTIMS",
-    tagline: "Real-time OSCU invoice submission and compliance dashboard.",
+    tagline: "Real-time OSCU/VSCU invoice submission and compliance dashboard.",
     modules: ["etims"],
     group: "backoffice",
   },

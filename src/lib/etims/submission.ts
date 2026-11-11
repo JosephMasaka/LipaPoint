@@ -23,8 +23,8 @@ import { writeAuditLog, AUDIT_ACTIONS } from "../audit";
  *      └────────────────────┘
  *   rejected ──retry──► pending ──► …        (same machine, loop closed)
  *
- * `unreachable` is deliberately *not* a stored status: when the OSCU
- * endpoint is down we never got an answer, so the row stays `pending` and
+ * `unreachable` is deliberately *not* a stored status: when the eTIMS
+ * endpoint (OSCU or VSCU) is down we never got an answer, so the row stays `pending` and
  * is safe to retry in bulk — nothing was accepted, nothing can duplicate.
  * `rejected` means KRA saw the invoice and refused it; those wait for a
  * human and are never auto-retried.
@@ -325,7 +325,7 @@ export async function submitEtimsInvoice(
   }
 
   // Fill seller identity from env (KRA TIN/branch) at the last moment so
-  // the payload builder stays free of process-global config. The OSCU
+  // the payload builder stays free of process-global config. The OSCU/VSCU
   // adapter overwrites these from its own config too — this is for
   // traceability of what was attempted (rawResponse, logs).
   payload.seller = {
@@ -333,7 +333,7 @@ export async function submitEtimsInvoice(
     branch: process.env.ETIMS_SELLER_BRANCH?.trim() || "",
     name: tenant.name,
   };
-  // Echoed to OSCU so an async confirmation can resolve this exact row
+  // Echoed to the device so an async confirmation can resolve this exact row
   // (see src/lib/etims/callback.ts) instead of matching on internalRef.
   payload.submissionId = row.id;
 

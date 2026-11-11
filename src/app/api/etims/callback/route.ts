@@ -8,7 +8,7 @@ import {
 import { parseBody } from "@/lib/api-guards";
 
 /**
- * POST /api/etims/callback — OSCU's async confirmation endpoint.
+ * POST /api/etims/callback — the device's (OSCU/VSCU) async confirmation endpoint.
  *
  * Deliberately NOT session-authenticated: KRA's middleware calls it, not a
  * user. Auth is the shared ETIMS_CALLBACK_SECRET in the

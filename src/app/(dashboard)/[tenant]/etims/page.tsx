@@ -271,7 +271,7 @@ export default function EtimsPage() {
 
       <Header
         title="eTIMS / Tax Compliance"
-        subtitle="KRA OSCU invoice submissions, rejections and VAT output"
+        subtitle="KRA eTIMS (OSCU / VSCU) invoice submissions, rejections and VAT output"
       />
 
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -292,7 +292,7 @@ export default function EtimsPage() {
           <StatCard
             label="Awaiting retry"
             value={stats?.pending ?? "—"}
-            hint="OSCU unreachable — safe to resend"
+            hint="KRA unreachable — safe to resend"
             icon={Clock}
             tone="warning"
           />

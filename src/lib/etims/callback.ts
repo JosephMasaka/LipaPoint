@@ -5,7 +5,7 @@ import { writeAuditLog, AUDIT_ACTIONS } from "../audit";
 /**
  * eTIMS async confirmation callback (spec §4.8).
  *
- * OSCU can answer in two ways: synchronously from the submit call (already
+ * The eTIMS device (OSCU or VSCU) can answer in two ways: synchronously from the submit call (already
  * handled in submission.ts), or later by calling back for invoices that
  * came back `submitted` — "accepted for processing, invoice number still
  * coming". Without this endpoint those rows have no exit: retrying them is
@@ -61,7 +61,7 @@ export interface ConfirmSubmissionInput {
  *
  * State rules:
  * - `submitted` / `pending` → accepted | rejected (pending is included on
- *   purpose: if our call timed out but OSCU still processed the invoice,
+ *   purpose: if our call timed out but KRA still processed the invoice,
  *   this callback is the proof it exists — flipping it to accepted is the
  *   *correct* recovery, not a duplicate).
  * - `accepted` → idempotent no-op (KRA confirming twice changes nothing).
