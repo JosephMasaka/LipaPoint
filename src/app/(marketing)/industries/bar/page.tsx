@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,15 +12,16 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Bars & Lodges — Nightlife and Hospitality",
+  title: "LipaPoint ERP for Bars & Lodges — Sales, Stock & Compliance",
   description:
-    "LipaPoint's bar solution: nightly sales capture, stock tracking for drinks and stocktakes, payment flow, and M-Pesa integration. Designed for nightlife businesses in Kenya.",
+    "Run nightly sales, drink stock, M-Pesa payments and the books on one ERP. Stocktakes, wastage and KRA eTIMS for Kenyan bars, lodges and nightclubs.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/bar" },
   openGraph: {
-    title: "LipaPoint Bars — Nightly Sales and Stock",
+    title: "LipaPoint ERP for Bars & Lodges",
     description:
-      "Nightly sales capture, drink stock tracking, M-Pesa STK Push, and payment flow for bars, lodges, and nightclubs. Built for Kenyan nightlife businesses.",
+      "Nightly sales, drink stock and payments reconciled in one system — built for Kenyan bars, lodges and nightclubs.",
     url: "https://lipapoint.co.ke/industries/bar",
+    images: ogImage("bar", "LipaPoint ERP for bars and lodges"),
   },
 };
 
@@ -32,8 +34,8 @@ export default function BarIndustryPage() {
             Built for Bars & Lodges
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
-            From neighborhood pubs to city clubs, LipaPoint helps you capture sales, track
-            stock, and manage payments — without the clipboard chaos.
+            From neighbourhood pubs to city clubs, LipaPoint reconciles sales, drink stock,
+            payments and the books — without the clipboard chaos.
           </p>
         </div>
 
@@ -42,10 +44,10 @@ export default function BarIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <CreditCard className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Payment Capture</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Nightly sales reconciled</h3>
             <p className="text-text-secondary">
-              M-Pesa STK Push, customer payments, and B2B transactions. Settled into your
-              records the way Kenyan businesses actually transact.
+              M-Pesa, card and cash sales settle into the same records, by till, shift and
+              waiter — no morning-after re-keying.
             </p>
           </div>
 
@@ -53,10 +55,10 @@ export default function BarIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <Package className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Drink Stock tracking</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Drink stock that adds up</h3>
             <p className="text-text-secondary">
-              Track beer, spirits, and mixer stock. Stocktakes, waste tracking, and
-              reorder alerts for bar inventory.
+              Beer, spirits and mixers tracked per location, with stocktakes, wastage and
+              reorder alerts that surface shrinkage early.
             </p>
           </div>
 
@@ -64,21 +66,21 @@ export default function BarIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <Landmark className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Nightly Sales Reports</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Books close with the bar</h3>
             <p className="text-text-secondary">
-              Capture nightly sales, track peak hours, and identify best-selling drinks.
-              Compare performance across locations.
+              Peak-hour and best-seller reports feed straight into accounting, payroll and
+              eTIMS — so tax time is not a reconstruction exercise.
             </p>
           </div>
         </div>
 
         <div className="mt-12 rounded-2xl border-border bg-surface-elevated p-8">
           <h3 className="text-2xl font-bold text-text-primary mb-4">
-            Simplified Operations
+            Less paperwork, more control
           </h3>
           <p className="text-text-secondary mb-6">
-            No clipboard chaos. All sales, stock, and payments tracked automatically in
-            one system. Focus on customers, not paperwork.
+            Sales, stock, payments, payroll and compliance in one tenant. Compare
+            locations, spot variances and keep the books current while you trade.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>

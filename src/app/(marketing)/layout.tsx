@@ -131,14 +131,14 @@ export default function MarketingLayout({
                 <span className="font-bold text-text-primary">LipaPoint</span>
               </div>
               <p className="text-sm text-text-muted">
-                Kenya&apos;s #1 Point of Sale system for restaurants, bars, retail shops, supermarkets, pharmacies and barbershops.
+                Kenya&apos;s all-in-one ERP: point of sale, inventory, payroll, finance, assets and eTIMS — for restaurants, bars, retail shops, supermarkets and pharmacies.
               </p>
             </div>
             <div>
-              <h4 className="text-sm font-semibold text-text-primary mb-3">POS Solutions</h4>
+              <h4 className="text-sm font-semibold text-text-primary mb-3">ERP Solutions</h4>
               <nav aria-label="Product navigation" className="space-y-2">
-                <Link href="/features" className="block text-sm text-text-muted hover:text-text-secondary">POS Features</Link>
-                <Link href="/pricing" className="block text-sm text-text-muted hover:text-text-secondary">POS Pricing</Link>
+                <Link href="/features" className="block text-sm text-text-muted hover:text-text-secondary">ERP Features</Link>
+                <Link href="/pricing" className="block text-sm text-text-muted hover:text-text-secondary">ERP Pricing</Link>
                 <Link href="/demo-request" className="block text-sm text-text-muted hover:text-text-secondary">Request Free Demo</Link>
                 <Link href="/register" className="block text-sm text-text-muted hover:text-text-secondary">Get started</Link>
               </nav>
@@ -146,12 +146,12 @@ export default function MarketingLayout({
             <div>
               <h4 className="text-sm font-semibold text-text-primary mb-3">Industries</h4>
               <nav aria-label="Industries navigation" className="space-y-2">
-                <span className="block text-sm text-text-muted">Restaurant POS</span>
-                <span className="block text-sm text-text-muted">Bar & Lounge POS</span>
-                <span className="block text-sm text-text-muted">Retail Shop POS</span>
-                <span className="block text-sm text-text-muted">Supermarket POS</span>
-                <span className="block text-sm text-text-muted">Pharmacy POS</span>
-                <span className="block text-sm text-text-muted">Barbershop & Salon POS</span>
+                <span className="block text-sm text-text-muted">Restaurant & Hospitality</span>
+                <span className="block text-sm text-text-muted">Bar & Lounge</span>
+                <span className="block text-sm text-text-muted">Retail Shop</span>
+                <span className="block text-sm text-text-muted">Supermarket</span>
+                <span className="block text-sm text-text-muted">Pharmacy</span>
+                <span className="block text-sm text-text-muted">Barbershop & Salon</span>
                 <span className="block text-sm text-text-muted">HR & Payroll</span>
                 <span className="block text-sm text-text-muted">Asset Management</span>
               </nav>
@@ -169,7 +169,7 @@ export default function MarketingLayout({
           <div className="border-t border-border mt-8 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-xs text-text-muted">&copy; 2026 LipaPoint. All rights reserved.</p>
             <p className="text-xs text-text-muted">
-              POS System Kenya | Point of Sale Software | M-Pesa POS
+              ERP System Kenya | Point of Sale Software | M-Pesa Integration
             </p>
           </div>
         </div>

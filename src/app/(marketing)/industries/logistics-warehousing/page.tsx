@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Boxes, Truck, ClipboardList } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Logistics & Warehousing — Stock in Motion",
+  title: "LipaPoint ERP for Logistics & Warehousing — Stock in Motion",
   description:
     "LipaPoint's logistics and warehousing solution: multi-location stock control, transfers, order fulfilment and valuation for transport and storage businesses.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/logistics-warehousing" },
   openGraph: {
-    title: "LipaPoint for Logistics & Warehousing",
+    title: "LipaPoint ERP for Logistics & Warehousing",
     description:
       "Multi-location stock control, transfers and order fulfilment for transport, courier and storage businesses.",
     url: "https://lipapoint.co.ke/industries/logistics-warehousing",
+    images: ogImage("logistics-warehousing", "LipaPoint ERP for logistics and warehousing"),
   },
 };
 

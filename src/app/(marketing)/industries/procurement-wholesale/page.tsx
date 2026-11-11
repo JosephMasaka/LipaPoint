@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ClipboardList, Truck, Boxes } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Procurement & Wholesale — Purchase Orders to Delivery",
+  title: "LipaPoint ERP for Procurement & Wholesale — Purchase to Payment",
   description:
     "LipaPoint's procurement and wholesale solution: purchase orders, supplier invoicing, multi-location stock control and B2B selling.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/procurement-wholesale" },
   openGraph: {
-    title: "LipaPoint for Procurement & Wholesale",
+    title: "LipaPoint ERP for Procurement & Wholesale",
     description:
       "Purchase orders, supplier accounts and multi-location stock control for distributors and wholesalers.",
     url: "https://lipapoint.co.ke/industries/procurement-wholesale",
+    images: ogImage("procurement-wholesale", "LipaPoint ERP for procurement and wholesale"),
   },
 };
 

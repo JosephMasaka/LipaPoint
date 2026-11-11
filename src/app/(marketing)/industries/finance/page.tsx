@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Landmark, Calculator, ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Finance & Accounting — Books, Banking & eTIMS",
+  title: "LipaPoint ERP for Finance & Accounting — Books, Banking & eTIMS",
   description:
     "LipaPoint's finance solution: chart of accounts, general ledger, bank reconciliation, financial statements and KRA eTIMS compliance for Kenyan businesses.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/finance" },
   openGraph: {
-    title: "LipaPoint for Finance & Accounting — Books, Banking & eTIMS",
+    title: "LipaPoint ERP for Finance & Accounting",
     description:
       "General ledger, bank reconciliation, financial statements and real-time eTIMS invoicing on one platform.",
     url: "https://lipapoint.co.ke/industries/finance",
+    images: ogImage("finance", "LipaPoint ERP for finance and accounting"),
   },
 };
 
@@ -65,7 +67,7 @@ export default function FinanceIndustryPage() {
               KRA eTIMS Compliance
             </h3>
             <p className="text-text-secondary">
-              Submit OSCU invoices in real time, monitor the compliance
+              Submit OSCU/VSCU invoices in real time, monitor the compliance
               dashboard, and keep every return audit-ready.
             </p>
           </div>

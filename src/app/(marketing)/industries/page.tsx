@@ -10,11 +10,11 @@ interface Industry {
 }
 
 const INDUSTRIES: Industry[] = [
-  { key: "retail", label: "Retail & Supermarkets", description: "POS, inventory, sales analytics, multi-location" },
-  { key: "pharmacy", label: "Pharmacy", description: "Stock & expiry control, KRA eTIMS invoicing, prescription sales" },
-  { key: "restaurant", label: "Restaurants & Hospitality", description: "Table & order management, menu & kitchen, staff & payroll" },
-  { key: "bar", label: "Bars & Lodges", description: "Payment capture, drink stock tracking, nightly sales reports" },
-  { key: "barbershop", label: "Barbershop & Salon", description: "Appointment booking, service catalog, queue management, retail products" },
+  { key: "retail", label: "Retail & Supermarkets", description: "Sales, stock and branch margins connected to the books" },
+  { key: "pharmacy", label: "Pharmacy", description: "Stock & expiry control with eTIMS-ready dispensing and records" },
+  { key: "restaurant", label: "Restaurants & Hospitality", description: "Orders, food cost, staff and payroll in one system" },
+  { key: "bar", label: "Bars & Lodges", description: "Nightly sales, drink stock and payments reconciled automatically" },
+  { key: "barbershop", label: "Barbershop & Salon", description: "Bookings, services, retail and commissions in one place" },
   { key: "hr-payroll", label: "HR & Payroll", description: "Statutory payroll, attendance, leave and staff scheduling" },
   { key: "asset-management", label: "Asset Management", description: "Asset register, depreciation, maintenance and disposal" },
   { key: "finance", label: "Finance & Accounting", description: "General ledger, bank reconciliation, statements, KRA eTIMS" },
@@ -30,7 +30,8 @@ export default function IndustriesPage() {
       <div className="max-w-7xl mx-auto">
         <h1 className="text-4xl font-bold text-text-primary mb-8">Industries</h1>
         <p className="text-lg text-text-secondary mb-8">
-          LipaPoint offers industry-specific ERP solutions tailored to unique business needs.
+          LipaPoint is one ERP with industry-ready setups — so sales, stock, staff and
+          the books stay connected to how your business actually runs.
         </p>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

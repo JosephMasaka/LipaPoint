@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Package, Users, Shield, Banknote } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Asset Management — Track Your Equipment and Inventory",
+  title: "LipaPoint ERP for Asset Management — Equipment & Depreciation",
   description:
     "LipaPoint's asset management solution: track equipment, vehicles, and fixed assets across all your business locations.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/asset-management" },
@@ -13,6 +14,7 @@ export const metadata: Metadata = {
     description:
       "Track equipment, vehicles, and fixed assets across all your business locations with real-time visibility.",
     url: "https://lipapoint.co.ke/industries/asset-management",
+    images: ogImage("asset-management", "LipaPoint ERP for asset management"),
   },
 };
 

@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, Banknote, CalendarDays } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Education & Training — Fees, Staff and Operations",
+  title: "LipaPoint ERP for Education & Training — Fees, Staff & Operations",
   description:
     "LipaPoint's education solution: learner records, fee and expense tracking, staff payroll and scheduling for schools, colleges and training centres.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/education-training" },
   openGraph: {
-    title: "LipaPoint for Education & Training",
+    title: "LipaPoint ERP for Education & Training",
     description:
       "Learner records, fee tracking, statutory payroll and scheduling for schools and training centres.",
     url: "https://lipapoint.co.ke/industries/education-training",
+    images: ogImage("education-training", "LipaPoint ERP for education and training"),
   },
 };
 

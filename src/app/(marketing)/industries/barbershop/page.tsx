@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,15 +11,16 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Barbershops & Salons — Appointments and grooming",
+  title: "LipaPoint ERP for Barbershops & Salons — Bookings to Commissions",
   description:
-    "LipaPoint's barbershop/solution: appointment booking, service catalog, queue management, and retail product sales for grooming businesses.",
+    "Run bookings, services, retail products, staff commissions and payroll on one ERP. Built for Kenyan barbershops, salons and grooming businesses.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/barbershop" },
   openGraph: {
-    title: "LipaPoint Barbershop — Appointments and Service Catalog",
+    title: "LipaPoint ERP for Barbershops & Salons",
     description:
-      "Appointment booking, service catalog, queue management, and retail product sales for barbershops and salons. Built for Kenyan grooming businesses.",
+      "Bookings, services, retail products and staff commissions in one place — built for Kenyan grooming businesses.",
     url: "https://lipapoint.co.ke/industries/barbershop",
+    images: ogImage("barbershop", "LipaPoint ERP for barbershops and salons"),
   },
 };
 
@@ -31,8 +33,8 @@ export default function BarbershopIndustryPage() {
             Built for Barbershops & Salons
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
-            From barbershops to beauty salons, LipaPoint helps you book appointments,
-            manage staff, and retail products — all in one system.
+            From barbershops to beauty salons, LipaPoint connects bookings, services,
+            retail products, staff commissions and payroll in one system.
           </p>
         </div>
 
@@ -41,10 +43,10 @@ export default function BarbershopIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <Users className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Appointment Booking</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Bookings and walk-ins</h3>
             <p className="text-text-secondary">
-              Book appointments for barbers, stylists, and therapists. Calendar view,
-              reminder notifications, and no-show tracking.
+              Schedule barbers, stylists and therapists, manage the walk-in queue, and keep
+              no-shows visible — at the chair and on the dashboard.
             </p>
           </div>
 
@@ -52,10 +54,10 @@ export default function BarbershopIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <Calendar className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Service Catalog</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Services and retail together</h3>
             <p className="text-text-secondary">
-              Catalog of haircuts, colors, treatments, and retail products. Track what&apos;s
-              sold and set commissions for staff.
+              Haircuts, colour and treatments priced alongside shampoo and grooming kits,
+              with stock and margins tracked from the same sale.
             </p>
           </div>
 
@@ -63,21 +65,21 @@ export default function BarbershopIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <Shield className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Queue Management</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Commissions from real sales</h3>
             <p className="text-text-secondary">
-              Manage walk-in queues, reduce wait times, and notify customers when
-              it&apos;s their turn. Track staff availability in real time.
+              Commission is calculated from actual service and product sales, then flows
+              into payroll and the books — no spreadsheet at month end.
             </p>
           </div>
         </div>
 
         <div className="mt-12 rounded-2xl border-border bg-surface-elevated p-8">
           <h3 className="text-2xl font-bold text-text-primary mb-4">
-            Retail Products
+            One view of the business
           </h3>
           <p className="text-text-secondary mb-6">
-            Sell shampoo, hair care products, and grooming kits directly through the
-            POS. Track inventory and set reorder points for retail items.
+            Service revenue, retail stock, staff costs and expenses sit in the same
+            reporting suite, so you can see which chairs and which products actually pay.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,15 +12,16 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Pharmacy — Prescription & Inventory Management",
+  title: "LipaPoint ERP for Pharmacies — Stock, Expiry & eTIMS",
   description:
-    "LipaPoint's pharmacy solution: prescription sales, expiry tracking, stock control, and KRA eTIMS-compliant invoicing for pharmacies and drug stores.",
+    "Run dispensing, stock and expiry control, staff payroll and KRA eTIMS invoicing on one ERP. Built for Kenyan pharmacies, drug stores and dispensaries.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/pharmacy" },
   openGraph: {
-    title: "LipaPoint Pharmacy — Stock, Prescriptions and eTIMS",
+    title: "LipaPoint ERP for Pharmacies",
     description:
-      "Prescription-style sales, expiry tracking, stock movement, and KRA eTIMS invoicing for pharmacies. Built for Kenyan drug stores and pharmacists.",
+      "Stock and expiry control, prescription sales and KRA eTIMS invoicing without the paperwork.",
     url: "https://lipapoint.co.ke/industries/pharmacy",
+    images: ogImage("pharmacy", "LipaPoint ERP for pharmacies"),
   },
 };
 
@@ -32,8 +34,8 @@ export default function PharmacyIndustryPage() {
             Built for Pharmacies
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
-            Prescription-style sales, expiry-controlled inventory, and KRA-compliant
-            invoicing — all in one system.
+            Dispensing, expiry-controlled stock, staff and KRA-compliant invoicing —
+            one system, audit-ready by default.
           </p>
         </div>
 
@@ -55,7 +57,7 @@ export default function PharmacyIndustryPage() {
             </div>
             <h3 className="text-xl font-bold text-text-primary mb-2">KRA eTIMS Invoicing</h3>
             <p className="text-text-secondary">
-              Issue eTIMS-compliant receipts and invoices, submit to KRA&apos;s OSCU in real time,
+              Issue eTIMS-compliant receipts and invoices, submit to KRA&apos;s eTIMS (OSCU & VSCU) in real time,
               and track CSIDs and VAT reconciliation from the compliance dashboard.
             </p>
           </div>
@@ -64,21 +66,21 @@ export default function PharmacyIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <Banknote className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Prescription Sales</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Counter and dispensary connected</h3>
             <p className="text-text-secondary">
-              Track prescription sales, manage controlled substances, and maintain patient
-              records with privacy and compliance.
+              Prescription and over-the-counter sales draw down the same stock, with patient
+              records kept private and controlled items accounted for.
             </p>
           </div>
         </div>
 
         <div className="mt-12 rounded-2xl border-border bg-surface-elevated p-8">
           <h3 className="text-2xl font-bold text-text-primary mb-4">
-            Regulatory Compliance
+            Compliance without the paperwork
           </h3>
           <p className="text-text-secondary mb-6">
-            KRA eTIMS-ready, NSSF and NHIF integration, and statutory reporting made
-            simple. Stay aligned with Kenya&apos;s pharmaceutical regulations.
+            eTIMS invoicing, statutory payroll and VAT reconciliation run off the same
+            transactions, so inspections and month end do not depend on manual records.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>

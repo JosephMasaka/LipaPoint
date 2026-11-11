@@ -9,7 +9,7 @@ import {
   VERTICAL_PLANS,
   HARDWARE_ADDONS,
   CATEGORY_DISPLAY,
-  formatFeaturePrice,
+  getFeaturePrice,
   formatPrice,
   groupPlanFeatures,
   FULL_ERP_FEATURES,
@@ -62,6 +62,42 @@ const HARDWARE_ICONS: Record<string, typeof Printer> = {
   "barcode-scanner": ScanBarcode,
   "tablet-terminal": Tablet,
 };
+
+/**
+ * Add-ons are merchandised per module, never per feature — nobody buys POS
+ * and then barcode scanning on top of it, so each module is one line with
+ * one price. Prices are a business decision set explicitly here; modules
+ * added later fall back to their priciest feature so a number always
+ * renders. "contactSales" is the escape hatch for a module with no sensible
+ * self-serve number (payroll is priced per employee).
+ */
+type ModulePrice = number | "contactSales";
+
+const MODULE_PRICE_FIXTURE: Partial<Record<ModuleKey, ModulePrice>> = {
+  pos: 1200,
+  inventory: 600,
+  finance: 800,
+  procurement: 800,
+  crm: 800,
+  assets: 800,
+  etims: 1200,
+  payroll: "contactSales",
+};
+
+function getModulePrice(moduleKey: ModuleKey): ModulePrice {
+  const fixture = MODULE_PRICE_FIXTURE[moduleKey];
+  if (fixture !== undefined) return fixture;
+  const prices = FEATURE_KEYS.map((k) => FEATURE_REGISTRY[k])
+    .filter((d) => d.moduleKey === moduleKey && !d.core)
+    .map((d) => getFeaturePrice(d.key)?.monthly)
+    .filter((p): p is number => typeof p === "number" && p > 0);
+  return prices.length > 0 ? Math.max(...prices) : 0;
+}
+
+function formatModulePrice(moduleKey: ModuleKey): string {
+  const price = getModulePrice(moduleKey);
+  return price === "contactSales" ? "Contact sales" : `${formatPrice(price)}/mo`;
+}
 
 export function PricingClient() {
   const [category, setCategory] = useState<BusinessCategory>("RETAIL_GENERAL");
@@ -119,7 +155,7 @@ export function PricingClient() {
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
             No setup fees. No hidden charges. Cancel anytime. Start with one app —
-            or just one feature inside it.
+            or add more, one module at a time.
           </p>
           {/*<div className="mt-6 inline-flex items-center gap-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-4 py-2">
             <Check className="h-4 w-4 text-emerald-400" />
@@ -339,25 +375,26 @@ export function PricingClient() {
           </p>
         </div>
 
-        {/* À la carte features (sub-feature spec §6/§11): the next level down
-            from the tier cards — every billable sub-feature is independently
-            purchasable, and core features are the free floor. */}
+        {/* Module add-ons: the next level down from the tier cards — apps are
+            sold as whole modules (never feature by feature), core features are
+            the free floor, and a module with no sensible self-serve number
+            falls back to Contact sales. */}
         <div className="mt-20">
           <div className="text-center mb-10">
             <h2 className="text-2xl font-bold text-text-primary mb-3">
               Need just one part of an app?
             </h2>
             <p className="text-text-secondary max-w-xl mx-auto">
-              Every feature below can be switched on individually from the Apps
-              screen — buy Payroll without the rest of HR, or Kitchen Display
-              without a full restaurant bundle.
+              Apps are sold as complete modules: the Point of Sale module ships
+              with barcode scanning, discounts and multi-till in the box — not
+              as separate line items. Switch modules on from your Apps screen as
+              you grow.
             </p>
           </div>
 
-          {/* Every non-core feature is independently switchable from the
-              Apps screen (sub-feature spec §6) — grouped by app, then by
-              module, mirroring how the tier cards group their bullets, with
-              each feature's revised à la carte price alongside it. */}
+          {/* One card per app, one block per module: the module's features
+              listed together under a single module price, mirroring how the
+              tier cards group their bullets. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {APPS.map((app) => {
               const rows = FEATURE_KEYS.filter((key) => {
@@ -385,25 +422,24 @@ export function PricingClient() {
                   <p className="text-xs text-text-muted mb-4">{app.tagline}</p>
                   <div className="space-y-4">
                     {[...byModule.entries()].map(([moduleKey, featureKeys]) => (
-                      <div key={moduleKey}>
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted mb-2">
-                          {MODULE_REGISTRY[moduleKey].label}
+                      <div
+                        key={moduleKey}
+                        className="rounded-xl border border-border bg-surface/60 p-4"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                            {MODULE_REGISTRY[moduleKey].label}
+                          </p>
+                          <span className="shrink-0 text-sm font-semibold text-gold text-right">
+                            {formatModulePrice(moduleKey)}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-text-muted leading-relaxed">
+                          Includes{" "}
+                          {featureKeys
+                            .map((key) => FEATURE_REGISTRY[key].label)
+                            .join(", ")}
                         </p>
-                        <ul className="space-y-2.5">
-                          {featureKeys.map((key) => (
-                            <li
-                              key={key}
-                              className="flex items-center justify-between gap-3 text-sm"
-                            >
-                              <span className="text-text-secondary">
-                                {FEATURE_REGISTRY[key].label}
-                              </span>
-                              <span className="shrink-0 font-medium text-text-primary text-right">
-                                {formatFeaturePrice(key)}
-                              </span>
-                            </li>
-                          ))}
-                        </ul>
                       </div>
                     ))}
                   </div>
@@ -416,6 +452,22 @@ export function PricingClient() {
             Core features — Till, Stock Tracking, Employee Records, General Ledger,
             Suppliers, Asset Register and Customer Records — are always included
             with their app at no extra charge.
+          </p>
+          <p className="mt-3 text-center text-xs text-text-muted">
+            Need a single capability on its own instead of the whole module?{" "}
+            <Link href="/contact" className="text-gold hover:underline">
+              Contact sales
+            </Link>{" "}
+            and we&apos;ll set the bundle and price for you.
+          </p>
+          <p className="mt-3 text-center text-xs text-text-muted">
+            Prefer to price features one by one?{" "}
+            <Link
+              href="/pricing/features"
+              className="text-gold hover:underline"
+            >
+              See individual feature pricing →
+            </Link>
           </p>
         </div>
 
@@ -439,12 +491,13 @@ export function PricingClient() {
             <div className="rounded-2xl border border-gold/30 bg-gold/5 p-6">
               <h3 className="font-semibold text-text-primary mb-2">
                 Can I buy just part of an app?
-              </h3>
-              <p className="text-sm text-text-secondary">
-                Yes — features are switched on individually from your Apps screen.
-                Take Payroll and Employee Records and leave Attendance, Leave and
-                Recruitment off; each add-on price is listed above.
-              </p>
+              </h3>                <p className="text-sm text-text-secondary">
+                  Yes — by module, not by feature. Each module is sold as one
+                  bundle (the Point of Sale module includes barcode scanning,
+                  discounts and multi-till at a single price), so nothing is
+                  split out for separate billing. For one capability on its own,
+                  contact sales.
+                </p>
             </div>
             <div className="rounded-2xl border border-border bg-surface-elevated p-6">
               <h3 className="font-semibold text-text-primary mb-2">

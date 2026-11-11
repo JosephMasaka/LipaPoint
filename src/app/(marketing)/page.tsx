@@ -20,9 +20,12 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint — #1 POS System for Kenyan Businesses | M-Pesa, Inventory & Analytics",
+  title: {
+    absolute:
+      "LipaPoint ERP — #1 Business Management System in Kenya | POS, Payroll & eTIMS",
+  },
   description:
-    "Kenya's top-rated POS system. Accept M-Pesa & card payments, track inventory, run statutory payroll, submit KRA eTIMS invoices and keep the books. For restaurants, bars, retail, supermarkets & pharmacies. No setup fees. Cancel anytime.",
+    "Kenya's all-in-one business management system. POS & M-Pesa payments, inventory, statutory payroll, accounting, fixed assets and KRA eTIMS invoicing. For restaurants, bars, retail, supermarkets & pharmacies. No setup fees. Cancel anytime.",
   alternates: { canonical: "https://lipapoint.co.ke" },
 };
 
@@ -31,11 +34,11 @@ const jsonLd = {
   "@graph": [
     {
       "@type": "SoftwareApplication",
-      name: "LipaPoint",
+      name: "LipaPoint ERP",
       applicationCategory: "BusinessApplication",
       operatingSystem: "Web, Android, iOS, Windows",
       description:
-        "All-in-one Point of Sale and ERP system for Kenyan businesses. M-Pesa integration, inventory management, real-time analytics, KRA eTIMS invoicing, statutory payroll and multi-location support.",
+        "All-in-one ERP system for Kenyan businesses: point of sale, M-Pesa integration, inventory management, real-time analytics, KRA eTIMS invoicing, statutory payroll, accounting, fixed assets and multi-location support.",
       url: "https://lipapoint.co.ke",
       offers: {
         "@type": "AggregateOffer",
@@ -414,7 +417,8 @@ export default function HomePage() {
               </h2>
               <p className="mx-auto mt-4 max-w-2xl text-text-secondary text-lg">
                 Whether you run a kiosk, a restaurant, a supermarket or a pharmacy, LipaPoint
-                adapts to the way you work.
+                keeps sales, stock, staff and the books in one system — no integrations to stitch
+                together.
               </p>
             </div>
 
@@ -425,11 +429,11 @@ export default function HomePage() {
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-text-primary">Retail & Supermarkets</h3>
                 <p className="mt-2 text-text-secondary">
-                  High-volume sales, barcode-driven stock, multi-rack inventory and purchase
-                  ordering — built for shelves and reorders.
+                  Shelf-level stock, branch margins and daily sales land in the same books —
+                  not rebuilt in a spreadsheet at month end.
                 </p>
                 <span className="mt-3 rounded-lg bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
-                  Inventory-led retail
+                  Sales, stock & branch margin
                 </span>
               </div>
 
@@ -439,11 +443,11 @@ export default function HomePage() {
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-text-primary">Pharmacy</h3>
                 <p className="mt-2 text-text-secondary">
-                  Prescription-style sales, expiry tracking, stock movement and controlled
-                  inventory — with the reporting pharmacists need.
+                  Expiry-aware stock and dispensing records that feed invoicing, purchasing and
+                  the books directly — audit-ready without the paperwork.
                 </p>
                 <span className="mt-3 rounded-lg bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
-                  Stock & expiry control
+                  Stock, expiry & records
                 </span>
               </div>
 
@@ -453,11 +457,11 @@ export default function HomePage() {
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-text-primary">Restaurants & Hospitality</h3>
                 <p className="mt-2 text-text-secondary">
-                  Table and order management, menu-driven sales, kitchen flow and payroll for
-                  back-of-house — in one system.
+                  Orders, food cost and staff costs finally speak the same language — per shift,
+                  per branch and straight into the P&L.
                 </p>
                 <span className="mt-3 rounded-lg bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
-                  Restaurant operations
+                  From table to P&L
                 </span>
               </div>
 
@@ -467,11 +471,11 @@ export default function HomePage() {
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-text-primary">Bars & Lodges</h3>
                 <p className="mt-2 text-text-secondary">
-                  Nightly sales, payment capture, stock tracking for drinks and stocktakes —
-                  without the clipboard chaos.
+                  Nightly sales, drink stock and payments reconciled by till, shift and location —
+                  so the books close when the bar does.
                 </p>
                 <span className="mt-3 rounded-lg bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
-                  Nightly sales & stock
+                  Reconciled nightly
                 </span>
               </div>
 
@@ -481,11 +485,11 @@ export default function HomePage() {
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-text-primary">Service businesses</h3>
                 <p className="mt-2 text-text-secondary">
-                  Appointment-style businesses, field services and small teams that need
-                  scheduling, notes and payments in one place.
+                  Bookings, invoices, commissions and payroll in one tenant — so staff costs match
+                  the work actually delivered.
                 </p>
                 <span className="mt-3 rounded-lg bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
-                  Scheduling & service
+                  Bookings to payroll
                 </span>
               </div>
 
@@ -495,11 +499,11 @@ export default function HomePage() {
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-text-primary">General trade</h3>
                 <p className="mt-2 text-text-secondary">
-                  Wholesalers, dealers and general traders who need purchases, stock, sales and
-                  finance connected across locations.
+                  Purchases, supplier accounts, stock, sales and finance connected across branches
+                  and warehouses.
                 </p>
                 <span className="mt-3 rounded-lg bg-surface-elevated px-3 py-1 text-xs font-semibold text-text-secondary">
-                  Trade & distribution
+                  Purchase to payment
                 </span>
               </div>
             </div>

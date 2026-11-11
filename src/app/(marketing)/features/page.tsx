@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,14 +10,15 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "POS Features — M-Pesa, Inventory, Payroll, KRA eTIMS & More",
+  title: "ERP Features — POS, Inventory, Payroll, KRA eTIMS & More",
   description:
-    "Explore LipaPoint features: M-Pesa & card payments, inventory, sales analytics, KRA eTIMS invoicing, Kenyan statutory payroll (PAYE/NSSF/SHIF), HR & leave, accounting and asset depreciation. Best POS+ERP for Kenya.",
+    "Explore LipaPoint features: M-Pesa & card payments, inventory, sales analytics, KRA eTIMS invoicing, Kenyan statutory payroll (PAYE/NSSF/SHIF), HR & leave, accounting and asset depreciation. Best ERP for Kenya.",
   alternates: { canonical: "https://lipapoint.co.ke/features" },
   openGraph: {
-    title: "LipaPoint Features — POS, ERP and Tax Compliance in One",
+    title: "LipaPoint ERP Features — POS, Finance, Payroll & Tax Compliance in One",
     description: "M-Pesa payments, inventory, eTIMS invoicing, statutory payroll, accounting & asset depreciation. Built for Kenyan businesses.",
     url: "https://lipapoint.co.ke/features",
+    images: ogImage("features", "LipaPoint ERP features"),
   },
 };
 
@@ -57,7 +59,7 @@ const featureGroups = [
     features: [
       { icon: Landmark, name: "Accounting & General Ledger", desc: "Chart of accounts with automatic, balanced journal entries from every sale, payroll run and depreciation — books without the spreadsheet." },
       { icon: Truck, name: "Procurement", desc: "Purchase orders, goods received notes and supplier invoices, with payments tracked against what you owe." },
-      { icon: ShieldCheck, name: "KRA eTIMS Invoicing", desc: "Submit invoices to KRA's OSCU in real time, track CSIDs and reconcile declared VAT from the compliance dashboard." },
+      { icon: ShieldCheck, name: "KRA eTIMS Invoicing", desc: "Submit invoices to KRA's eTIMS (OSCU & VSCU) in real time, track CSIDs and reconcile declared VAT from the compliance dashboard." },
       { icon: Contact, name: "HR & Leave", desc: "Employee files with KRA PIN, NSSF and SHA numbers, annual leave balances, and staff loans repaid automatically through payroll." },
       { icon: Banknote, name: "Statutory Payroll", desc: "Kenyan payroll computing PAYE, NSSF, SHIF, Housing Levy and NITA for you — payslips, P9 extracts and bank payment batches." },
       { icon: Boxes, name: "Fixed Assets", desc: "Register till machines, fridges and delivery bikes — straight-line depreciation posts itself to the ledger every month." },
@@ -68,7 +70,7 @@ const featureGroups = [
     description: "Enterprise-grade protection",
     features: [
       { icon: Shield, name: "Role-Based Access", desc: "Owners, managers, cashiers, stock keepers — each sees only what they need." },
-      { icon: Wifi, name: "Offline Mode", desc: "Keep selling when internet drops. Transactions sync automatically when back online." },
+      { icon: Wifi, name: "Offline Mode", desc: "Keep selling when internet drops. Transactions sync automatically when back online — free on every plan." },
       { icon: Clock, name: "Audit Trail", desc: "Every action is logged. Track voids, discounts, refunds, and inventory changes." },
       { icon: Database, name: "Daily Backups", desc: "Automatic cloud backups. Your data is safe even if devices are lost or damaged." },
     ],
@@ -87,20 +89,27 @@ export default function FeaturesPage() {
             A complete ERP system for Kenyan businesses — point of sale, inventory, payroll, accounting, eTIMS compliance and more.
           </p>
           <p className="mt-4 text-sm text-text-muted max-w-2xl mx-auto">
-            Every capability below is its own switch: start with one app, then add
-            single features — Payroll without the rest of HR, Kitchen Display
-            without a full restaurant bundle.
+            Every capability below is its own switch in the Apps screen, and
+            each app is priced as complete modules — start with one app, then
+            add more as you grow. Nothing is split out for separate billing.
           </p>
         </div>
 
         <div className="mb-4 flex flex-col sm:flex-row items-center justify-center gap-3 rounded-2xl border border-gold/25 bg-gold/5 px-6 py-4 text-center">
           <p className="text-sm text-text-secondary">
-            Want just one part of an app? Feature-level pricing is listed on our
-            pricing page.
+            Want just one part of an app? See what it costs —{" "}
+            <Link href="/pricing" className="text-gold hover:underline font-medium">
+              as a module bundle
+            </Link>{" "}
+            or{" "}
+            <Link
+              href="/pricing/features"
+              className="text-gold hover:underline font-medium"
+            >
+              feature by feature
+            </Link>
+            .
           </p>
-          <Link href="/pricing" className="text-sm font-medium text-gold hover:underline shrink-0">
-            See individual feature prices →
-          </Link>
         </div>
 
         {featureGroups.map((group, i) => (

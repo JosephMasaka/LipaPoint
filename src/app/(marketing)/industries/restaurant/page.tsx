@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,15 +12,16 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Restaurants & Hospitality — POS & Operations",
+  title: "LipaPoint ERP for Restaurants & Hospitality — Front to Back of House",
   description:
-    "LipaPoint's restaurant solution: table and order management, menu-driven sales, kitchen flow, and payroll for back-of-house. One system for front and back of house.",
+    "Run service, kitchen, stock, staff and the books on one ERP: table and order management, food cost, statutory payroll and KRA eTIMS for Kenyan restaurants.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/restaurant" },
   openGraph: {
-    title: "LipaPoint Restaurants — Table Management and Payroll",
+    title: "LipaPoint ERP for Restaurants & Hospitality",
     description:
-      "Table and order management, menu-driven sales, kitchen display, and staff payroll for restaurants and hospitality businesses in Kenya.",
+      "Orders, kitchen, food cost, staff and books connected from service to payroll — built for Kenyan hospitality.",
     url: "https://lipapoint.co.ke/industries/restaurant",
+    images: ogImage("restaurant", "LipaPoint ERP for restaurants and hospitality"),
   },
 };
 
@@ -32,8 +34,8 @@ export default function RestaurantIndustryPage() {
             Built for Restaurants & Hospitality
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
-            From fine dining to casual eateries, LipaPoint helps you run your restaurant
-            from order to payroll in one system.
+            From fine dining to casual eateries, LipaPoint connects service, kitchen,
+            food cost, staff and the books — one system from order to payroll.
           </p>
         </div>
 
@@ -42,10 +44,10 @@ export default function RestaurantIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <ShoppingCart className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Table & Order Management</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Service that posts itself</h3>
             <p className="text-text-secondary">
-              Floor plan management, server-assigned tables, menu-driven ordering, and
-              kitchen display integration. Track tabs and split checks.
+              Tables, tabs, split checks and kitchen tickets in one flow — every order
+              updates sales and ingredient stock without a second entry.
             </p>
           </div>
 
@@ -53,10 +55,10 @@ export default function RestaurantIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <Landmark className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Menu & Kitchen</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Food cost you can see</h3>
             <p className="text-text-secondary">
-              Menu-driven sales, course management, kitchen display system (KDS), and
-              food cost tracking. Manage daily specials and item availability.
+              Menu margins, wastage and purchasing in one view. Change a price or a
+              recipe and know what it does to the bottom line.
             </p>
           </div>
 
@@ -64,21 +66,21 @@ export default function RestaurantIndustryPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10 mb-4">
               <Clock className="h-5 w-5 text-gold" />
             </div>
-            <h3 className="text-xl font-bold text-text-primary mb-2">Staff & Payroll</h3>
+            <h3 className="text-xl font-bold text-text-primary mb-2">Staff and books connected</h3>
             <p className="text-text-secondary">
-              Run statutory payroll, post journals, manage bank accounts and reconciliation,
-              and keep the books clean. KRA-compliant payroll for hospitality staff.
+              Statutory payroll for service and kitchen teams, posted as journal entries to
+              the same ledger your sales reconcile against.
             </p>
           </div>
         </div>
 
         <div className="mt-12 rounded-2xl border-border bg-surface-elevated p-8">
           <h3 className="text-2xl font-bold text-text-primary mb-4">
-            Multi-venue Management
+            Multi-venue, one set of books
           </h3>
           <p className="text-text-secondary mb-6">
-            Run multiple restaurants, bars, or cafés from one tenant. Get location-level
-            sales, stock, and reports. Compare performance across venues.
+            Run restaurants, bars and cafés from one tenant. Compare covers, food cost and
+            stock across venues, then close the month from consolidated accounts.
           </p>
           <div className="grid grid-cols-2 gap-4">
             <div>

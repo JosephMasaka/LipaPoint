@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Briefcase, Calculator, BarChart3 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for Professional Services — Clients, Billing & Books",
+  title: "LipaPoint ERP for Professional Services — Clients, Billing & Books",
   description:
     "LipaPoint's professional services solution: client records and statements, invoicing, general ledger and practice reports for agencies and consultancies.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/professional-services" },
   openGraph: {
-    title: "LipaPoint for Professional Services",
+    title: "LipaPoint ERP for Professional Services",
     description:
       "Client records, invoicing, statements and practice reports for agencies and consultancies.",
     url: "https://lipapoint.co.ke/industries/professional-services",
+    images: ogImage("professional-services", "LipaPoint ERP for professional services"),
   },
 };
 

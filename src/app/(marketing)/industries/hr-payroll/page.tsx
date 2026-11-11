@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
+import { ogImage } from "@/lib/og";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Users, Banknote, Shield, Package } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "LipaPoint for HR & Payroll — Statutory Payroll and Compliance",
+  title: "LipaPoint ERP for HR & Payroll — Statutory Payroll & People",
   description:
-    "LipaPoint's HR & payroll solution: statutory payroll, NSSF, NHIF, PAYE, and employee management for Kenyan businesses.",
+    "Run statutory payroll, PAYE, NSSF, SHIF and housing levy, leave and employee records on one ERP — with every payroll run posted to the books.",
   alternates: { canonical: "https://lipapoint.co.ke/industries/hr-payroll" },
   openGraph: {
-    title: "LipaPoint HR & Payroll — Payroll and Employee Management",
+    title: "LipaPoint ERP for HR & Payroll",
     description:
-      "Statutory payroll, NSSF, NHIF, PAYE, and employee management for Kenyan businesses on one platform.",
+      "Statutory payroll posted straight to the books, with employee records, leave and assets in one system.",
     url: "https://lipapoint.co.ke/industries/hr-payroll",
+    images: ogImage("hr-payroll", "LipaPoint ERP for HR and payroll"),
   },
 };
 
@@ -25,8 +27,8 @@ export default function HrPayrollIndustryPage() {
             Built for HR & Payroll
           </h1>
           <p className="text-lg text-text-secondary max-w-xl mx-auto">
-            Manage your team, run statutory payroll, and stay compliant with KRA requirements
-            all in one system.
+            Manage your team, run statutory payroll, and post every run to the same books
+            your sales and purchases use.
           </p>
         </div>
 
@@ -52,8 +54,8 @@ export default function HrPayrollIndustryPage() {
               Statutory Payroll
             </h3>
             <p className="text-text-secondary">
-              Automatically calculate NSSF, NHIF, and PAYE deductions. Generate
-              payslips and file statutory returns with ease.
+              Automatically calculate PAYE, NSSF, SHIF and housing levy. Generate payslips,
+              post journals and file statutory returns from one run.
             </p>
           </div>
 
