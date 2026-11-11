@@ -287,6 +287,17 @@ export async function receiveGoods(input: ReceiveGoodsInput) {
           data: { cost: line.unitCost },
         });
 
+        // Move the goods into the actual stock row so the till can sell them.
+        // Without this a PO → GRN receipt never changes what POS sees, and
+        // "received" stock only appears after a manual stock take.
+        await tx.stock.upsert({
+          where: {
+            productId_locationId: { productId: line.productId, locationId },
+          },
+          update: { quantity: { increment: line.quantity } },
+          create: { productId: line.productId, locationId, quantity: line.quantity },
+        });
+
         // Lot/expiry capture — the Stock Expiry report reads these rows.
         const receipt = line.poItemId ? receiptByPoItem.get(line.poItemId) : undefined;
         const expiryDate = receipt?.expiryDate ? new Date(receipt.expiryDate) : null;
