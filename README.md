@@ -1,4 +1,4 @@
-# LipaPoint - Enterprise POS System
+# LipaPoint ERP - Enterprise Business Management System
 
 Premium, multi-tenant Point of Sale system built for retail stores, restaurants, and bars.
 
@@ -90,7 +90,7 @@ src/
 ## Key Features
 
 - **Multi-tenant architecture** with row-level data isolation
-- **Offline-first POS** with IndexedDB persistence and background sync
+- **Offline-first POS** with IndexedDB persistence and background sync — free on every plan, with an offline write queue, automatic exactly-once replay and a built-in queue inspector
 - **Real-time updates** via Server-Sent Events
 - **Kitchen Display System** for restaurant order management
 - **Advanced analytics** with revenue, category, and hourly breakdowns

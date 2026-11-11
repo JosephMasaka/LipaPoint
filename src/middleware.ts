@@ -19,7 +19,6 @@ const PUBLIC_PATHS = [
   "/offline",
   "/forgot-password",
   "/reset-password",
-  "/opengraph-image",
   "/login",
   "/register",
   "/onboard",

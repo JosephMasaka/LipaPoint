@@ -63,7 +63,7 @@ function wrapTemplate(body: string): string {
     <div class="header"><h1>LipaPoint</h1></div>
     <div class="body">${body}</div>
     <div class="footer">
-      <p>&copy; ${new Date().getFullYear()} LipaPoint POS &middot; Built for Kenyan businesses</p>
+      <p>&copy; ${new Date().getFullYear()} LipaPoint ERP &middot; Built for Kenyan businesses</p>
       <p>lipapoint@tunzaassets.co.ke</p>
     </div>
   </div>

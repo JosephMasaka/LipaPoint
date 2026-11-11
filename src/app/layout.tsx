@@ -30,12 +30,15 @@ const SITE_URL = "https://lipapoint.co.ke";
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "LipaPoint — #1 POS System for Kenyan Businesses",
-    template: "%s | LipaPoint POS Kenya",
+    default: "LipaPoint ERP — All-in-One Business Management System for Kenya",
+    template: "%s | LipaPoint ERP Kenya",
   },
   description:
-    "Kenya's leading Point of Sale system. M-Pesa integration, inventory management, real-time analytics, staff tracking & multi-location support. No setup fees.",
+    "Kenya's all-in-one ERP system. Point of sale, inventory, M-Pesa payments, statutory payroll, accounting, fixed assets and KRA eTIMS invoicing — in one platform. No setup fees.",
   keywords: [
+    "ERP system Kenya",
+    "ERP software Kenya",
+    "business management system Kenya",
     "POS system Kenya",
     "point of sale Kenya",
     "M-Pesa POS",
@@ -67,23 +70,23 @@ export const metadata: Metadata = {
     locale: "en_KE",
     url: SITE_URL,
     siteName: "LipaPoint",
-    title: "LipaPoint — #1 POS System for Kenyan Businesses",
+    title: "LipaPoint ERP — Run Your Whole Business From One System",
     description:
-      "All-in-one POS system with M-Pesa, inventory, analytics & staff management. Built for restaurants, bars, retail, supermarkets & pharmacies in Kenya.",
+      "All-in-one ERP with POS, M-Pesa, inventory, payroll, accounting & KRA eTIMS. Built for restaurants, bars, retail, supermarkets & pharmacies in Kenya.",
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "LipaPoint POS System - Run Your Business Smarter",
+        alt: "LipaPoint ERP System - Run Your Business Smarter",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "LipaPoint — #1 POS System for Kenyan Businesses",
+    title: "LipaPoint ERP — Run Your Whole Business From One System",
     description:
-      "All-in-one POS with M-Pesa, inventory, analytics & staff management. No setup fees. Cancel anytime.",
+      "All-in-one ERP with POS, M-Pesa, inventory, payroll & KRA eTIMS. No setup fees. Cancel anytime.",
     images: ["/og-image.png"],
   },
   robots: {
