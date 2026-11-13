@@ -31,7 +31,14 @@ interface Product {
   categoryId: string | null;
   category: { id: string; name: string } | null;
   baseUnit: { id: string; name: string; abbreviation: string } | null;
-  locationPrices?: { locationId: string; price: number }[];
+  locationPrices?: { locationId: string; productUomId?: string | null; price: number }[];
+  productUoms?: {
+    id: string;
+    price: number;
+    conversionFactor: number;
+    isActive: boolean;
+    unit: { id: string; name: string; abbreviation: string };
+  }[];
   stock: number;
 }
 
@@ -128,6 +135,10 @@ function ProductsTab() {
   // empty input means "sell at the base price here".
   const [branchPrices, setBranchPrices] = useState<Record<string, string>>({});
   const [initialBranchPrices, setInitialBranchPrices] = useState<Record<string, string>>({});
+  // Unit overrides for the product being edited, keyed `locationId:uomId`.
+  const [uomBranchPrices, setUomBranchPrices] = useState<Record<string, string>>({});
+  const [initialUomBranchPrices, setInitialUomBranchPrices] = useState<Record<string, string>>({});
+  const editingProduct = editingId ? products.find((p) => p.id === editingId) : undefined;
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -171,17 +182,34 @@ function ProductsTab() {
       // Branch prices save after the product itself, so the product always
       // exists even if one branch price fails.
       if (editingId) {
-        const changed = locations.filter(
-          (l) => (branchPrices[l.id] ?? "").trim() !== (initialBranchPrices[l.id] ?? "")
-        );
-        const results = await Promise.all(changed.map((l) => {
-          const raw = (branchPrices[l.id] ?? "").trim();
-          return fetch(`/api/products/${editingId}/prices`, {
+        type Change = {
+          locationId: string;
+          productUomId: string | null;
+          price: number | null;
+          label: string;
+        };
+        const changes: Change[] = [];
+        for (const l of locations) {
+          const base = (branchPrices[l.id] ?? "").trim();
+          if (base !== (initialBranchPrices[l.id] ?? "").trim()) {
+            changes.push({ locationId: l.id, productUomId: null, price: base === "" ? null : Number(base), label: l.name });
+          }
+          for (const u of editingProduct?.productUoms ?? []) {
+            if (!u.isActive) continue;
+            const key = `${l.id}:${u.id}`;
+            const raw = (uomBranchPrices[key] ?? "").trim();
+            if (raw !== (initialUomBranchPrices[key] ?? "").trim()) {
+              changes.push({ locationId: l.id, productUomId: u.id, price: raw === "" ? null : Number(raw), label: `${l.name} · ${u.unit.abbreviation}` });
+            }
+          }
+        }
+        const results = await Promise.all(changes.map((c) =>
+          fetch(`/api/products/${editingId}/prices`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ locationId: l.id, price: raw === "" ? null : Number(raw) }),
-          }).then((r) => r.ok ? null : r.json().then((d) => `${l.name}: ${d.error || "failed"}`));
-        }));
+            body: JSON.stringify({ locationId: c.locationId, productUomId: c.productUomId, price: c.price }),
+          }).then((r) => r.ok ? null : r.json().then((d) => `${c.label}: ${d.error || "failed"}`))
+        ));
         const failures = results.filter(Boolean);
         if (failures.length) {
           setError(`Product saved, but branch prices failed — ${failures.join("; ")}`);
@@ -192,6 +220,7 @@ function ProductsTab() {
 
       setForm({ name: "", sku: "", barcode: "", price: "", cost: "", categoryId: "", unitId: "", image: "", lowStockAlert: "10" });
       setBranchPrices({}); setInitialBranchPrices({});
+      setUomBranchPrices({}); setInitialUomBranchPrices({});
       setShowForm(false); setEditingId(null); fetchProducts();
     } catch {
       if (!navigator.onLine) {
@@ -204,6 +233,7 @@ function ProductsTab() {
         requestBackgroundSync();
         setForm({ name: "", sku: "", barcode: "", price: "", cost: "", categoryId: "", unitId: "", image: "", lowStockAlert: "10" });
         setBranchPrices({}); setInitialBranchPrices({});
+        setUomBranchPrices({}); setInitialUomBranchPrices({});
         setShowForm(false); setEditingId(null);
         setError("");
       } else {
@@ -224,6 +254,8 @@ function ProductsTab() {
           setEditingId(null);
           setBranchPrices({});
           setInitialBranchPrices({});
+          setUomBranchPrices({});
+          setInitialUomBranchPrices({});
           setError("");
         }}>
           {showForm ? "Cancel" : <><Plus className="h-4 w-4 mr-1" /> Add Product</>}
@@ -262,15 +294,30 @@ function ProductsTab() {
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     {locations.map((l) => (
-                      <Input
-                        key={l.id}
-                        label={l.name}
-                        type="number"
-                        min="0"
-                        placeholder="Base price"
-                        value={branchPrices[l.id] ?? ""}
-                        onChange={(e) => setBranchPrices({ ...branchPrices, [l.id]: e.target.value })}
-                      />
+                      <div key={l.id} className="space-y-2 rounded-lg border border-border/60 p-3">
+                        <Input
+                          label={l.name}
+                          type="number"
+                          min="0"
+                          placeholder="Base price"
+                          value={branchPrices[l.id] ?? ""}
+                          onChange={(e) => setBranchPrices({ ...branchPrices, [l.id]: e.target.value })}
+                        />
+                        {(editingProduct?.productUoms ?? []).filter((u) => u.isActive).map((u) => {
+                          const key = `${l.id}:${u.id}`;
+                          return (
+                            <Input
+                              key={u.id}
+                              label={`${u.unit.name} (${u.unit.abbreviation})`}
+                              type="number"
+                              min="0"
+                              placeholder={`Catalogue ${formatCurrency(u.price)}`}
+                              value={uomBranchPrices[key] ?? ""}
+                              onChange={(e) => setUomBranchPrices({ ...uomBranchPrices, [key]: e.target.value })}
+                            />
+                          );
+                        })}
+                      </div>
                     ))}
                   </div>
                 </div>
@@ -325,9 +372,15 @@ function ProductsTab() {
                       <Button variant="ghost" size="sm" onClick={() => {
                         setForm({ name: p.name, sku: p.sku, barcode: p.barcode || "", price: p.price.toString(), cost: p.cost.toString(), categoryId: p.categoryId || "", unitId: p.baseUnitId || "", image: p.image || "", lowStockAlert: p.lowStockAlert.toString() });
                         const overrides: Record<string, string> = {};
-                        for (const op of p.locationPrices ?? []) overrides[op.locationId] = op.price.toString();
+                        const uomOverrides: Record<string, string> = {};
+                        for (const op of p.locationPrices ?? []) {
+                          const key = op.productUomId ? `${op.locationId}:${op.productUomId}` : op.locationId;
+                          (op.productUomId ? uomOverrides : overrides)[key] = op.price.toString();
+                        }
                         setBranchPrices(overrides);
                         setInitialBranchPrices(overrides);
+                        setUomBranchPrices(uomOverrides);
+                        setInitialUomBranchPrices(uomOverrides);
                         setEditingId(p.id); setShowForm(true);
                       }}><Edit3 className="h-3 w-3" /></Button>
                     </td>

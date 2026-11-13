@@ -147,8 +147,11 @@ export async function POST(request: NextRequest) {
       where: { id: { in: productIds }, tenantId: user.tenantId },
       include: {
         productUoms: { where: { isActive: true }, include: { unit: true } },
-        // This branch's own price for the product, if it has one.
-        locationPrices: { where: { locationId: resolvedLocationId }, select: { price: true } },
+        // This branch's own prices for the product (base and units), if any.
+        locationPrices: {
+          where: { locationId: resolvedLocationId },
+          select: { productUomId: true, price: true },
+        },
       },
     });
 
@@ -183,7 +186,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Product not found` }, { status: 400 });
       }
 
-      let setPrice = product.locationPrices[0]?.price ?? product.price;
+      let setPrice =
+        product.locationPrices.find((p: { productUomId: string | null }) => !p.productUomId)?.price ??
+        product.price;
       let conversionFactor = 1;
       let productUomId: string | null = null;
       let uomCost: number | null = null;
@@ -191,7 +196,10 @@ export async function POST(request: NextRequest) {
       if (item.productUomId) {
         const uom = product.productUoms.find((u: { id: string }) => u.id === item.productUomId);
         if (uom) {
-          setPrice = uom.price;
+          setPrice =
+            product.locationPrices.find(
+              (p: { productUomId: string | null }) => p.productUomId === uom.id
+            )?.price ?? uom.price;
           uomCost = uom.cost;
           conversionFactor = uom.conversionFactor;
           productUomId = uom.id;

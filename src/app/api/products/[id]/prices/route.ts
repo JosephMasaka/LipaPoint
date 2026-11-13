@@ -8,9 +8,10 @@ const PRICING_ROLES = ["OWNER", "ADMIN", "MANAGER"];
 /**
  * Per-branch price overrides for one product.
  *
- * GET  — every override for the product, with the branch name.
- * PUT  — set (or clear) the price for one branch. Sending a null/empty price
- *        removes the override, so the branch falls back to the base price.
+ * GET  — every override for the product, with the branch and unit.
+ * PUT  — set (or clear) the price for one branch and unit. Sending a
+ *        null/empty price removes the override, so that unit falls back to
+ *        its catalogue price. Omit productUomId to target the base unit.
  */
 export async function GET(
   _request: NextRequest,
@@ -32,7 +33,10 @@ export async function GET(
 
     const prices = await db.productLocationPrice.findMany({
       where: { productId: id, location: { tenantId: user.tenantId } },
-      include: { location: { select: { id: true, name: true, isActive: true } } },
+      include: {
+        location: { select: { id: true, name: true, isActive: true } },
+        productUom: { select: { id: true, unit: { select: { id: true, name: true, abbreviation: true } } } },
+      },
       orderBy: { location: { name: "asc" } },
     });
 
@@ -59,24 +63,35 @@ export async function PUT(
     if (replay) return replay;
 
     const { id } = await params;
-    const { locationId, price } = await request.json();
+    const { locationId, price, productUomId } = await request.json();
 
     if (!locationId) {
       return NextResponse.json({ error: "locationId is required" }, { status: 400 });
     }
+    const uomId: string | null = productUomId || null;
 
-    const [product, location] = await Promise.all([
-      db.product.findFirst({ where: { id, tenantId: user.tenantId }, select: { id: true } }),
-      db.location.findFirst({
-        where: { id: locationId, tenantId: user.tenantId },
-        select: { id: true },
-      }),
-    ]);
+    const product = await db.product.findFirst({
+      where: { id, tenantId: user.tenantId },
+      select: { id: true },
+    });
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 });
     }
+    const location = await db.location.findFirst({
+      where: { id: locationId, tenantId: user.tenantId },
+      select: { id: true },
+    });
     if (!location) {
       return NextResponse.json({ error: "Location not found" }, { status: 404 });
+    }
+    if (uomId) {
+      const uom = await db.productUoM.findFirst({
+        where: { id: uomId, productId: id },
+        select: { id: true },
+      });
+      if (!uom) {
+        return NextResponse.json({ error: "Selling unit not found for this product" }, { status: 404 });
+      }
     }
 
     const cleared = price === null || price === undefined || price === "";
@@ -86,7 +101,9 @@ export async function PUT(
     }
 
     if (cleared) {
-      await db.productLocationPrice.deleteMany({ where: { productId: id, locationId } });
+      await db.productLocationPrice.deleteMany({
+        where: { productId: id, locationId, productUomId: uomId },
+      });
       return recordSyncResponse(
         request,
         user.tenantId,
@@ -94,12 +111,28 @@ export async function PUT(
       );
     }
 
-    const saved = await db.productLocationPrice.upsert({
-      where: { productId_locationId: { productId: id, locationId } },
-      update: { price: parsed },
-      create: { productId: id, locationId, price: parsed },
-      include: { location: { select: { id: true, name: true, isActive: true } } },
+    // Two partial unique indexes cover base/unit rows, which Prisma cannot
+    // express as a compound upsert key, so find the row first.
+    const existing = await db.productLocationPrice.findFirst({
+      where: { productId: id, locationId, productUomId: uomId },
+      select: { id: true },
     });
+    const saved = existing
+      ? await db.productLocationPrice.update({
+          where: { id: existing.id },
+          data: { price: parsed },
+          include: {
+            location: { select: { id: true, name: true, isActive: true } },
+            productUom: { select: { id: true, unit: { select: { id: true, name: true, abbreviation: true } } } },
+          },
+        })
+      : await db.productLocationPrice.create({
+          data: { productId: id, locationId, productUomId: uomId, price: parsed },
+          include: {
+            location: { select: { id: true, name: true, isActive: true } },
+            productUom: { select: { id: true, unit: { select: { id: true, name: true, abbreviation: true } } } },
+          },
+        });
 
     return recordSyncResponse(request, user.tenantId, NextResponse.json(saved));
   } catch (error) {

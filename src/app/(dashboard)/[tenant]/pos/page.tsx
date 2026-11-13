@@ -167,9 +167,15 @@ export default function POSPage() {
   // add-on, no bargaining at the till.
   const canOverridePrice = priceOverrideEnabled && priceOverrideAvailable;
 
-  /** This branch's selling price for a product (base price when no override). */
-  const branchPrice = (product: Product) =>
-    priceAtLocation(product.price, locationId, product.locationPrices);
+  /**
+   * This branch's selling price for a product or one of its selling units.
+   * `cataloguePrice` is the unit's own catalogue price when it has one.
+   */
+  const branchPrice = (
+    product: Product,
+    cataloguePrice = product.price,
+    productUomId: string | null = null
+  ) => priceAtLocation(cataloguePrice, locationId, product.locationPrices, productUomId);
 
   const pricePolicy: PricePolicy = {
     priceOverrideEnabled: canOverridePrice,
@@ -227,10 +233,11 @@ export default function POSPage() {
 
   const handleUomSelect = (product: Product, uom: ProductUoM | null) => {
     if (uom) {
+      const uomPrice = branchPrice(product, uom.price, uom.id);
       addItem({
         id: product.id,
         name: product.name,
-        price: uom.price,
+        price: uomPrice,
         sku: product.sku,
         image: product.image || undefined,
         unitId: uom.unit.id,
@@ -238,7 +245,7 @@ export default function POSPage() {
         unitAbbreviation: uom.unit.abbreviation,
         conversionFactor: uom.conversionFactor,
         productUomId: uom.id,
-        setPrice: uom.price,
+        setPrice: uomPrice,
         unitCost: supplierCostPerUnit(product.cost, uom.conversionFactor, uom.cost),
         trackStock: !!product.trackStock,
       });
@@ -858,7 +865,7 @@ export default function POSPage() {
                       1 {uom.unit.abbreviation} = {uom.conversionFactor} {uomProduct.baseUnit.abbreviation}
                     </p>
                   </div>
-                  <span className="text-sm font-bold text-gold">{formatCurrency(uom.price)}</span>
+                  <span className="text-sm font-bold text-gold">{formatCurrency(branchPrice(uomProduct, uom.price, uom.id))}</span>
                 </button>
               ))}
             </div>
@@ -1036,8 +1043,18 @@ export default function POSPage() {
             <select
               value={locationId}
               onChange={(e) => {
-                setLocationId(e.target.value);
-                try { localStorage.setItem("lipapoint-pos-location", e.target.value); } catch {}
+                const next = e.target.value;
+                if (next === locationId) return;
+                if (items.length > 0) {
+                  const name = branches.find((b) => b.id === next)?.name ?? "that branch";
+                  if (!confirm(`Switching to ${name} will clear the current cart so every line uses that branch's prices. Continue?`)) {
+                    e.target.value = locationId;
+                    return;
+                  }
+                  clearCart();
+                }
+                setLocationId(next);
+                try { localStorage.setItem("lipapoint-pos-location", next); } catch {}
               }}
               title="Selling branch"
               className="h-10 max-w-[9rem] shrink-0 rounded-lg border border-border bg-surface-elevated px-2 text-xs font-medium text-text-primary"
