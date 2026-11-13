@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import bcrypt from "bcryptjs";
+import type { Reseller } from "@prisma/client";
 import { db } from "./db";
 
 const COOKIE_NAME = "lipapoint-session";
@@ -246,9 +247,7 @@ export async function createResellerSession(reseller: {
   return token;
 }
 
-export async function getCurrentReseller(): Promise<
-  Omit<import("@prisma/client").Prisma.ResellerGetPayload<{}>, "password"> | null
-> {
+export async function getCurrentReseller(): Promise<Omit<Reseller, "password"> | null> {
   const token = await readSessionCookie();
   if (!token) return null;
 

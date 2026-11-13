@@ -25,6 +25,7 @@ import {
   type FeatureKey,
   featuresForModule,
   expandFeatureSet,
+  type ModuleKey,
 } from "@/lib/module-registry";
 import { TIER_ORDER } from "@/lib/module-registry";
 import { cn } from "@/lib/utils";
@@ -162,7 +163,7 @@ export default function RegisterPage() {
       const app = APPS.find((a) => a.id === appId);
       if (!app) continue;
       for (const moduleKey of app.modules) {
-        const featureKeys = featuresForModule(moduleKey as any);
+        const featureKeys = featuresForModule(moduleKey);
         for (const fk of featureKeys) {
           const def = FEATURE_REGISTRY[fk];
           // Skip features not applicable to this business category
@@ -234,12 +235,12 @@ export default function RegisterPage() {
     });
   }
 
-  function toggleFeature(featureKey: FeatureKey, moduleKey: string) {
+  function toggleFeature(featureKey: FeatureKey, moduleKey: ModuleKey) {
     setSelectedFeatures((prev) => {
       const next = new Set(prev);
       // Only allow toggling features from selected apps
       const app = APPS.find((a) => a.id === [...selectedApps][0]);
-      const featuredApp = APPS.find((a) => a.modules.includes(moduleKey as any));
+      const featuredApp = APPS.find((a) => a.modules.includes(moduleKey));
       if (!featuredApp || !selectedApps.has(featuredApp.id)) {
         return prev;
       }
@@ -559,7 +560,7 @@ export default function RegisterPage() {
                   {APPS.filter((a) => selectedApps.has(a.id)).map((app) => {
                     const moduleKeys = app.modules;
                     const hasFeatures = moduleKeys.some((mk) => {
-                      const features = featuresForModule(mk as any);
+                      const features = featuresForModule(mk);
                       return features.some((fk) => {
                         const def = FEATURE_REGISTRY[fk];
                         const category = getBusinessCategory(businessType);
@@ -599,7 +600,7 @@ export default function RegisterPage() {
                           <div className="border-t border-border pt-2 px-1">
                             <div className="grid grid-cols-1 gap-1.5">
                               {moduleKeys.flatMap((mk) => {
-                                const features = featuresForModule(mk as any);
+                                const features = featuresForModule(mk);
                                 return features.map((fk) => {
                                   const def = FEATURE_REGISTRY[fk];
                                   const category = getBusinessCategory(businessType);
