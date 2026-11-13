@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useCartStore, cartKey, type CartItem } from "@/store/cart";
 import { resolveLinePrice, supplierCostPerUnit, type PricePolicy } from "@/lib/price-override";
+import { priceAtLocation } from "@/lib/pricing";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -39,7 +40,14 @@ interface Product {
   category: { id: string; name: string; color: string } | null;
   baseUnit: { id: string; name: string; abbreviation: string };
   stocks: { quantity: number }[];
+  locationPrices?: { locationId: string; price: number }[];
   productUoms: ProductUoM[];
+}
+
+interface BranchOption {
+  id: string;
+  name: string;
+  isActive: boolean;
 }
 
 interface Category {
@@ -94,6 +102,12 @@ export default function POSPage() {
   const [showServedBy, setShowServedBy] = useState(true);
   const [mpesaPaybill, setMpesaPaybill] = useState("");
   const [mpesaTill, setMpesaTill] = useState("");
+
+  // Branch context for this till. Prices resolve against it and every sale is
+  // booked to it, so a cashier cannot accidentally sell Nairobi stock at the
+  // Naivasha price.
+  const [branches, setBranches] = useState<BranchOption[]>([]);
+  const [locationId, setLocationId] = useState<string>("");
 
   // On-the-go pricing (src/lib/price-override.ts) — tenant setting that lets
   // cashiers type a custom price at the till, within the allowed tolerance
@@ -153,6 +167,10 @@ export default function POSPage() {
   // add-on, no bargaining at the till.
   const canOverridePrice = priceOverrideEnabled && priceOverrideAvailable;
 
+  /** This branch's selling price for a product (base price when no override). */
+  const branchPrice = (product: Product) =>
+    priceAtLocation(product.price, locationId, product.locationPrices);
+
   const pricePolicy: PricePolicy = {
     priceOverrideEnabled: canOverridePrice,
     priceFloorMode,
@@ -191,7 +209,7 @@ export default function POSPage() {
       addItem({
         id: product.id,
         name: product.name,
-        price: product.price,
+        price: branchPrice(product),
         sku: product.sku,
         image: product.image || undefined,
         unitId: product.baseUnit.id,
@@ -199,7 +217,7 @@ export default function POSPage() {
         unitAbbreviation: product.baseUnit.abbreviation,
         conversionFactor: 1,
         productUomId: null,
-        setPrice: product.price,
+        setPrice: branchPrice(product),
         unitCost: supplierCostPerUnit(product.cost, 1, null),
         trackStock: !!product.trackStock,
       });
@@ -228,7 +246,7 @@ export default function POSPage() {
       addItem({
         id: product.id,
         name: product.name,
-        price: product.price,
+        price: branchPrice(product),
         sku: product.sku,
         image: product.image || undefined,
         unitId: product.baseUnit.id,
@@ -236,7 +254,7 @@ export default function POSPage() {
         unitAbbreviation: product.baseUnit.abbreviation,
         conversionFactor: 1,
         productUomId: null,
-        setPrice: product.price,
+        setPrice: branchPrice(product),
         unitCost: supplierCostPerUnit(product.cost, 1, null),
         trackStock: !!product.trackStock,
       });
@@ -315,6 +333,27 @@ export default function POSPage() {
         const { getCachedProducts } = await import("@/lib/offline-db");
         const cached = await getCachedProducts();
         if (cached.length > 0) setProducts(cached as unknown as Product[]);
+      } catch {}
+    });
+    fetch("/api/locations").then(r => r.json()).then((data) => {
+      if (!Array.isArray(data)) return;
+      const active = data.filter((l: BranchOption) => l.isActive);
+      setBranches(active);
+      let saved = "";
+      try { saved = localStorage.getItem("lipapoint-pos-location") || ""; } catch {}
+      const chosen = active.find((l: BranchOption) => l.id === saved) ?? active[0];
+      if (chosen) setLocationId(chosen.id);
+      try { localStorage.setItem("lipapoint-pos-branches", JSON.stringify(active)); } catch {}
+    }).catch(() => {
+      try {
+        const cached = localStorage.getItem("lipapoint-pos-branches");
+        if (cached) {
+          const active = (JSON.parse(cached) as BranchOption[]).filter((l) => l.isActive);
+          setBranches(active);
+          const saved = localStorage.getItem("lipapoint-pos-location") || "";
+          const chosen = active.find((l) => l.id === saved) ?? active[0];
+          if (chosen) setLocationId(chosen.id);
+        }
       } catch {}
     });
     fetch("/api/products?categories=true").then(r => r.json()).then(data => {
@@ -396,6 +435,7 @@ export default function POSPage() {
 
     const orderData = {
       items: items.map(i => ({ productId: i.id, quantity: i.quantity, unitPrice: i.price, productUomId: i.productUomId })),
+      locationId: locationId || undefined,
       paymentMethod,
       gatewayRef: paymentMethod === "MPESA_MANUAL" ? mpesaCode.trim() : undefined,
       enteredManually: paymentMethod === "MPESA_MANUAL",
@@ -799,7 +839,7 @@ export default function POSPage() {
                   </p>
                   <p className="text-[10px] text-text-muted">Base unit · 1x</p>
                 </div>
-                <span className="text-sm font-bold text-gold">{formatCurrency(uomProduct.price)}</span>
+                <span className="text-sm font-bold text-gold">{formatCurrency(branchPrice(uomProduct))}</span>
               </button>
 
               {/* Alternative UoMs */}
@@ -992,6 +1032,19 @@ export default function POSPage() {
               className="pl-9"
             />
           </div>
+          {branches.length > 0 && (
+            <select
+              value={locationId}
+              onChange={(e) => {
+                setLocationId(e.target.value);
+                try { localStorage.setItem("lipapoint-pos-location", e.target.value); } catch {}
+              }}
+              title="Selling branch"
+              className="h-10 max-w-[9rem] shrink-0 rounded-lg border border-border bg-surface-elevated px-2 text-xs font-medium text-text-primary"
+            >
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          )}
           <NetworkStatus />
           <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
             <button
@@ -1071,7 +1124,7 @@ export default function POSPage() {
                       )}
                       <p className="text-[10px] sm:text-xs font-medium text-text-primary text-center line-clamp-2 leading-tight">{product.name}</p>
                       <div className="flex items-center gap-0.5 mt-0.5">
-                        <p className="text-xs sm:text-sm font-bold text-gold">{formatCurrency(product.price)}</p>
+                        <p className="text-xs sm:text-sm font-bold text-gold">{formatCurrency(branchPrice(product))}</p>
                         <span className="text-[8px] text-text-muted">/{product.baseUnit.abbreviation}</span>
                       </div>
                       {product.productUoms.length > 0 && (
@@ -1105,7 +1158,7 @@ export default function POSPage() {
                           </p>
                         </div>
                       </div>
-                      <p className="text-sm font-bold text-gold shrink-0 ml-2">{formatCurrency(product.price)}</p>
+                      <p className="text-sm font-bold text-gold shrink-0 ml-2">{formatCurrency(branchPrice(product))}</p>
                     </button>
                   ))}
                 </div>

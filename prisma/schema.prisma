@@ -251,6 +251,7 @@ model Location {
   grns            GoodsReceivedNote[]
   employees       Employee[]
   assets          Asset[]
+  productPrices   ProductLocationPrice[]
 
   @@index([tenantId])
 }
@@ -332,6 +333,7 @@ model Product {
   orderItems     OrderItem[]
   baseUnit       UnitOfMeasure   @relation("ProductBaseUnit", fields: [baseUnitId], references: [id])
   priceHistory     ProductPriceHistory[]
+  locationPrices   ProductLocationPrice[]
   batches          StockBatch[]
   category       Category?       @relation(fields: [categoryId], references: [id])
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -366,6 +368,24 @@ model ProductPriceHistory {
 
   @@index([tenantId, createdAt])
   @@index([tenantId, productId])
+}
+
+// A branch's own selling price for a product. Absence of a row means the
+// product sells at its base `Product.price`; the POS and order pricing resolve
+// the override for the till's location, so one catalogue can price a beer
+// differently in Nairobi and Naivasha without duplicating the product.
+model ProductLocationPrice {
+  id         String   @id @default(cuid())
+  productId  String
+  locationId String
+  price      Float
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, locationId])
+  @@index([locationId])
 }
 
 model ProductUoM {

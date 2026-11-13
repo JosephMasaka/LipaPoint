@@ -45,6 +45,7 @@ export async function GET(request: NextRequest) {
         category: { select: { id: true, name: true, color: true, parentId: true } },
         baseUnit: { select: { id: true, name: true, abbreviation: true } },
         stocks: { select: { quantity: true } },
+        locationPrices: { select: { locationId: true, price: true } },
         productUoms: {
           where: { isActive: true },
           include: { unit: { select: { id: true, name: true, abbreviation: true } } },

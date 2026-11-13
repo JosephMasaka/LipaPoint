@@ -122,6 +122,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // A till sends its own branch; never trust the id without checking it is
+    // one of this tenant's active locations (otherwise stock and the order
+    // could land in another business's branch).
     const resolvedLocationId = locationId || (await db.location.findFirst({ where: { tenantId: user.tenantId, isActive: true } }))?.id;
     if (!resolvedLocationId) {
       return NextResponse.json(
@@ -129,12 +132,23 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (locationId) {
+      const owned = await db.location.findFirst({
+        where: { id: locationId, tenantId: user.tenantId, isActive: true },
+        select: { id: true },
+      });
+      if (!owned) {
+        return NextResponse.json({ error: "Location not found" }, { status: 404 });
+      }
+    }
 
     const productIds = items.map((i: { productId: string }) => i.productId);
     const productsData = await db.product.findMany({
       where: { id: { in: productIds }, tenantId: user.tenantId },
       include: {
         productUoms: { where: { isActive: true }, include: { unit: true } },
+        // This branch's own price for the product, if it has one.
+        locationPrices: { where: { locationId: resolvedLocationId }, select: { price: true } },
       },
     });
 
@@ -169,7 +183,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: `Product not found` }, { status: 400 });
       }
 
-      let setPrice = product.price;
+      let setPrice = product.locationPrices[0]?.price ?? product.price;
       let conversionFactor = 1;
       let productUomId: string | null = null;
       let uomCost: number | null = null;

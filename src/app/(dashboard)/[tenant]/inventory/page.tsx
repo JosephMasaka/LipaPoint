@@ -31,6 +31,7 @@ interface Product {
   categoryId: string | null;
   category: { id: string; name: string } | null;
   baseUnit: { id: string; name: string; abbreviation: string } | null;
+  locationPrices?: { locationId: string; price: number }[];
   stock: number;
 }
 
@@ -122,6 +123,11 @@ function ProductsTab() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", sku: "", barcode: "", price: "", cost: "", categoryId: "", unitId: "", image: "", lowStockAlert: "10" });
   const [units, setUnits] = useState<UnitOfMeasure[]>([]);
+  const [locations, setLocations] = useState<LocationOption[]>([]);
+  // Branch overrides for the product being edited, keyed by location id. An
+  // empty input means "sell at the base price here".
+  const [branchPrices, setBranchPrices] = useState<Record<string, string>>({});
+  const [initialBranchPrices, setInitialBranchPrices] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -150,6 +156,7 @@ function ProductsTab() {
   useEffect(() => { fetchProducts(); setCurrentPage(1); }, [search]);
   useEffect(() => {
     fetch("/api/units").then(r => r.json()).then(d => { if (Array.isArray(d)) { setUnits(d); try { localStorage.setItem("lipapoint-oc-units", JSON.stringify({ data: d, timestamp: Date.now() })); } catch {} } }).catch(() => { try { const raw = localStorage.getItem("lipapoint-oc-units"); if (raw) { const { data } = JSON.parse(raw); setUnits(data); } } catch {} });
+    fetch("/api/locations").then(r => r.json()).then(d => { if (Array.isArray(d)) setLocations(d); }).catch(() => {});
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,7 +167,31 @@ function ProductsTab() {
     try {
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       if (!res.ok) { const d = await res.json(); setError(d.error || "Error"); return; }
+
+      // Branch prices save after the product itself, so the product always
+      // exists even if one branch price fails.
+      if (editingId) {
+        const changed = locations.filter(
+          (l) => (branchPrices[l.id] ?? "").trim() !== (initialBranchPrices[l.id] ?? "")
+        );
+        const results = await Promise.all(changed.map((l) => {
+          const raw = (branchPrices[l.id] ?? "").trim();
+          return fetch(`/api/products/${editingId}/prices`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ locationId: l.id, price: raw === "" ? null : Number(raw) }),
+          }).then((r) => r.ok ? null : r.json().then((d) => `${l.name}: ${d.error || "failed"}`));
+        }));
+        const failures = results.filter(Boolean);
+        if (failures.length) {
+          setError(`Product saved, but branch prices failed — ${failures.join("; ")}`);
+          fetchProducts();
+          return;
+        }
+      }
+
       setForm({ name: "", sku: "", barcode: "", price: "", cost: "", categoryId: "", unitId: "", image: "", lowStockAlert: "10" });
+      setBranchPrices({}); setInitialBranchPrices({});
       setShowForm(false); setEditingId(null); fetchProducts();
     } catch {
       if (!navigator.onLine) {
@@ -172,6 +203,7 @@ function ProductsTab() {
         }
         requestBackgroundSync();
         setForm({ name: "", sku: "", barcode: "", price: "", cost: "", categoryId: "", unitId: "", image: "", lowStockAlert: "10" });
+        setBranchPrices({}); setInitialBranchPrices({});
         setShowForm(false); setEditingId(null);
         setError("");
       } else {
@@ -187,7 +219,13 @@ function ProductsTab() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted" />
           <Input placeholder="Search products..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
         </div>
-        <Button onClick={() => { setShowForm(!showForm); setEditingId(null); }}>
+        <Button onClick={() => {
+          setShowForm(!showForm);
+          setEditingId(null);
+          setBranchPrices({});
+          setInitialBranchPrices({});
+          setError("");
+        }}>
           {showForm ? "Cancel" : <><Plus className="h-4 w-4 mr-1" /> Add Product</>}
         </Button>
       </div>
@@ -213,6 +251,31 @@ function ProductsTab() {
                 <Input label="Low Stock Alert" type="number" value={form.lowStockAlert} onChange={(e) => setForm({ ...form, lowStockAlert: e.target.value })} />
                 <Input label="Image URL" value={form.image} onChange={(e) => setForm({ ...form, image: e.target.value })} />
               </div>
+
+              {editingId && locations.length > 0 && (
+                <div className="rounded-xl border border-border bg-surface-elevated/50 p-4 space-y-3">
+                  <div>
+                    <p className="text-sm font-medium text-text-primary">Branch prices</p>
+                    <p className="text-xs text-text-muted">
+                      Leave blank to sell at the base price of {form.price ? formatCurrency(Number(form.price)) : "—"}.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                    {locations.map((l) => (
+                      <Input
+                        key={l.id}
+                        label={l.name}
+                        type="number"
+                        min="0"
+                        placeholder="Base price"
+                        value={branchPrices[l.id] ?? ""}
+                        onChange={(e) => setBranchPrices({ ...branchPrices, [l.id]: e.target.value })}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <Button type="submit">{editingId ? "Update" : "Create"} Product</Button>
             </form>
           </CardContent>
@@ -244,7 +307,14 @@ function ProductsTab() {
                     <td className="px-4 py-3 font-medium text-text-primary">{p.name}</td>
                     <td className="px-4 py-3 text-text-secondary font-mono text-xs">{p.sku}</td>
                     <td className="px-4 py-3 text-text-secondary text-xs">{p.baseUnit?.abbreviation || "-"}</td>
-                    <td className="px-4 py-3 text-text-primary">{formatCurrency(p.price)}</td>
+                    <td className="px-4 py-3 text-text-primary">
+                      {formatCurrency(p.price)}
+                      {(p.locationPrices?.length ?? 0) > 0 && (
+                        <span className="ml-2 text-[10px] text-text-muted">
+                          {p.locationPrices!.length} branch{p.locationPrices!.length !== 1 ? "es" : ""}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <span className={p.stock <= p.lowStockAlert ? "text-red-400 font-medium" : "text-emerald-400 font-medium"}>
                         {p.stock}{p.baseUnit ? ` ${p.baseUnit.abbreviation}` : ""}
@@ -254,6 +324,10 @@ function ProductsTab() {
                     <td className="px-4 py-3 text-right">
                       <Button variant="ghost" size="sm" onClick={() => {
                         setForm({ name: p.name, sku: p.sku, barcode: p.barcode || "", price: p.price.toString(), cost: p.cost.toString(), categoryId: p.categoryId || "", unitId: p.baseUnitId || "", image: p.image || "", lowStockAlert: p.lowStockAlert.toString() });
+                        const overrides: Record<string, string> = {};
+                        for (const op of p.locationPrices ?? []) overrides[op.locationId] = op.price.toString();
+                        setBranchPrices(overrides);
+                        setInitialBranchPrices(overrides);
                         setEditingId(p.id); setShowForm(true);
                       }}><Edit3 className="h-3 w-3" /></Button>
                     </td>
