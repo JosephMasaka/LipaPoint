@@ -60,6 +60,8 @@ interface StockRecord {
   notes: string | null;
   product: { id: string; name: string; sku: string; price: number; cost: number; baseUnit?: { abbreviation: string } | null };
   location: { id: string; name: string };
+  /** This branch's base-unit override, or null when catalogue price applies. */
+  branchPrice?: number | null;
 }
 
 interface Expense {
@@ -782,6 +784,7 @@ function StockSheetTab() {
                 <tr className="border-b border-border bg-surface-elevated/50">
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">Product</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-text-secondary uppercase">UoM</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-text-secondary uppercase">Price</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Opening</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Added</th>
                   <th className="px-4 py-3 text-center text-xs font-medium text-text-secondary uppercase">Sold</th>
@@ -791,9 +794,9 @@ function StockSheetTab() {
               </thead>
               <tbody className="divide-y divide-border">
                 {loading ? (
-                  <tr><td colSpan={7} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
+                  <tr><td colSpan={8} className="px-4 py-12"><Loader label="Loading..." className="py-4" /></td></tr>
                 ) : records.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-12 text-center text-text-muted">
+                  <tr><td colSpan={8} className="px-4 py-12 text-center text-text-muted">
                     No stock records for this date. Click &quot;Initialize Day&quot; to start.
                   </td></tr>
                 ) : paginatedRecords.map((r) => {
@@ -805,6 +808,21 @@ function StockSheetTab() {
                         <p className="text-[10px] text-text-muted font-mono">{r.product.sku}</p>
                       </td>
                       <td className="px-4 py-2 text-text-muted text-xs">{r.product.baseUnit?.abbreviation || "-"}</td>
+                      <td className="px-4 py-2 text-right whitespace-nowrap">
+                        {r.branchPrice != null ? (
+                          <>
+                            <span className="text-xs font-semibold text-gold">{formatCurrency(r.branchPrice)}</span>
+                            {r.branchPrice !== r.product.price && (
+                              <span className={`ml-1.5 text-[10px] ${r.branchPrice > r.product.price ? "text-emerald-400" : "text-red-400"}`}>
+                                {r.branchPrice > r.product.price ? "+" : ""}
+                                {formatCurrency(r.branchPrice - r.product.price)}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-text-muted">{formatCurrency(r.product.price)}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-2 text-center text-text-secondary">{r.openingStock}</td>
                       <td className="px-4 py-2 text-center">
                         <input

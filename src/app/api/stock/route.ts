@@ -28,10 +28,31 @@ export async function GET(request: NextRequest) {
       orderBy: { product: { name: "asc" } },
     });
 
+    // The sheet is read one branch at a time, so send that branch's base-unit
+    // override alongside each line; null means the catalogue price applies.
+    const productIds = [...new Set(records.map((r) => r.productId))];
+    const overrides = productIds.length
+      ? await db.productLocationPrice.findMany({
+          where: {
+            productId: { in: productIds },
+            productUomId: null,
+            ...(locationId
+              ? { locationId }
+              : { locationId: { in: [...new Set(records.map((r) => r.locationId))] } }),
+          },
+          select: { productId: true, locationId: true, price: true },
+        })
+      : [];
+    const overrideKey = (productId: string, locationId: string) => `${productId}:${locationId}`;
+    const overrideByKey = new Map(
+      overrides.map((o) => [overrideKey(o.productId, o.locationId), o.price])
+    );
+
     const recalculated = records.map((r) => ({
       ...r,
       closingStock: r.openingStock + r.addedStock - r.soldStock,
       variance: r.closingStock - (r.openingStock + r.addedStock - r.soldStock),
+      branchPrice: overrideByKey.get(overrideKey(r.productId, r.locationId)) ?? null,
     }));
 
     return NextResponse.json(recalculated);
