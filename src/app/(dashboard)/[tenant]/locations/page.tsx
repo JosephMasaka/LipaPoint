@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageLoader } from "@/components/ui/loader";
-import { cn } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 import { MapPin, Plus, Edit3, Power, X, CheckCircle, Store } from "lucide-react";
 import { saveOfflineAction, requestBackgroundSync } from "@/lib/offline-db";
 
@@ -25,6 +25,9 @@ interface Location {
   isActive: boolean;
   registers: Register[];
   _count: { orders: number; stocks: number };
+  stockValue?: number;
+  stockUnits?: number;
+  lowStockCount?: number;
 }
 
 export default function LocationsPage() {
@@ -70,7 +73,7 @@ export default function LocationsPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setLocations([...locations, { ...data, _count: { orders: 0, stocks: 0 } }]);
+        setLocations([...locations, { ...data, _count: { orders: 0, stocks: 0 }, stockValue: 0, stockUnits: 0, lowStockCount: 0 }]);
         setShowAdd(false);
         setForm({ name: "", address: "", phone: "" });
         notify("success", "Location added");
@@ -219,11 +222,17 @@ export default function LocationsPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {loc.phone && <p className="text-xs text-text-muted">{loc.phone}</p>}
-                <div className="flex gap-4 text-xs text-text-secondary">
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-text-secondary">
                   <span>{loc._count.orders} orders</span>
-                  <span>{loc._count.stocks} stock items</span>
+                  <span>{loc.stockUnits ?? 0} units on hand</span>
+                  <span>{formatCurrency(loc.stockValue ?? 0)} stock value</span>
                   <span>{loc.registers.length} register{loc.registers.length !== 1 ? "s" : ""}</span>
                 </div>
+                {(loc.lowStockCount ?? 0) > 0 && (
+                  <p className="text-xs font-medium text-amber-400">
+                    {loc.lowStockCount} item{loc.lowStockCount !== 1 ? "s" : ""} at or below low-stock alert
+                  </p>
+                )}
                 <div className="flex gap-2 pt-2 border-t border-border">
                   <Button size="sm" variant="outline" onClick={() => { setEditing(loc); setForm({ name: loc.name, address: loc.address || "", phone: loc.phone || "" }); }}>
                     <Edit3 className="h-3 w-3 mr-1" /> Edit

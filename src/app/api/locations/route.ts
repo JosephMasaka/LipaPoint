@@ -19,7 +19,34 @@ export async function GET() {
       orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json(locations);
+    // Branch-level stock health for the location cards: value on hand and how
+    // many tracked items are at or below their alert level.
+    const stocks = await db.stock.findMany({
+      where: { location: { tenantId: user.tenantId } },
+      select: {
+        locationId: true,
+        quantity: true,
+        product: { select: { cost: true, lowStockAlert: true, trackStock: true } },
+      },
+    });
+
+    const summary = new Map<string, { stockValue: number; stockUnits: number; lowStockCount: number }>();
+    for (const s of stocks) {
+      const current = summary.get(s.locationId) ?? { stockValue: 0, stockUnits: 0, lowStockCount: 0 };
+      current.stockValue += s.quantity * (s.product.cost || 0);
+      current.stockUnits += s.quantity;
+      if (s.product.trackStock && s.quantity <= s.product.lowStockAlert) current.lowStockCount += 1;
+      summary.set(s.locationId, current);
+    }
+
+    return NextResponse.json(
+      locations.map((l) => ({
+        ...l,
+        stockValue: summary.get(l.id)?.stockValue ?? 0,
+        stockUnits: summary.get(l.id)?.stockUnits ?? 0,
+        lowStockCount: summary.get(l.id)?.lowStockCount ?? 0,
+      }))
+    );
   } catch (error) {
     console.error("GET /api/locations error:", error);
     return NextResponse.json({ error: "Failed to fetch locations" }, { status: 500 });
@@ -83,6 +110,12 @@ export async function PUT(request: NextRequest) {
 
     const { id, name, address, phone, isActive } = await request.json();
     if (!id) return NextResponse.json({ error: "Location ID is required" }, { status: 400 });
+
+    const owned = await db.location.findFirst({
+      where: { id, tenantId: user.tenantId },
+      select: { id: true },
+    });
+    if (!owned) return NextResponse.json({ error: "Location not found" }, { status: 404 });
 
     const location = await db.location.update({
       where: { id },
