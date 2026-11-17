@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "./auth";
 import { requireModule, ModuleNotEnabledError, type ModuleKey } from "./modules";
 import { requireFeature, FeatureNotEnabledError, type FeatureKey } from "./features";
+import { canAccessFeature } from "./plans";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -70,6 +71,29 @@ export async function requireUserWithFeature(featureKey: FeatureKey): Promise<
       };
     }
     throw error;
+  }
+  return { user };
+}
+
+/**
+ * Plan-tier gate for features that are not (yet) part of the sub-feature
+ * registry, such as "ai-assistant". Kept separate from
+ * requireUserWithFeature so the two entitlement models never get conflated.
+ */
+export async function requireUserWithPlanFeature(feature: string): Promise<
+  { user: SessionUser; response?: undefined } | { user?: undefined; response: NextResponse }
+> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  if (!canAccessFeature(user.tenant.tier, feature, user.tenant.type)) {
+    return {
+      response: NextResponse.json(
+        { error: `This feature is not included in your plan`, code: "FEATURE_NOT_IN_PLAN" },
+        { status: 403 }
+      ),
+    };
   }
   return { user };
 }

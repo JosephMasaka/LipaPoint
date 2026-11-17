@@ -126,6 +126,8 @@ model Tenant {
   ReportDefinition         ReportDefinition[]
   stockBatches       StockBatch[]
   assetMaintenances  AssetMaintenance[]
+  aiUsageRecords     AiUsageRecord[]
+  aiRecommendations  AiRecommendation[]
 
   @@index([slug])
   @@index([isActive])
@@ -157,6 +159,7 @@ model User {
   journalEntries JournalEntry[] @relation("JournalPostedBy")
   poCreated      PurchaseOrder[] @relation("POCreatedBy")
   grnsReceived   GoodsReceivedNote[] @relation("GRNReceivedBy")
+  aiUsageRecords AiUsageRecord[]
   tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -1770,4 +1773,85 @@ enum KitchenItemStatus {
   PREPARING
   READY
   SERVED
+}
+
+// ---------------------------------------------------------------------------
+// AI usage + tool audit (Milestone 1)
+//
+// Append-only telemetry for the Intelligence Centre. One row per model run,
+// correlated with its tool calls by runId. No prompt or reply text is stored.
+// ---------------------------------------------------------------------------
+
+model AiUsageRecord {
+  id               String   @id @default(cuid())
+  tenantId         String
+  userId           String?
+  runId            String   @unique
+  surface          String // "chat" | "insights"
+  provider         String // "gemini" | "groq"
+  model            String?
+  promptTokens     Int      @default(0)
+  outputTokens     Int      @default(0)
+  totalTokens      Int      @default(0)
+  estimatedCostUsd Float    @default(0)
+  latencyMs        Int      @default(0)
+  status           String // SUCCESS | ERROR | RATE_LIMITED | QUOTA_EXCEEDED | TIMEOUT
+  errorCode        String?
+  toolCallCount    Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, createdAt])
+  @@index([tenantId, status, createdAt])
+}
+
+model AiToolInvocation {
+  id         String   @id @default(cuid())
+  tenantId   String
+  runId      String
+  toolName   String
+  argsJson   String   @default("{}")
+  ok         Boolean  @default(true)
+  errorCode  String?
+  resultRows Int      @default(0)
+  latencyMs  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([runId])
+}
+
+// Milestone 2: deterministic, evidence-backed suggestions. One row per
+// (tenant, fingerprint) so regenerating does not duplicate open items.
+// No automatic execution — status changes are human actions only.
+model AiRecommendation {
+  id           String   @id @default(cuid())
+  tenantId     String
+  type         String // "restock"
+  productId    String?
+  title        String
+  summary      String
+  urgency      String // "critical" | "high" | "medium"
+  status       String   @default("new") // new | accepted | dismissed | done
+  confidence   Float    @default(0)
+  periodFrom   DateTime
+  periodTo     DateTime
+  locationId   String?
+  evidence     Json
+  // Stable identity of the underlying signal, e.g.
+  // restock:<productId>:<from-day>:<to-day>:<locationId|all>
+  fingerprint  String
+  feedback     String?
+  resolvedAt   DateTime?
+  resolvedById String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, fingerprint])
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, productId])
 }

@@ -18,11 +18,25 @@ const DAY = 24 * 60 * 60 * 1000;
 const TARGET_COVER_DAYS = 14;
 const MIN_TARGET_MARGIN = 20;
 
-export async function buildIntelligence(tenantId: string): Promise<BusinessIntelligence> {
-  const now = new Date();
-  const currentFrom = new Date(now.getTime() - ANALYSIS_DAYS * DAY);
-  const previousFrom = new Date(currentFrom.getTime() - ANALYSIS_DAYS * DAY);
+export interface IntelligenceOptions {
+  /** Inclusive start of the analysis window. Defaults to 30 days before `to`. */
+  from?: Date;
+  /** End of the analysis window. Defaults to now. */
+  to?: Date;
+  /** Restrict sales and stock to one branch. Must already be tenant-verified. */
+  locationId?: string;
+}
+
+export async function buildIntelligence(
+  tenantId: string,
+  opts: IntelligenceOptions = {}
+): Promise<BusinessIntelligence> {
+  const now = opts.to ?? new Date();
+  const currentFrom = opts.from ?? new Date(now.getTime() - ANALYSIS_DAYS * DAY);
+  const analysisDays = Math.max(1, Math.round((now.getTime() - currentFrom.getTime()) / DAY));
+  const previousFrom = new Date(currentFrom.getTime() - analysisDays * DAY);
   const since180 = new Date(now.getTime() - 180 * DAY);
+  const locationFilter = opts.locationId ? { locationId: opts.locationId } : {};
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
@@ -30,7 +44,7 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
   });
   if (!tenant) throw new Error("Business not found");
 
-  const completed = { tenantId, status: "COMPLETED" } as const;
+  const completed = { tenantId, status: "COMPLETED", ...locationFilter } as const;
 
   const [currentOrders, previousOrders, currentItems, previousItems, products, stocks, customers, customerOrders] =
     await Promise.all([
@@ -63,7 +77,7 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
         },
       }),
       db.stock.findMany({
-        where: { product: { tenantId, isActive: true } },
+        where: { product: { tenantId, isActive: true }, ...locationFilter },
         select: { productId: true, quantity: true },
       }),
       db.customer.findMany({
@@ -101,7 +115,7 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
   const topProducts: ProductIntelligence[] = [];
   for (const [productId, d] of sold.entries()) {
     const p = d.product;
-    const velocity = d.units / ANALYSIS_DAYS;
+    const velocity = d.units / analysisDays;
     const stock = stockMap.get(productId) ?? null;
     const cover = stock !== null && velocity > 0 ? stock / velocity : null;
     const cost = p.cost > 0 ? p.cost : null; // cost defaults to 0 = "not recorded"
@@ -120,6 +134,7 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
     else if (d.units >= 10) status = "top-seller";
 
     topProducts.push({
+      productId,
       name: p.name,
       category: p.category?.name ?? "Uncategorised",
       unitsSold: round(d.units),
@@ -148,7 +163,7 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
     if (stock <= 0) criticalStockCount++;
     const s = sold.get(p.id);
     if (s) {
-      const v = s.units / ANALYSIS_DAYS;
+      const v = s.units / analysisDays;
       if (v > 0.5) fastMovingCount++;
       if (v > 0 && stock / v < 3) stockoutRiskCount++;
     } else if (stock > 0) deadStockCount++;
@@ -165,6 +180,7 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
     const needed = Math.ceil(p.velocityPerDay * TARGET_COVER_DAYS - p.stock);
     if (needed <= 0) continue;
     restock.push({
+      productId: p.productId,
       product: p.name, category: p.category, stock: p.stock, velocityPerDay: p.velocityPerDay,
       daysOfCover: p.daysOfCover, suggestedQty: needed, targetDays: TARGET_COVER_DAYS,
       urgency: p.daysOfCover < 3 ? "critical" : p.daysOfCover < 7 ? "high" : "medium",
@@ -251,9 +267,10 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
     revenue: i.total,
   }));
 
+  /* ---------------- area & market intelligence ---------------- */
   const { market, demographics, priceIndex } = await buildAreaIntelligence({
     tenantId, type: tenant.type, county: tenant.county, city: tenant.city,
-    analysisDays: ANALYSIS_DAYS, currentRevenue, currentOrders: currentOrders.length,
+    analysisDays, currentRevenue, currentOrders: currentOrders.length,
     currentAverageOrder: currentAov, yourCatalogue, yourUnitsByName, yourCategoryRevenue,
     yourSales, yourRetention,
   });
@@ -364,11 +381,11 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
   const insights: IntelligenceInsight[] = [];
   if (sales.revenueGrowthPercent > 10)
     insights.push({ id: "revenue-growth", title: "Revenue is accelerating", category: "growth", priority: "high",
-      description: `Revenue rose ${sales.revenueGrowthPercent}% against the previous 30 days.`,
+      description: `Revenue rose ${sales.revenueGrowthPercent}% against the previous period.`,
       metric: `${sales.revenueGrowthPercent}%`, action: "Protect the products and channels driving the increase." });
   else if (sales.revenueGrowthPercent < -10)
     insights.push({ id: "revenue-decline", title: "Revenue is under pressure", category: "risk", priority: "high",
-      description: `Revenue fell ${Math.abs(sales.revenueGrowthPercent)}% against the previous 30 days.`,
+      description: `Revenue fell ${Math.abs(sales.revenueGrowthPercent)}% against the previous period.`,
       metric: `${sales.revenueGrowthPercent}%`, action: "Check demand, retention and pricing before adding inventory." });
   if (restock.length > 0)
     insights.push({ id: "restock", title: "Restock needed", category: "inventory",
@@ -429,7 +446,7 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
   if (!tenant.county) notes.push("Set your county to unlock local benchmarks and area demographics.");
   if (marginCoverage < 50) notes.push(`Only ${round(marginCoverage, 0)}% of sales have a product cost recorded — add costs to unlock reliable margin and pricing advice.`);
   if (registered === 0 || linkedPct < 20) notes.push("Few orders are linked to a customer, so retention and churn figures are limited. Capturing customer details at checkout will improve them.");
-  if (currentOrders.length < 10) notes.push("Fewer than 10 completed orders in the last 30 days — treat trends as indicative only.");
+  if (currentOrders.length < 10) notes.push(`Fewer than 10 completed orders in the last ${analysisDays} days — treat trends as indicative only.`);
   const dataQuality: DataQuality = {
     costCoveragePercent: round(marginCoverage, 1), linkedOrdersPercent: round(linkedPct, 1),
     registeredCustomers: registered, locationSet: !!tenant.county, notes,
@@ -437,7 +454,7 @@ export async function buildIntelligence(tenantId: string): Promise<BusinessIntel
 
   return {
     tenant: { id: tenant.id, name: tenant.name, type: tenant.type, city: tenant.city, county: tenant.county, currency: cur },
-    period: { days: ANALYSIS_DAYS, from: currentFrom.toISOString(), to: now.toISOString() },
+    period: { days: analysisDays, from: currentFrom.toISOString(), to: now.toISOString() },
     sales, customers: customerIntelligence, inventory, restock, pricing, market, demographics,
     insights: insights.slice(0, 10),
     opportunities: [...opportunities].sort((a, b) => b.score - a.score).slice(0, 8),

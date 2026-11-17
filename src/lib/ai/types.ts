@@ -1,7 +1,34 @@
+export interface AiToolCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+/** JSON-schema subset both Gemini and Groq accept for function calling. */
+export interface AiToolDeclaration {
+  name: string;
+  description: string;
+  parameters: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+export interface AiGenerateOptions {
+  tools?: AiToolDeclaration[];
+  timeoutMs?: number;
+  retries?: number;
+}
+
 export interface AiGenerateResult {
   reply: string;
   tokensUsed?: number;
+  promptTokens?: number;
+  outputTokens?: number;
   provider: "gemini" | "groq";
+  model?: string;
+  /** Present when the model asked for tools instead of (or before) answering. */
+  toolCalls?: AiToolCall[];
 }
 
 export class AiRateLimitError extends Error {
@@ -18,9 +45,40 @@ export class AiProviderError extends Error {
   }
 }
 
+export class AiTimeoutError extends Error {
+  constructor(message = "AI request timed out") {
+    super(message);
+    this.name = "AiTimeoutError";
+  }
+}
+
 export interface AiProvider {
   name: "gemini" | "groq";
-  generate(systemPrompt: string, message: string): Promise<AiGenerateResult>;
+  generate(
+    systemPrompt: string,
+    message: string,
+    options?: AiGenerateOptions
+  ): Promise<AiGenerateResult>;
+}
+
+/** Everything a request is allowed to read. Resolved server-side only. */
+export interface AiScopeInfo {
+  tenantId: string;
+  from: string;
+  to: string;
+  locationId: string | null;
+  locationName: string | null;
+  currency: string;
+}
+
+export interface AiCitation {
+  tool: string;
+  label: string;
+  from: string;
+  to: string;
+  locationId: string | null;
+  locationName: string | null;
+  rows: number;
 }
 
 /* =========================================================
@@ -44,22 +102,7 @@ export interface IntelligenceInsight {
   action?: string;
 }
 
-export interface ProductIntelligence {
-  name: string;
-  category: string;
-  unitsSold: number; // in the product's BASE unit, so it is comparable with stock
-  revenue: number;
-  price: number;
-  cost: number | null; // null when no cost has been recorded (cost defaults to 0 in the DB)
-  stock: number | null;
-  margin: number | null;
-  marginPercent: number | null;
-  velocityPerDay: number;
-  daysOfCover: number | null;
-  demandScore: number;
-  opportunityScore: number;
-  status: "top-seller" | "high-demand" | "low-stock" | "underperforming" | "healthy";
-}
+
 
 export interface CustomerSegment {
   name: string;
@@ -209,6 +252,7 @@ export interface InventoryIntelligence {
 }
 
 export interface RestockSuggestion {
+  productId: string;
   product: string;
   category: string;
   stock: number;
@@ -217,6 +261,24 @@ export interface RestockSuggestion {
   suggestedQty: number;
   targetDays: number;
   urgency: "critical" | "high" | "medium";
+}
+
+export interface ProductIntelligence {
+  productId: string;
+  name: string;
+  category: string;
+  unitsSold: number; // in the product's BASE unit, so it is comparable with stock
+  revenue: number;
+  price: number;
+  cost: number | null; // null when no cost has been recorded (cost defaults to 0 in the DB)
+  stock: number | null;
+  margin: number | null;
+  marginPercent: number | null;
+  velocityPerDay: number;
+  daysOfCover: number | null;
+  demandScore: number;
+  opportunityScore: number;
+  status: "top-seller" | "high-demand" | "low-stock" | "underperforming" | "healthy";
 }
 
 export interface PricingSignal {
@@ -288,4 +350,6 @@ export interface BusinessIntelligence {
   generatedAt: string;
   ai?: { provider: "gemini" | "groq"; tokensUsed?: number; narrative: AiNarrative };
   cached?: boolean;
+  /** Returned by the API so the UI can show the exact resolved window. */
+  scope?: AiScopeInfo;
 }

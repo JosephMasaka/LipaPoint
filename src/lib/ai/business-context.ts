@@ -1,14 +1,19 @@
-import { getIntelligence } from "./intelligence-cache";
+import { getIntelligence, type IntelligenceRequest } from "./intelligence-cache";
 import { buildPromptPayload } from "./prompt";
 
 /**
- * Same export name/signature as before, so the chat route's import is
- * unchanged. Now backed by the shared (cached) intelligence engine, so chat
- * and the Insights dashboard always agree.
+ * Compact, deterministic evidence snapshot handed to the model. The same
+ * snapshot backs the Insights dashboard, so chat and insights agree.
+ *
+ * Scope is resolved by the caller (src/lib/ai/scope.ts) and is always
+ * tenant-scoped; this function never reads a tenant id from the request body.
  */
-export async function buildBusinessContext(tenantId: string): Promise<string> {
+export async function buildBusinessContext(
+  tenantId: string,
+  opts: IntelligenceRequest = {}
+): Promise<string> {
   try {
-    const { intel } = await getIntelligence(tenantId);
+    const { intel } = await getIntelligence(tenantId, opts);
     return [
       "VERIFIED BUSINESS INTELLIGENCE (JSON). Each section states its provenance — respect it when answering.",
       JSON.stringify(buildPromptPayload(intel)),

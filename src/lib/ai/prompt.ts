@@ -14,7 +14,8 @@ export function buildPromptPayload(i: BusinessIntelligence) {
       name: i.tenant.name, type: i.tenant.type, county: i.tenant.county,
       city: i.tenant.city, currency: i.tenant.currency,
     },
-    window: "last 30 days, compared with the 30 days before",
+    window: `${i.period.days} days (${i.period.from.slice(0, 10)} to ${i.period.to.slice(0, 10)}), compared with the ${i.period.days} days before`,
+    city: i.tenant.city,
 
     YOUR_DATA: {
       provenance: "Measured from this business's own POS records.",

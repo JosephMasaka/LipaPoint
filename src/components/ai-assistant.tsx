@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, X, MessageCircle, Bot, User } from "lucide-react";
+import { Sparkles, Send, X, MessageCircle, Bot, User, FileCheck2 } from "lucide-react";
+import type { AiCitation } from "@/lib/ai/types";
 
 interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  citations?: AiCitation[];
 }
 
 const QUICK_ACTIONS = [
@@ -69,7 +71,12 @@ export function AIAssistant() {
       }
 
       if (res.status === 429) {
-        setError("Rate limit reached. Please wait a moment before trying again.");
+        const data = await res.json().catch(() => ({}));
+        setError(
+          data.code === "QUOTA_EXCEEDED"
+            ? data.error
+            : "Rate limit reached. Please wait a moment before trying again."
+        );
         setIsLoading(false);
         return;
       }
@@ -88,6 +95,7 @@ export function AIAssistant() {
         role: "assistant",
         content: data.reply,
         timestamp: new Date(),
+        citations: Array.isArray(data.citations) ? data.citations : undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -187,6 +195,20 @@ export function AIAssistant() {
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.citations && msg.citations.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1 border-t border-border/60 pt-2">
+                      {msg.citations.map((c) => (
+                        <span
+                          key={`${c.tool}-${c.from}`}
+                          className="inline-flex items-center gap-1 rounded-md bg-background px-1.5 py-0.5 text-[10px] text-text-muted"
+                          title={`${c.rows} row(s) · ${c.from.slice(0, 10)} to ${c.to.slice(0, 10)}`}
+                        >
+                          <FileCheck2 className="h-3 w-3" />
+                          {c.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 {msg.role === "user" && (
                   <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-surface-elevated">

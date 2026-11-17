@@ -175,6 +175,7 @@ export function AIInsights({ tier }: { tier: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [section, setSection] = useState<Section>("overview");
+  const [range, setRange] = useState<"7" | "30" | "90">("30");
 
   const isAllowed = canAccessFeature(tier, "ai-assistant");
 
@@ -183,7 +184,16 @@ export function AIInsights({ tier }: { tier: string }) {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/ai/insights${refresh ? "?refresh=1" : ""}`, { cache: "no-store" });
+      const params = new URLSearchParams();
+      if (range !== "30") {
+        const to = new Date();
+        const from = new Date(to.getTime() - Number(range) * 24 * 60 * 60 * 1000);
+        params.set("from", from.toISOString());
+        params.set("to", to.toISOString());
+      }
+      if (refresh) params.set("refresh", "1");
+      const qs = params.toString();
+      const res = await fetch(`/api/ai/insights${qs ? `?${qs}` : ""}`, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) { setError(json.error ?? "Failed to load intelligence."); return; }
       setData(json);
@@ -192,7 +202,7 @@ export function AIInsights({ tier }: { tier: string }) {
     } finally {
       setIsLoading(false);
     }
-  }, [isAllowed]);
+  }, [isAllowed, range]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -243,13 +253,15 @@ export function AIInsights({ tier }: { tier: string }) {
   if (isLoading && !data) {
     return (
       <div className="overflow-hidden rounded-3xl border border-border bg-surface">
-        <div className="animate-pulse p-6">
-          <div className="h-6 w-56 rounded bg-background" />
-          <div className="mt-3 h-4 w-80 rounded bg-background" />
+        {/* Placeholders use surface-elevated: bg-background matches bg-surface in
+            dark mode, which made the whole panel look like an empty card. */}
+        <div className="animate-pulse p-6" role="status" aria-label="Loading intelligence">
+          <div className="h-6 w-56 rounded bg-surface-elevated" />
+          <div className="mt-3 h-4 w-80 rounded bg-surface-elevated" />
           <div className="mt-8 grid gap-4 md:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => <div key={i} className="h-28 rounded-2xl bg-background" />)}
+            {[0, 1, 2, 3].map((i) => <div key={i} className="h-28 rounded-2xl bg-surface-elevated" />)}
           </div>
-          <div className="mt-6 h-64 rounded-2xl bg-background" />
+          <div className="mt-6 h-64 rounded-2xl bg-surface-elevated" />
         </div>
       </div>
     );
@@ -310,14 +322,27 @@ export function AIInsights({ tier }: { tier: string }) {
                   <MapPin className="h-3 w-3" />
                   {data.tenant.county ? `${data.tenant.county} County` : "Location not set"}
                 </span>
-                <span className="inline-flex items-center gap-1"><Activity className="h-3 w-3" />30-day analysis</span>
+                <span className="inline-flex items-center gap-1"><Activity className="h-3 w-3" />{data.period.days}-day analysis</span>
+                {data.scope?.locationName && (
+                  <span className="inline-flex items-center gap-1"><Store className="h-3 w-3" />{data.scope.locationName}</span>
+                )}
               </div>
             </div>
           </div>
-          <button onClick={() => load(true)} disabled={isLoading}
-            className="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-border px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-background hover:text-text-primary disabled:opacity-50 lg:self-auto">
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
-          </button>
+          <div className="flex items-center gap-2 self-start lg:self-auto">
+            <div className="flex rounded-xl border border-border bg-background/50 p-1">
+              {([["7", "7d"], ["30", "30d"], ["90", "90d"]] as const).map(([value, label]) => (
+                <button key={value} onClick={() => setRange(value)} disabled={isLoading}
+                  className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${range === value ? "bg-surface text-text-primary shadow-sm" : "text-text-muted hover:text-text-primary"}`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => load(true)} disabled={isLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-medium text-text-secondary transition-colors hover:bg-background hover:text-text-primary disabled:opacity-50">
+              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? "animate-spin" : ""}`} /> Refresh
+            </button>
+          </div>
         </div>
 
         <div className="mt-6 flex gap-1 overflow-x-auto rounded-xl border border-border bg-background/50 p-1">

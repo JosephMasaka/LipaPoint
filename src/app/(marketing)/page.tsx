@@ -17,6 +17,9 @@ import {
   ShieldCheck,
   Banknote,
   Landmark,
+  Sparkles,
+  Quote,
+  Gauge,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -25,7 +28,7 @@ export const metadata: Metadata = {
       "LipaPoint ERP — #1 Business Management System in Kenya | POS, Payroll & eTIMS",
   },
   description:
-    "Kenya's all-in-one business management system. POS & M-Pesa payments, inventory, statutory payroll, accounting, fixed assets and KRA eTIMS invoicing. For restaurants, bars, retail, supermarkets & pharmacies. No setup fees. Cancel anytime.",
+    "Kenya's all-in-one business management system. POS & M-Pesa payments, inventory, statutory payroll, accounting, fixed assets and KRA eTIMS invoicing. For restaurants, bars, retail, supermarkets & pharmacies, plus an AI business assistant that answers from your own data. No setup fees. Cancel anytime.",
   alternates: { canonical: "https://lipapoint.co.ke" },
 };
 
@@ -566,6 +569,73 @@ export default function HomePage() {
         </section>
 
 {/* ============================================================
+            INTELLIGENCE CENTRE
+            ============================================================ */}
+<section className="mt-24 border-y border-gold/15 bg-gold/5 py-16 sm:py-24">
+          <div className="mx-auto max-w-6xl px-6">
+            <div className="mx-auto max-w-3xl text-center">
+              <span className="mb-3 inline-block rounded-full bg-brand-solid px-3 py-1 text-[11px] font-semibold uppercase tracking-widest text-white">
+                Intelligence Centre
+              </span>
+              <h2 className="text-balance text-text-primary text-2xl font-semibold sm:text-3xl md:text-4xl">
+                Ask your business a question.
+              </h2>
+              <p className="mx-auto mt-4 max-w-2xl text-text-secondary text-lg">
+                LipaPoint reads your own sales, stock, customers and pricing, then answers in
+                plain language — for the branch and period you choose, with every figure
+                traceable to the report it came from.
+              </p>
+            </div>
+
+            <div className="mx-auto mt-12 grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="flex flex-col items-start rounded-xl border border-border bg-surface-elevated p-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
+                  <Sparkles className="h-5 w-5 text-gold" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-text-primary">Answers, not dashboards</h3>
+                <p className="mt-2 text-text-secondary">
+                  &ldquo;What sold best at Kilimani last month?&rdquo; &ldquo;Which products are
+                  about to run out?&rdquo; Ask normally and get a straight answer, not another
+                  chart to interpret.
+                </p>
+              </div>
+
+              <div className="flex flex-col items-start rounded-xl border border-border bg-surface-elevated p-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
+                  <Quote className="h-5 w-5 text-gold" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-text-primary">Every answer shows its working</h3>
+                <p className="mt-2 text-text-secondary">
+                  Responses carry citations to the sales, stock or customer figures behind
+                  them when a tool is called, so you can check a number before you act on it.
+                </p>
+              </div>
+
+              <div className="flex flex-col items-start rounded-xl border border-border bg-surface-elevated p-6">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
+                  <Gauge className="h-5 w-5 text-gold" />
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-text-primary">Clear limits, no surprises</h3>
+                <p className="mt-2 text-text-secondary">
+                  Included on Professional and Enterprise plans with a monthly question
+                  allowance, and a usage panel so owners can see exactly what has been used.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-10 text-center">
+              <Link
+                href="/features"
+                className="inline-flex items-center gap-2 text-sm font-medium text-gold hover:underline"
+              >
+                See the Intelligence Centre in the feature list
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================================
             PRICING TEASER — card grid
             ============================================================ */}
 <section className="mt-24 bg-surface-elevated py-16 sm:py-24">

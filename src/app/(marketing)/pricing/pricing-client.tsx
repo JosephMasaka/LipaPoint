@@ -309,6 +309,17 @@ export function PricingClient() {
           })}
         </div>
 
+        <div className="mt-6 flex flex-col gap-2 rounded-2xl border border-border bg-surface-elevated px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm text-text-secondary">
+            <span className="font-semibold text-text-primary">AI Business Assistant</span> is
+            included on Professional and Enterprise — sell, stock and customer questions
+            answered from your own data, with citations to the figures that back them when a tool is called.
+          </p>
+          <p className="text-sm text-text-muted sm:text-right">
+            From 300 questions/month on Professional; 2,000 on Enterprise.
+          </p>
+        </div>
+
         {/* Unified Full ERP — one industry-agnostic plan above the per-vertical
             tiers. Sells the existing ENTERPRISE entitlements at a single price
             for every industry (see FULL_ERP_* in lib/plans). */}
