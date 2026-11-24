@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { isAdminUser } from "@/lib/permissions";
 import { canonicalCounty } from "@/lib/kenya-counties";
 import { isFeatureEnabled } from "@/lib/features";
 import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
@@ -48,7 +49,7 @@ export async function PUT(request: Request) {
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (user.role !== "OWNER" && user.role !== "ADMIN") {
+    if (!isAdminUser(user)) {
       return NextResponse.json({ error: "Only an owner or admin can change business settings." }, { status: 403 });
     }
 

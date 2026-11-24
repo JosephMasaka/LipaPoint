@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { isAdminUser } from "@/lib/permissions";
 import { initializeTransaction } from "@/lib/paystack";
 import { db } from "@/lib/db";
 import { getPlanPricing, VERTICAL_PLANS, getBusinessCategory } from "@/lib/plans";
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (user.role !== "OWNER" && user.role !== "ADMIN") {
+    if (!isAdminUser(user)) {
       return NextResponse.json({ error: "Only owners/admins can change plans" }, { status: 403 });
     }
 

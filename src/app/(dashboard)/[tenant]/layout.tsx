@@ -56,7 +56,13 @@ export default async function DashboardLayout({
     <PlanProvider tenantSlug={tenantSlug}>
       <div className="min-h-screen bg-surface">
         {impersonating && <ImpersonationBanner tenantName={user.tenant.name} />}
-        <Sidebar tenantSlug={tenantSlug} user={user} modules={modules} features={features} />
+        <Sidebar
+          tenantSlug={tenantSlug}
+          user={user}
+          modules={modules}
+          features={features}
+          demoMode={user.tenant.demoMode}
+        />
         <DashboardMain>{children}</DashboardMain>
         <Tour />
         {showAI && <AIAssistant />}

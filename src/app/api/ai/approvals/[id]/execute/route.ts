@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
+import { isAdminUser } from "@/lib/permissions";
 import { ApprovalError } from "@/lib/ai/approvals";
 import { executeApprovedAction } from "@/lib/ai/actions";
 import { resolveAwaitingRun } from "@/lib/ai/runs";
@@ -13,7 +14,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   try {
     const user = await getCurrentUser();
     if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    if (user.role !== "OWNER" && user.role !== "ADMIN") {
+    if (!isAdminUser(user)) {
       return NextResponse.json({ error: "Only an owner or admin can run an approved action." }, { status: 403 });
     }
 

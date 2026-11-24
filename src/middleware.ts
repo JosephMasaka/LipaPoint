@@ -166,7 +166,10 @@ export async function middleware(request: NextRequest) {
       const segments = pathname.split("/").filter(Boolean);
       const route = segments[1];
 
-      if (route && ROUTE_PERMISSIONS[route]) {
+      // Demo tenants carry demoMode in the token: their staff roles must not
+      // bounce a reviewer off Settings/Users/Locations/Analytics. Real tenants
+      // never set it, so the allow-list stays in force for them.
+      if (route && ROUTE_PERMISSIONS[route] && payload.demoMode !== true) {
         const userRole = (payload.role as string) || "CASHIER";
         const allowedRoles = ROUTE_PERMISSIONS[route];
         if (!allowedRoles.includes(userRole)) {

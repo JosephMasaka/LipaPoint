@@ -32,6 +32,27 @@ export function can(role: string, permission: Permission): boolean {
   return level >= MIN_ROLE_LEVEL[permission];
 }
 
+/** Roles that may change organisation-wide settings. */
+export function isAdminRole(role: string): boolean {
+  return role === "OWNER" || role === "ADMIN";
+}
+
+/**
+ * Owner/admin check for the organisation-wide API guards (settings, locations,
+ * payment gateways, plan changes).
+ *
+ * Demo tenants (`Tenant.demoMode`, see prisma/schema.prisma) bypass the role
+ * test: the seeded demo logins exist to show the product to a reviewer, and a
+ * cashier login that can open Settings but not save it demonstrates a bug
+ * rather than a permission model. Real tenants never set demoMode.
+ */
+export function isAdminUser(user: {
+  role: string;
+  tenant?: { demoMode?: boolean | null } | null;
+}): boolean {
+  return user.tenant?.demoMode === true || isAdminRole(user.role);
+}
+
 export class PermissionDeniedError extends Error {
   public readonly status = 403;
   public readonly code = "FORBIDDEN";

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { isAdminUser } from "@/lib/permissions";
 import { encryptJSON } from "@/lib/crypto";
 
 const VALID_PROVIDERS = ["DARAJA", "INTASEND", "PESAPAL", "KOPOKOPO", "FLUTTERWAVE", "PALPLUSS"] as const;
@@ -14,7 +15,7 @@ const VALID_PROVIDERS = ["DARAJA", "INTASEND", "PESAPAL", "KOPOKOPO", "FLUTTERWA
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "OWNER" && user.role !== "ADMIN") {
+  if (!isAdminUser(user)) {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (user.role !== "OWNER" && user.role !== "ADMIN") {
+  if (!isAdminUser(user)) {
     return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
   }
 

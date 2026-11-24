@@ -2104,7 +2104,7 @@ async function main() {
   // ERP Phase 0: provision tier-entitled modules + default chart of accounts
   // ═════════════════════════════════════════════════════════════════════
   const allTenants = await prisma.tenant.findMany({
-    select: { id: true, name: true, tier: true, type: true },
+    select: { id: true, name: true, tier: true, type: true, demoMode: true },
   });
   for (const t of allTenants) {
     // Demo builds hand every sample business the full ERP, so a reviewer can
@@ -2112,8 +2112,10 @@ async function main() {
     // any seeded account instead of hitting an upgrade prompt. The PLATFORM
     // tenant keeps whatever tier it was created with.
     const tier = t.type === "PLATFORM" ? t.tier : "ENTERPRISE";
-    if (tier !== t.tier) {
-      await prisma.tenant.update({ where: { id: t.id }, data: { tier } });
+    // demoMode also lifts the staff-role gating (sidebar + owner/admin API
+    // guards) for these tenants only — see src/lib/permissions.ts.
+    if (tier !== t.tier || !t.demoMode) {
+      await prisma.tenant.update({ where: { id: t.id }, data: { tier, demoMode: true } });
     }
     await provisionTenantModules(t.id, tier);
     await provisionTenantFeatures(t.id, tier);

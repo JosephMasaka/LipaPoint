@@ -35,6 +35,8 @@ interface SidebarProps {
   modules: string[];
   /** Enabled sub-feature keys (spec §8) — nav items carry `featureKey`. */
   features: string[];
+  /** Demo tenant: show every link regardless of the signed-in staff role. */
+  demoMode?: boolean;
 }
 
 interface NavItem {
@@ -150,19 +152,20 @@ function getNavSections(
   tier: string,
   modules: string[],
   features: string[],
-  role: string
+  role: string,
+  demoMode = false
 ): SidebarSection[] {
   const category = getBusinessCategory(tenantType);
   const visible = [...baseNavItems, ...categoryNavItems[category], ...erpNavItems, ...suffixNavItems].filter(
     (item) =>
-      item.roles.includes(role) &&
+      (demoMode || item.roles.includes(role)) &&
       (!item.feature || canAccessFeature(tier, item.feature, tenantType)) &&
       (!item.featureKey || features.includes(item.featureKey)) &&
       (!item.module || modules.includes(item.module))
   );
 
   const installed = appsFromModules(modules);
-  const isAdmin = role === "OWNER" || role === "ADMIN";
+  const isAdmin = demoMode || role === "OWNER" || role === "ADMIN";
   const sections: SidebarSection[] = [];
 
   for (const id of SECTION_ORDER) {
@@ -186,7 +189,7 @@ function getNavSections(
   return sections;
 }
 
-export function Sidebar({ tenantSlug, user, modules, features }: SidebarProps) {
+export function Sidebar({ tenantSlug, user, modules, features, demoMode = false }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
@@ -212,7 +215,7 @@ export function Sidebar({ tenantSlug, user, modules, features }: SidebarProps) {
   };
 
   const { isOnline, canInstall, installApp } = usePWA();
-  const sections = getNavSections(user.tenant.type, user.tenant.tier, modules, features, user.role);
+  const sections = getNavSections(user.tenant.type, user.tenant.tier, modules, features, user.role, demoMode);
 
   const sidebarContent = (
     <>

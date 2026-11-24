@@ -20,6 +20,8 @@ interface SessionPayload extends JWTPayload {
   tenantSlug?: string;
   resellerId?: string;
   role: string;
+  /** Demo tenant: middleware skips its role allow-list (see Tenant.demoMode). */
+  demoMode?: boolean;
 }
 
 function getJwtSecret(): Uint8Array {
@@ -71,11 +73,19 @@ export async function createSession(user: {
   role: string;
   tenant: { slug: string };
 }): Promise<string> {
+  // Carried in the token because middleware runs on the edge with no database
+  // access, but it needs the flag to skip ROUTE_PERMISSIONS for demo tenants.
+  const tenant = await db.tenant.findUnique({
+    where: { id: user.tenantId },
+    select: { demoMode: true },
+  });
+
   const payload: SessionPayload = {
     userId: user.id,
     tenantId: user.tenantId,
     tenantSlug: user.tenant.slug,
     role: user.role,
+    demoMode: tenant?.demoMode === true,
   };
 
   const token = await signToken(payload);
@@ -122,7 +132,7 @@ export async function destroySession(): Promise<void> {
 export async function getCurrentUser(): Promise<
   Omit<
     import("@prisma/client").Prisma.UserGetPayload<{
-      include: { tenant: { select: { id: true; name: true; slug: true; type: true; tier: true; currency: true; taxRate: true; logo: true; isActive: true } } };
+      include: { tenant: { select: { id: true; name: true; slug: true; type: true; tier: true; currency: true; taxRate: true; logo: true; isActive: true; demoMode: true } } };
     }>,
     "password"
   > | null
@@ -185,6 +195,7 @@ export async function getCurrentUser(): Promise<
           taxRate: true,
           logo: true,
           isActive: true,
+          demoMode: true,
         },
       },
     },

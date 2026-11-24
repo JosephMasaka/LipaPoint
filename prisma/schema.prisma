@@ -65,6 +65,10 @@ model Tenant {
   // Kill switch (M3): when false, no model calls are made for this tenant.
   // Deterministic, database-computed panels keep working.
   aiEnabled        Boolean                @default(true)
+  // Demo tenants: staff roles stop narrowing the nav and the owner/admin-only
+  // API guards, so a reviewer signed in as the seeded cashier can still open
+  // payroll, finance and assets. Off for real customers, who keep role gating.
+  demoMode         Boolean                @default(false)
   approvalRequests AiApprovalRequest[]
   paystackSubCode  String?
   isActive         Boolean                @default(true)

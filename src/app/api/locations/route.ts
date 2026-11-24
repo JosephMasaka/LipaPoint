@@ -1,4 +1,5 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
+import { isAdminUser } from "@/lib/permissions";
 import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -58,7 +59,7 @@ export async function POST(request: NextRequest) {
     const auth = await requireUserWithFeature("stock-tracking-basic");
     if (auth.response) return auth.response;
     const { user } = auth;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") {
+    if (!isAdminUser(user)) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
@@ -101,7 +102,7 @@ export async function PUT(request: NextRequest) {
     const auth = await requireUserWithFeature("stock-tracking-basic");
     if (auth.response) return auth.response;
     const { user } = auth;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") {
+    if (!isAdminUser(user)) {
       return NextResponse.json({ error: "Insufficient permissions" }, { status: 403 });
     }
 
