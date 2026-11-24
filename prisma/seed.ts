@@ -1,6 +1,7 @@
 import { PrismaClient, Product } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { provisionTenantModules } from "../src/lib/modules";
+import { provisionTenantFeatures } from "../src/lib/features";
 import { seedChartOfAccounts } from "../src/lib/coa";
 import { approvePayrollRun, createPayrollRun, ensureStatutoryRates } from "../src/lib/payroll";
 
@@ -2103,10 +2104,19 @@ async function main() {
   // ERP Phase 0: provision tier-entitled modules + default chart of accounts
   // ═════════════════════════════════════════════════════════════════════
   const allTenants = await prisma.tenant.findMany({
-    select: { id: true, name: true, tier: true },
+    select: { id: true, name: true, tier: true, type: true },
   });
   for (const t of allTenants) {
-    await provisionTenantModules(t.id, t.tier);
+    // Demo builds hand every sample business the full ERP, so a reviewer can
+    // open payroll, assets, eTIMS, finance and procurement after logging in as
+    // any seeded account instead of hitting an upgrade prompt. The PLATFORM
+    // tenant keeps whatever tier it was created with.
+    const tier = t.type === "PLATFORM" ? t.tier : "ENTERPRISE";
+    if (tier !== t.tier) {
+      await prisma.tenant.update({ where: { id: t.id }, data: { tier } });
+    }
+    await provisionTenantModules(t.id, tier);
+    await provisionTenantFeatures(t.id, tier);
     await seedChartOfAccounts(t.id);
   }
   console.log(

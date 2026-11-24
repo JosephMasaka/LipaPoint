@@ -20,8 +20,11 @@ import {
   Sparkles,
   Quote,
   Gauge,
+  Zap,
+  Crown,
+  Building2,
 } from "lucide-react";
-import { VERTICAL_PLANS, groupPlanFeatures } from "@/lib/plans";
+import { VERTICAL_PLANS, formatPrice, groupPlanFeatures } from "@/lib/plans";
 
 export const metadata: Metadata = {
   title: {
@@ -654,14 +657,15 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="mx-auto mt-10 grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mx-auto mt-10 grid max-w-5xl items-stretch gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {TEASER_TIERS.map((tier) => (
                 <PlanCard
                   key={tier}
                   name={TEASER_META[tier].name}
                   tagline={TEASER_META[tier].tagline}
+                  icon={TEASER_META[tier].icon}
                   price={VERTICAL_PLANS.RETAIL_GENERAL[tier].pricing.monthly}
-                  period="month"
+                  annualPrice={VERTICAL_PLANS.RETAIL_GENERAL[tier].pricing.annual}
                   ctaHref="/register"
                   ctaLabel="Get started"
                   features={teaserFeatures(tier)}
@@ -998,72 +1002,49 @@ export default function HomePage() {
   );
 }
 
-function SubscriptionPeriodBadge() {
-  // Compute "MMM yyyy" from the first of next month using native JS
-  const now = new Date();
-  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const monthly = months[nextMonth.getMonth()];
-  const year = nextMonth.getFullYear();
-  return (
-    <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-2.5 py-1 text-xs font-medium text-text-secondary">
-      <Clock className="h-3.5 w-3.5 text-text-muted" aria-hidden="true" />
-      Billed monthly · renews {monthly} {year}
-    </span>
-  );
-}
-
 // The landing teaser reads the same config as /pricing (retail is the default
-// tab there), so tier names, prices and bullets cannot drift apart from the
+// tab there) and renders the same card anatomy — icon, limits, then one bullet
+// per feature group — so tiers, prices and bullets cannot drift apart from the
 // page that actually sells the plans.
 const TEASER_TIERS = ["STARTER", "PROFESSIONAL", "ENTERPRISE"] as const;
 type TeaserTier = (typeof TEASER_TIERS)[number];
 
-const TEASER_META: Record<TeaserTier, { name: string; tagline: string }> = {
-  STARTER: { name: "Starter", tagline: "For small shops & kiosks" },
-  PROFESSIONAL: { name: "Professional", tagline: "For growing businesses" },
-  ENTERPRISE: { name: "Enterprise", tagline: "For chains & high-volume operations" },
+const TEASER_META: Record<TeaserTier, { name: string; tagline: string; icon: typeof Zap }> = {
+  STARTER: { name: "Starter", tagline: "For small shops & kiosks", icon: Zap },
+  PROFESSIONAL: { name: "Professional", tagline: "For growing businesses", icon: Crown },
+  ENTERPRISE: { name: "Enterprise", tagline: "For chains & high-volume operations", icon: Building2 },
 };
 
-function featureLabels(tier: TeaserTier): Set<string> {
-  return new Set(
-    groupPlanFeatures(VERTICAL_PLANS.RETAIL_GENERAL[tier].limits.features).flatMap(
-      (group) => group.items
-    )
-  );
-}
-
-function limitText(value: number, singular: string, plural: string): string {
-  return Number.isFinite(value)
-    ? `${value} ${value === 1 ? singular : plural}`
-    : `Unlimited ${plural}`;
-}
-
-/** Tier bullets built from the plan's own feature list and limits. */
-function teaserFeatures(tier: TeaserTier): string[] {
+/** The same three limit lines /pricing leads its cards with. */
+function limitBullets(tier: TeaserTier): string[] {
   const limits = VERTICAL_PLANS.RETAIL_GENERAL[tier].limits;
-  const limitsLine = `${limitText(limits.locations, "location", "locations")} · ${limitText(
-    limits.staff,
-    "user",
-    "users"
-  )}`;
-  const own = [...featureLabels(tier)];
-  if (tier === "STARTER") return [...own.slice(0, 5), limitsLine];
-
-  const included = tier === "PROFESSIONAL" ? featureLabels("STARTER") : featureLabels("PROFESSIONAL");
-  const extra = own.filter((label) => !included.has(label)).slice(0, 4);
   return [
-    `Everything in ${tier === "PROFESSIONAL" ? "Starter" : "Professional"}`,
-    ...extra,
-    limitsLine,
+    Number.isFinite(limits.locations)
+      ? `${limits.locations} Location${limits.locations > 1 ? "s" : ""}`
+      : "Unlimited locations",
+    Number.isFinite(limits.staff) ? `${limits.staff} Staff accounts` : "Unlimited staff",
+    Number.isFinite(limits.products)
+      ? `Up to ${limits.products} products`
+      : "Unlimited products",
+  ];
+}
+
+/** Limits, then one bullet per feature group — the /pricing card's own bullets. */
+function teaserFeatures(tier: TeaserTier): string[] {
+  return [
+    ...limitBullets(tier),
+    ...groupPlanFeatures(VERTICAL_PLANS.RETAIL_GENERAL[tier].limits.features).map((group) =>
+      group.items.length > 0 ? `${group.label} — ${group.items.join(", ")}` : group.label
+    ),
   ];
 }
 
 function PlanCard({
   name,
   tagline,
+  icon: TierIcon,
   price,
-  period,
+  annualPrice,
   ctaHref,
   ctaLabel,
   features,
@@ -1071,8 +1052,9 @@ function PlanCard({
 }: {
   name: string;
   tagline: string;
+  icon: typeof Zap;
   price: number;
-  period: string;
+  annualPrice: number;
   ctaHref: string;
   ctaLabel: string;
   features: string[];
@@ -1081,54 +1063,57 @@ function PlanCard({
   return (
     <div
       className={twMerge(
-        "relative flex flex-col rounded-2xl border bg-background p-6 transition-shadow",
+        "relative flex flex-col rounded-2xl border p-6 transition-shadow sm:p-8",
         highlight
-          ? "border-gold/50 shadow-xl ring-1 ring-gold/20"
-          : "border-border shadow-sm",
+          ? "border-gold/50 bg-gold/5 shadow-xl ring-1 ring-gold/20"
+          : "border-border bg-background shadow-sm",
       )}
     >
       {highlight && (
         <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-solid px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-white">
-          Most popular
+          Best value
         </span>
       )}
 
-      <div className="flex col">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-text-primary">{name}</span>
-          <SubscriptionPeriodBadge />
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gold/10">
+          <TierIcon className="h-5 w-5 text-gold" aria-hidden="true" />
         </div>
+        <h3 className="text-xl font-bold text-text-primary">{name}</h3>
+      </div>
 
-        <p className="mt-1 text-sm text-text-muted">{tagline}</p>
+      <p className="mt-2 text-sm text-text-secondary">{tagline}</p>
 
-        <div className="mt-4 flex items-baseline gap-1">
-          <span className="text-3xl font-semibold text-text-primary">
-            KES {price.toLocaleString()}
-          </span>
-          <span className="text-text-muted">/{period}</span>
-        </div>
+      <div className="mt-4 flex items-baseline gap-1">
+        <span className="text-4xl font-bold text-text-primary">{formatPrice(price)}</span>
+        <span className="text-text-muted">/month</span>
+      </div>
+      <p className="mt-1 text-xs text-gold">
+        Save {formatPrice(price * 12 - annualPrice)}/yr with annual
+      </p>
 
-        <ul className="mt-6 space-y-3 text-sm text-text-secondary">
-          {features.map((feature) => (
-            <li key={feature} className="flex items-start gap-2.5">
-              <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" aria-hidden="true" />
-              {feature}
-            </li>
-          ))}
-        </ul>
+      <ul className="mt-6 flex-1 space-y-3 text-sm text-text-secondary">
+        {features.map((feature) => (
+          <li key={feature} className="flex items-start gap-2">
+            <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" aria-hidden="true" />
+            <span>{feature}</span>
+          </li>
+        ))}
+      </ul>
 
-        <div className="mt-6">
-          <Link
-            href={ctaHref}
-            className={twMerge(
-              "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-solid px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-brand-solid-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-primary",
-              highlight ? "" : "border border-border text-text-secondary hover:bg-surface-elevated hover:text-text-primary",
-            )}
-          >
-            {ctaLabel}
-            <ArrowRight className="h-4 w-4" aria-hidden="true" />
-          </Link>
-        </div>
+      <div className="mt-8">
+        <Link
+          href={ctaHref}
+          className={twMerge(
+            "inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-primary",
+            highlight
+              ? "bg-brand-solid text-white hover:bg-brand-solid-hover"
+              : "border border-border bg-surface-elevated text-text-primary hover:bg-background",
+          )}
+        >
+          {ctaLabel}
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
       </div>
     </div>
   );
