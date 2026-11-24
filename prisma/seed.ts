@@ -4,6 +4,7 @@ import { provisionTenantModules } from "../src/lib/modules";
 import { provisionTenantFeatures } from "../src/lib/features";
 import { seedChartOfAccounts } from "../src/lib/coa";
 import { approvePayrollRun, createPayrollRun, ensureStatutoryRates } from "../src/lib/payroll";
+import { seedErpSamplesForTenant } from "./seed-erp-samples";
 
 const prisma = new PrismaClient();
 
@@ -2104,7 +2105,7 @@ async function main() {
   // ERP Phase 0: provision tier-entitled modules + default chart of accounts
   // ═════════════════════════════════════════════════════════════════════
   const allTenants = await prisma.tenant.findMany({
-    select: { id: true, name: true, tier: true, type: true, demoMode: true },
+    select: { id: true, name: true, slug: true, tier: true, type: true, demoMode: true },
   });
   for (const t of allTenants) {
     // Demo builds hand every sample business the full ERP, so a reviewer can
@@ -2124,6 +2125,37 @@ async function main() {
   console.log(
     `  ✓ ERP foundation: modules + chart of accounts provisioned for ${allTenants.length} tenants\n`
   );
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ERP samples for the remaining demo tenants
+  // ═════════════════════════════════════════════════════════════════════
+  // Club Chairman above has a hand-written showcase dataset, so the seeder
+  // skips any tenant that already has employees.
+  for (const t of allTenants) {
+    if (t.type === "PLATFORM") continue;
+    const location = await prisma.location.findFirst({
+      where: { tenantId: t.id },
+      select: { id: true },
+      orderBy: { name: "asc" },
+    });
+    if (!location) continue;
+    const owner = await prisma.user.findFirst({
+      where: { tenantId: t.id, role: "OWNER" },
+      select: { id: true },
+    });
+    const result = await seedErpSamplesForTenant(prisma, {
+      slug: t.slug ?? "",
+      tenantId: t.id,
+      locationId: location.id,
+      ownerUserId: owner?.id,
+    });
+    if (result.employees) {
+      console.log(
+        `  ✓ ${t.name}: ${result.employees} staff, ${result.assets} assets, ${result.payrollRuns} payroll runs`
+      );
+    }
+  }
+  console.log("");
 
   // ═══════════════════════════════════════════════════════════════════════════
   console.log("\n✅ Seed complete!\n");

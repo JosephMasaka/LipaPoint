@@ -50,19 +50,43 @@ list; see the runbook for that account.
 
 ## Where the seeded back-office data is
 
-Only `club-chairman` carries a populated HR/payroll/asset history — it is the
-tenant to open when demoing the ERP:
+Every demo tenant carries a headcount, two payroll runs and a depreciating
+asset register, so Payroll, HR and Assets are never an empty table:
 
-- **HR**: 6 employees (one on probation, one terminated), 3 leave requests
-  (pending / approved / rejected), 1 staff loan repaid through payroll
-  deductions.
-- **Payroll**: 2 runs (one approved, one paid), 12 payslips, PAYE/NSSF/SHIF/
-  housing-levy figures that reconcile to the payslip totals.
-- **Assets**: 7 assets (AST-0001 … AST-0007), one disposed (AST-0007), one
-  `under_maintenance` (AST-0004), monthly depreciation entries per asset, and 3
-  maintenance records.
+| Tenant | Staff | Assets | Payroll runs | Payslips |
+|---|---|---|---|---|
+| `club-chairman` | 6 | 7 | 2 | 12 |
+| `duka-kuu` | 5 | 5 | 2 | 10 |
+| `mzinga-bar` | 5 | 5 | 2 | 10 |
+| `savanna-lounge` | 5 | 5 | 2 | 10 |
+| `safari-bites` | 5 | 5 | 2 | 10 |
+| `afya-pharmacy` | 5 | 5 | 2 | 10 |
+| `jengo-hardware` | 5 | 5 | 2 | 10 |
+| `mama-njeri` | 4 | 5 | 2 | 8 |
+| `sharp-cuts` | 4 | 5 | 2 | 8 |
 
-The other eight tenants are seeded for POS/inventory/CRM demos.
+`club-chairman` is the hand-written showcase and the richest one: 3 leave
+requests (pending / approved / rejected), a staff loan repaid through payroll
+deductions, one disposed asset (AST-0007) and one `under_maintenance`
+(AST-0004). The other tenants come from the per-slug plans in
+`prisma/seed-erp-samples.ts`: 2 leave requests, one active loan, last month's
+run approved and this month left as a draft so the approve → pay → file
+lifecycle can still be demonstrated, and one asset mid-maintenance plus (where
+it suits the business) one disposal.
+
+To fill in tenants that have no HR data without truncating the demo database:
+
+```bash
+npm run db:seed:erp          # add -- --force to rebuild a tenant's ERP rows
+```
+
+## One-click demo sign-in
+
+`/demo` lists every `demoMode` workspace and opens it in one click, with no
+password. The form posts to `/api/demo/login`, which refuses any tenant whose
+`demoMode` is false — the password-less path can never reach a real customer.
+It lands on the owner/admin account; for a specific staff role use the
+credentials in the table above.
 
 ## Resetting the demo
 
@@ -71,6 +95,7 @@ npm run db:seed
 ```
 
 This truncates and re-creates every demo tenant, its users, the sample
-transactions and the back-office data above, and re-applies the Enterprise
-tier, module/feature rows and `demoMode`. It takes roughly 30 minutes on the
-hosted demo database.
+transactions, the ERP samples (Club Chairman's showcase plus
+`prisma/seed-erp-samples.ts` for the rest) and re-applies the Enterprise tier,
+module/feature rows and `demoMode`. It takes roughly 30 minutes on the hosted
+demo database.
