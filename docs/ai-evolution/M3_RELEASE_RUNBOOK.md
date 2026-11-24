@@ -17,9 +17,10 @@ that wrote this runbook; it records what was verified locally and what remains.
 | TypeScript compiles | `npx tsc --noEmit` | clean |
 | Prisma schema valid | `npx prisma validate` | valid |
 | Tests (unit + DB) | `RUN_DB_TESTS=1 npm test` | 78 passed, 0 failed, 0 skipped |
-| Migrations recognised | `npx prisma migrate status` | 3 migrations found, schema up to date |
-| Migration ↔ schema drift | `npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script` | empty (no drift) |
-| Migrations 0011–0013 applied on the dev database | same as above | applied, additive, idempotent (`IF NOT EXISTS`, guarded FKs) |
+| Migrations recognised | `npx prisma migrate status` | 5 migrations found, schema up to date |
+| Deploy from an empty database | `DATABASE_URL=<empty-db> npx prisma migrate deploy` | all 5 applied (verified on a local PostgreSQL 18 cluster) |
+| Migration ↔ schema drift | `npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url <url> --exit-code` | `No difference detected` |
+| Migrations 0011–0014 applied on the dev database | same as above | applied, additive, idempotent (`IF NOT EXISTS`, guarded FKs) |
 | Seed (assets, HR, payroll) | `npm run db:seed` | see §5 |
 
 `RUN_DB_TESTS=1` writes isolated `it-*` tenants and deletes them in `after()`;
@@ -45,58 +46,42 @@ neonctl connection-string staging --project-id <project-id>
 A branch created **from `main`** is copy-on-write: it already contains the
 schema and data, and is the safest first staging environment.
 
-### 1.2 Migration baseline — read before testing from scratch
+### 1.2 Migration baseline
 
-Prisma recognises only migrations that are **directories** containing
-`migration.sql`. In this repository only `0011_restock_target_days`,
-`0012_ai_governance` and `0013_ai_agent_runs` are directories; `0001`–`0010` are
-loose `.sql` files applied by hand or by `prisma db push`.
+`prisma/migrations` is now a self-contained history and needs no manual psql:
+`0000_init` (generated from the schema as it stood before M3) creates every
+table, and `0011`–`0014` add on top. The ten loose `.sql` files (`0001`–`0010`)
+moved to `prisma/migrations-archive/` for reference and are no longer applied.
 
-Consequence: **on a brand-new empty branch, `prisma migrate deploy` will try to
-create only the M3 tables, and fail** — they reference `Tenant`/`User`, which
-will not exist. That is a baseline problem, not an M3 defect.
-
-Two supported paths:
-
-**A. Copy-on-write branch (recommended for staging).**
+**A brand-new empty database works out of the box:**
 
 ```bash
-DATABASE_URL="<staging-branch-url>" npx prisma migrate deploy
-DATABASE_URL="<staging-branch-url>" npx prisma migrate status   # expect: up to date
+DATABASE_URL="<empty-db-url>" npx prisma migrate deploy
+DATABASE_URL="<empty-db-url>" npx prisma migrate status   # "Database schema is up to date!"
 ```
 
-**B. Brand-new empty branch (proves migrations from zero).**
+Verified on a throwaway local PostgreSQL 18 cluster: all five migrations
+applied, and
+`npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url <url> --exit-code`
+printed `No difference detected`, so the history reproduces the datamodel.
+
+**A database that already has the tables** (the demo database, or a
+copy-on-write branch) has no `0000_init` row yet. Mark the baseline applied
+**once, before deploying**:
 
 ```bash
-# 1. baseline, in numeric order, from the loose files
-psql "$STAGING_URL" -f prisma/migrations/0001_full_schema.sql
-psql "$STAGING_URL" -f prisma/migrations/0002_price_override_settings.sql
-psql "$STAGING_URL" -f prisma/migrations/0003_show_served_by.sql
-psql "$STAGING_URL" -f prisma/migrations/0004_new_business_types.sql
-psql "$STAGING_URL" -f prisma/migrations/0005_offline_mode_free.sql
-psql "$STAGING_URL" -f prisma/migrations/0006_sync_receipts.sql
-psql "$STAGING_URL" -f prisma/migrations/0007_product_location_prices.sql
-psql "$STAGING_URL" -f prisma/migrations/0008_product_location_uom_prices.sql
-psql "$STAGING_URL" -f prisma/migrations/0009_ai_usage_and_tool_invocations.sql
-psql "$STAGING_URL" -f prisma/migrations/0010_ai_recommendations.sql
-
-# 2. M3 migrations, recorded by Prisma
-DATABASE_URL="$STAGING_URL" npx prisma migrate deploy
-
-# 3. prove the result matches the datamodel (expect an empty migration)
-DATABASE_URL="$STAGING_URL" npx prisma migrate diff \
-  --from-schema-datasource prisma/schema.prisma \
-  --to-schema-datamodel prisma/schema.prisma --script
+DATABASE_URL="<existing-db-url>" npx prisma migrate resolve --applied 0000_init
+DATABASE_URL="<existing-db-url>" npx prisma migrate deploy
 ```
 
-> `0001_add_report_catalog.sql`, `0001_add_report_catalog.clean.sql` and
-> `0001_report_catalog_only.sql` are alternative variants of `0001`; do not
-> apply them all.
+Skipping the resolve makes `migrate deploy` try to run `0000_init` and fail with
+`type "SubscriptionTier" already exists`. Prisma records the attempt as failed
+and blocks further deploys until you clear it:
 
-**Durable fix (follow-up, not done here):** fold the loose files into a real
-`0001_init` migration directory, baseline production with
-`prisma migrate resolve --applied 0001_init`, and delete the loose files. Until
-then, staging-by-copy is the only path that needs no manual psql.
+```bash
+npx prisma migrate resolve --rolled-back 0000_init
+npx prisma migrate resolve --applied 0000_init
+```
 
 ### 1.3 Staging environment variables
 

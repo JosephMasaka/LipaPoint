@@ -472,6 +472,12 @@ export function PricingClient() {
             and we&apos;ll set the bundle and price for you.
           </p>
           <p className="mt-3 text-center text-xs text-text-muted">
+            Prefer to see it running before you pay?{" "}
+            <Link href="/demo" className="text-gold hover:underline">
+              Open a live demo →
+            </Link>
+          </p>
+          <p className="mt-3 text-center text-xs text-text-muted">
             Prefer to price features one by one?{" "}
             <Link
               href="/pricing/features"

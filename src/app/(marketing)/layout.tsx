@@ -13,6 +13,7 @@ import { Logo } from "@/components/logo";
 const NAV_LINKS = [
   { href: "/features", label: "Features" },
   { href: "/pricing", label: "Pricing" },
+  { href: "/demo", label: "Live Demo" },
   { href: "/industries", label: "Industries" },
   { href: "/contact", label: "Contact" },
   { href: "/demo-request", label: "Request Demo" },
@@ -53,7 +54,10 @@ export default function MarketingLayout({
             <span className="text-lg font-bold text-text-primary">LipaPoint</span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6" aria-label="Main navigation">
+          {/* Six links plus two buttons no longer fit at md once "Live Demo"
+              is in the bar, so the desktop nav starts at lg and the dropdown
+              below it is the only nav in between. */}
+          <nav className="hidden lg:flex items-center gap-6" aria-label="Main navigation">
             {NAV_LINKS.map((link) => (
               <Link
                 key={link.href}
@@ -68,7 +72,7 @@ export default function MarketingLayout({
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="md:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary hover:border-gold/30 transition-colors"
+              className="lg:hidden inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-secondary hover:text-text-primary hover:border-gold/30 transition-colors"
               aria-label={menuOpen ? "Close menu" : "Open menu"}
               aria-expanded={menuOpen}
               aria-controls="marketing-mobile-nav"
@@ -97,7 +101,7 @@ export default function MarketingLayout({
           <nav
             id="marketing-mobile-nav"
             aria-label="Main navigation"
-            className="md:hidden border-t border-border/50 bg-surface px-4 py-3 space-y-1"
+            className="lg:hidden border-t border-border/50 bg-surface px-4 py-3 space-y-1"
           >
             {NAV_LINKS.map((link) => (
               <Link
@@ -139,6 +143,7 @@ export default function MarketingLayout({
               <nav aria-label="Product navigation" className="space-y-2">
                 <Link href="/features" className="block text-sm text-text-muted hover:text-text-secondary">ERP Features</Link>
                 <Link href="/pricing" className="block text-sm text-text-muted hover:text-text-secondary">ERP Pricing</Link>
+                <Link href="/demo" className="block text-sm text-text-muted hover:text-text-secondary">Live Demo</Link>
                 <Link href="/demo-request" className="block text-sm text-text-muted hover:text-text-secondary">Request Free Demo</Link>
                 <Link href="/register" className="block text-sm text-text-muted hover:text-text-secondary">Get started</Link>
               </nav>
