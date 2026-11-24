@@ -25,6 +25,7 @@ import {
   Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin, WifiOff, Download,
   UserCircle, Tag, UtensilsCrossed, ChefHat, BookOpen, Globe, Truck, Calendar, Scissors, ListOrdered, CalendarDays,
   FileText, Landmark, Calculator, ShieldCheck, Contact, Banknote, Boxes, BarChart3, Sparkles,
+  Inbox,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -117,6 +118,7 @@ const suffixNavItems: NavItem[] = [
   { icon: Tag, label: "Discounts", featureKey: "discounts-coupons", href: "/discounts", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "discounts", app: "crm" },
   { icon: TrendingUp, label: "Analytics", href: "/analytics", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "analytics", app: "insights" },
   { icon: Sparkles, label: "Intelligence", href: "/intelligence", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "ai-assistant", app: "insights" },
+  { icon: Inbox, label: "AI Approvals", href: "/approvals", roles: ["OWNER", "ADMIN", "MANAGER"], feature: "ai-assistant", app: "insights" },
   { icon: Users, label: "Staff", href: "/users", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, app: "admin" },
   { icon: MapPin, label: "Locations", href: "/locations", roles: ["OWNER", "ADMIN"], feature: null, app: "admin" },
   { icon: Settings, label: "Settings", href: "/settings", roles: ["OWNER", "ADMIN"], feature: null, app: "admin" },

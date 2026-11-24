@@ -1,22 +1,30 @@
+import { getCacheStore } from "@/lib/cache-store";
 import { buildIntelligence, type IntelligenceOptions } from "./intelligence";
 import type { BusinessIntelligence } from "./types";
 
-// In-memory, per server instance. On serverless platforms each instance has
-// its own cache, so this reduces load but is not a global guarantee. Move to
-// Redis/Upstash if you need a shared cache.
-const TTL_MS = 15 * 60 * 1000;
+// Shared cache when UPSTASH_REDIS_REST_URL is configured, otherwise per-process
+// memory (see src/lib/cache-store.ts). Intelligence is derived data: a lost
+// cache entry costs a rebuild, never correctness.
+const TTL_SECONDS = 15 * 60;
 const FORCE_COOLDOWN_MS = 60 * 1000;
 
 export interface IntelligenceRequest extends IntelligenceOptions {
   force?: boolean;
 }
 
-const cache = new Map<string, { value: BusinessIntelligence; expiresAt: number; builtAt: number }>();
+interface CachedIntelligence {
+  intel: BusinessIntelligence;
+  builtAt: number;
+}
+
+// Collapses concurrent rebuilds within one process; across processes the cache
+// itself is shared, and duplicate builds are merely wasteful.
 const inFlight = new Map<string, Promise<BusinessIntelligence>>();
 
 /** One cache entry per tenant + window + branch, so ranges never collide. */
 function cacheKey(tenantId: string, opts: IntelligenceRequest): string {
   return [
+    "intel",
     tenantId,
     opts.from ? opts.from.toISOString() : "default",
     opts.to ? opts.to.toISOString() : "now",
@@ -24,18 +32,22 @@ function cacheKey(tenantId: string, opts: IntelligenceRequest): string {
   ].join(":");
 }
 
+function tenantPrefix(tenantId: string): string {
+  return `intel:${tenantId}:`;
+}
+
 export async function getIntelligence(
   tenantId: string,
   opts: IntelligenceRequest = {}
 ): Promise<{ intel: BusinessIntelligence; cached: boolean }> {
+  const store = getCacheStore();
   const key = cacheKey(tenantId, opts);
-  const hit = cache.get(key);
+  const hit = await store.get<CachedIntelligence>(key);
   const now = Date.now();
 
   // A forced refresh is honoured at most once per cooldown window per key.
   const canForce = !hit || now - hit.builtAt > FORCE_COOLDOWN_MS;
-  const useCache = hit && now < hit.expiresAt && !(opts.force && canForce);
-  if (hit && useCache) return { intel: hit.value, cached: true };
+  if (hit && !(opts.force && canForce)) return { intel: hit.intel, cached: true };
 
   let pending = inFlight.get(key);
   if (!pending) {
@@ -43,14 +55,25 @@ export async function getIntelligence(
     inFlight.set(key, pending);
   }
   const intel = await pending;
-  cache.set(key, { value: intel, expiresAt: Date.now() + TTL_MS, builtAt: Date.now() });
+  const entry: CachedIntelligence = { intel, builtAt: Date.now() };
+  await store.set(key, entry, TTL_SECONDS).catch((error) => {
+    // A cache write failure must not fail the request.
+    console.error("Failed to cache intelligence:", error);
+  });
   return { intel, cached: false };
 }
 
-/** Call after the tenant changes data that affects intelligence (e.g. a sale). */
-export function invalidateIntelligence(tenantId: string): void {
-  const prefix = `${tenantId}:`;
-  for (const key of cache.keys()) {
-    if (key.startsWith(prefix)) cache.delete(key);
+/**
+ * Call after the tenant changes data that affects intelligence (e.g. a sale).
+ * Await it where you can: with the shared backend the delete is a network call,
+ * so returning before it completes leaves a short window where another instance
+ * could still serve the old snapshot.
+ */
+export async function invalidateIntelligence(tenantId: string): Promise<void> {
+  try {
+    await getCacheStore().deleteByPrefix(tenantPrefix(tenantId));
+  } catch (error) {
+    // Invalidation is best effort: stale data expires within the TTL.
+    console.error(`Failed to invalidate intelligence for ${tenantId}:`, error);
   }
 }

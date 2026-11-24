@@ -2,6 +2,7 @@ import { requireUserWithFeature } from "@/lib/api-guards";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
+import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
 
 export async function PUT(
   request: NextRequest,
@@ -67,6 +68,7 @@ export async function PUT(
       });
     }
 
+    await invalidateIntelligence(user.tenantId);
     return recordSyncResponse(request, user.tenantId, NextResponse.json(product));
   } catch (error) {
     console.error("PUT /api/products/[id] error:", error);
@@ -95,6 +97,7 @@ export async function DELETE(
 
     await db.product.delete({ where: { id } });
 
+    await invalidateIntelligence(user.tenantId);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("DELETE /api/products/[id] error:", error);

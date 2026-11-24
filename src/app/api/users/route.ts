@@ -3,6 +3,7 @@ import { getCurrentUser, hashPassword } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPlanLimits } from "@/lib/plans";
 import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
+import { can } from "@/lib/permissions";
 
 export async function GET() {
   try {
@@ -27,7 +28,15 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(users);
+    // Cashiers and other non-managers need names for scheduling and queue
+    // screens, but not the tenant-wide staff directory with emails/phones.
+    if (can(user.role, "users:read:sensitive")) return NextResponse.json(users);
+
+    return NextResponse.json(
+      users.map(({ id, name, role, isActive, avatar, createdAt, updatedAt }) => ({
+        id, name, role, isActive, avatar, createdAt, updatedAt,
+      }))
+    );
   } catch (error) {
     console.error("GET /api/users error:", error);
     return NextResponse.json(

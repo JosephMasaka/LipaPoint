@@ -2,6 +2,7 @@ import { PrismaClient, Product } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { provisionTenantModules } from "../src/lib/modules";
 import { seedChartOfAccounts } from "../src/lib/coa";
+import { approvePayrollRun, createPayrollRun, ensureStatutoryRates } from "../src/lib/payroll";
 
 const prisma = new PrismaClient();
 
@@ -21,6 +22,20 @@ function daysAgo(n: number): Date {
 
 function dateOnly(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/** First day of the month `n` months back — the anchor for HR/asset dates. */
+function monthsAgo(n: number): Date {
+  const d = new Date();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - n);
+  return dateOnly(d);
+}
+
+/** Payroll period key ("YYYY-MM") for `n` months back. */
+function periodMonthsAgo(n: number): string {
+  const d = monthsAgo(n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 async function main() {
@@ -1876,6 +1891,213 @@ async function main() {
   });
 
   console.log("  ✓ Sharp Cuts Barbershop: 6 products, 9 services, 4 users, appointments, queue, schedules\n");
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ERP PHASE 4 SAMPLES: ASSET REGISTER + HR & PAYROLL (Club Chairman)
+  // ═════════════════════════════════════════════════════════════════════
+  console.log("  Creating asset register and HR & payroll samples...");
+
+  // Kenya statutory rates are never hardcoded in the calculation logic, so the
+  // platform rate table must exist before any payslip is built.
+  await ensureStatutoryRates();
+
+  // Employee is the HR record (salary, statutory numbers), deliberately
+  // separate from User: a casual worker is paid without ever signing in.
+  const chairStaff = [
+    { staffNumber: "EMP-0001", firstName: "Grace", lastName: "Wanjiku", email: "grace@clubchairman.co.ke", jobTitle: "Bar Manager", basicSalary: 55000, employmentType: "permanent", phone: "+254 722 100 001", kraPin: "A001234567X", nssfNumber: "NSSF-000101", shaNumber: "SHA-000101", mpesaNumber: "+254 722 100 001", startMonthsAgo: 34 },
+    { staffNumber: "EMP-0002", firstName: "Peter", lastName: "Otieno", email: null, jobTitle: "Head Bartender", basicSalary: 38000, employmentType: "permanent", phone: "+254 722 100 002", kraPin: "A001234568X", nssfNumber: "NSSF-000102", shaNumber: "SHA-000102", mpesaNumber: "+254 722 100 002", startMonthsAgo: 26 },
+    { staffNumber: "EMP-0003", firstName: "Mercy", lastName: "Achieng", email: null, jobTitle: "Waitress", basicSalary: 26000, employmentType: "permanent", phone: "+254 722 100 003", kraPin: "A001234569X", nssfNumber: "NSSF-000103", shaNumber: "SHA-000103", mpesaNumber: "+254 722 100 003", startMonthsAgo: 15 },
+    { staffNumber: "EMP-0004", firstName: "Samuel", lastName: "Kiptoo", email: null, jobTitle: "Cook", basicSalary: 32000, employmentType: "permanent", phone: "+254 722 100 004", kraPin: "A001234570X", nssfNumber: "NSSF-000104", shaNumber: "SHA-000104", mpesaNumber: "+254 722 100 004", startMonthsAgo: 21 },
+    { staffNumber: "EMP-0005", firstName: "Brian", lastName: "Omondi", email: null, jobTitle: "Security", basicSalary: 24000, employmentType: "contract", phone: "+254 722 100 005", kraPin: "A001234571X", nssfNumber: "NSSF-000105", shaNumber: "SHA-000105", mpesaNumber: "+254 722 100 005", startMonthsAgo: 8 },
+    { staffNumber: "EMP-0006", firstName: "Esther", lastName: "Mwangi", email: null, jobTitle: "Cleaner", basicSalary: 18000, employmentType: "casual", phone: "+254 722 100 006", kraPin: "A001234572X", nssfNumber: "NSSF-000106", shaNumber: "SHA-000106", mpesaNumber: "+254 722 100 006", startMonthsAgo: 5 },
+  ];
+
+  const chairEmployeeIds = new Map<string, string>();
+  for (const staff of chairStaff) {
+    const employee = await prisma.employee.create({
+      data: {
+        tenantId: chairman.id,
+        locationId: chairLocation.id,
+        staffNumber: staff.staffNumber,
+        firstName: staff.firstName,
+        lastName: staff.lastName,
+        email: staff.email,
+        phone: staff.phone,
+        jobTitle: staff.jobTitle,
+        kraPin: staff.kraPin,
+        nssfNumber: staff.nssfNumber,
+        shaNumber: staff.shaNumber,
+        mpesaNumber: staff.mpesaNumber,
+        employmentType: staff.employmentType,
+        basicSalary: staff.basicSalary,
+        startDate: monthsAgo(staff.startMonthsAgo),
+      },
+    });
+    chairEmployeeIds.set(staff.staffNumber, employee.id);
+  }
+
+  await prisma.leaveRequest.createMany({
+    data: [
+      {
+        tenantId: chairman.id,
+        employeeId: chairEmployeeIds.get("EMP-0001")!,
+        type: "annual",
+        startDate: daysAgo(-4),
+        endDate: daysAgo(-8),
+        days: 5,
+        reason: "Family wedding upcountry",
+        status: "approved",
+        approvedBy: johnMasaka.id,
+      },
+      {
+        tenantId: chairman.id,
+        employeeId: chairEmployeeIds.get("EMP-0002")!,
+        type: "sick",
+        startDate: daysAgo(3),
+        endDate: daysAgo(2),
+        days: 2,
+        reason: "Malaria — clinic note attached",
+        status: "pending",
+      },
+      {
+        tenantId: chairman.id,
+        employeeId: chairEmployeeIds.get("EMP-0004")!,
+        type: "annual",
+        startDate: daysAgo(96),
+        endDate: daysAgo(90),
+        days: 7,
+        reason: "Annual leave",
+        status: "approved",
+        approvedBy: johnMasaka.id,
+      },
+    ],
+  });
+
+  // An active staff loan: the payroll engine deducts the monthly amount and
+  // reduces the balance, so the next payslip for Mercy carries a deduction.
+  await prisma.employeeLoan.create({
+    data: {
+      tenantId: chairman.id,
+      employeeId: chairEmployeeIds.get("EMP-0003")!,
+      principal: 30000,
+      balance: 18000,
+      monthlyDeduction: 3000,
+      reason: "School fees advance",
+      status: "active",
+      startDate: monthsAgo(4),
+      createdBy: johnMasaka.id,
+    },
+  });
+
+  // Last month's run is approved (locked, payslips frozen); this month stays a
+  // draft so the approve → pay → file lifecycle can still be demonstrated.
+  const pastPayrollRun = await createPayrollRun({
+    tenantId: chairman.id,
+    period: periodMonthsAgo(1),
+    createdBy: johnMasaka.id,
+  });
+  await approvePayrollRun(chairman.id, pastPayrollRun.id, johnMasaka.id);
+  await createPayrollRun({
+    tenantId: chairman.id,
+    period: periodMonthsAgo(0),
+    createdBy: johnMasaka.id,
+  });
+
+  const chairAssets = [
+    { assetCode: "AST-0001", name: "Yamaha PA Sound System", category: "equipment", description: "Mixer, amplifier and two main-hall speakers", purchaseCost: 185000, residualValue: 15000, usefulLifeMonths: 60, ageMonths: 24, assignedTo: "EMP-0002" as string | null, lifecycleStatus: "in_service", disposedMonthsAgo: 0, disposalProceeds: 0 },
+    { assetCode: "AST-0002", name: "Chest Freezer 400L", category: "kitchen", description: "Drinks and ice storage behind the bar", purchaseCost: 92000, residualValue: 8000, usefulLifeMonths: 84, ageMonths: 18, assignedTo: null, lifecycleStatus: "in_service", disposedMonthsAgo: 0, disposalProceeds: 0 },
+    { assetCode: "AST-0003", name: "POS Terminal (Counter 1)", category: "it", description: "Till terminal with cash drawer and receipt printer", purchaseCost: 65000, residualValue: 5000, usefulLifeMonths: 48, ageMonths: 11, assignedTo: "EMP-0001" as string | null, lifecycleStatus: "in_service", disposedMonthsAgo: 0, disposalProceeds: 0 },
+    { assetCode: "AST-0004", name: "Diesel Generator 7.5kVA", category: "equipment", description: "Standby power for the bar and fridges", purchaseCost: 140000, residualValue: 12000, usefulLifeMonths: 96, ageMonths: 30, assignedTo: null, lifecycleStatus: "under_maintenance", disposedMonthsAgo: 0, disposalProceeds: 0 },
+    { assetCode: "AST-0005", name: "Delivery Motorbike 150cc", category: "vehicle", description: "Drinks deliveries within Kitengela", purchaseCost: 165000, residualValue: 25000, usefulLifeMonths: 60, ageMonths: 9, assignedTo: null, lifecycleStatus: "in_service", disposedMonthsAgo: 0, disposalProceeds: 0 },
+    { assetCode: "AST-0006", name: "Lounge Sofa Set", category: "furniture", description: "Two three-seater sofas and a coffee table for the lounge", purchaseCost: 78000, residualValue: 6000, usefulLifeMonths: 120, ageMonths: 40, assignedTo: null, lifecycleStatus: "in_service", disposedMonthsAgo: 0, disposalProceeds: 0 },
+    { assetCode: "AST-0007", name: "Old Bar Fridge (disposed)", category: "kitchen", description: "Replaced after the compressor failed", purchaseCost: 48000, residualValue: 0, usefulLifeMonths: 84, ageMonths: 60, assignedTo: null, lifecycleStatus: "disposed", disposedMonthsAgo: 5, disposalProceeds: 8000 },
+  ];
+
+  const chairAssetIds = new Map<string, string>();
+  for (const spec of chairAssets) {
+    const depreciable = spec.purchaseCost - spec.residualValue;
+    const monthly = Math.round((depreciable / spec.usefulLifeMonths) * 100) / 100;
+    const schedule: Array<{ period: string; amount: number; bookValueAfter: number }> = [];
+    let accumulated = 0;
+
+    // One entry per completed month from the month after purchase. A disposed
+    // asset stops depreciating at disposal and is written down to residual.
+    if (spec.lifecycleStatus !== "disposed") {
+      for (let back = spec.ageMonths - 1; back >= 1; back--) {
+        if (schedule.length >= spec.usefulLifeMonths) break;
+        if (accumulated + monthly > depreciable + 0.005) break;
+        accumulated = Math.round((accumulated + monthly) * 100) / 100;
+        schedule.push({
+          period: periodMonthsAgo(back),
+          amount: monthly,
+          bookValueAfter: Math.round((spec.purchaseCost - accumulated) * 100) / 100,
+        });
+      }
+    } else {
+      accumulated = depreciable;
+    }
+
+    const asset = await prisma.asset.create({
+      data: {
+        tenantId: chairman.id,
+        locationId: chairLocation.id,
+        assetCode: spec.assetCode,
+        name: spec.name,
+        category: spec.category,
+        description: spec.description,
+        purchaseCost: spec.purchaseCost,
+        purchaseDate: monthsAgo(spec.ageMonths),
+        depreciationMethod: spec.lifecycleStatus === "disposed" ? "none" : "straight_line",
+        usefulLifeMonths: spec.usefulLifeMonths,
+        residualValue: spec.residualValue,
+        accumulatedDepreciation: accumulated,
+        lifecycleStatus: spec.lifecycleStatus,
+        disposedAt: spec.lifecycleStatus === "disposed" ? monthsAgo(spec.disposedMonthsAgo) : null,
+        disposalProceeds: spec.lifecycleStatus === "disposed" ? spec.disposalProceeds : null,
+        assignedTo: spec.assignedTo ? chairEmployeeIds.get(spec.assignedTo)! : null,
+      },
+    });
+    chairAssetIds.set(spec.assetCode, asset.id);
+
+    if (schedule.length > 0) {
+      await prisma.assetDepreciationEntry.createMany({
+        data: schedule.map((entry) => ({ tenantId: chairman.id, assetId: asset.id, ...entry })),
+      });
+    }
+  }
+
+  await prisma.assetMaintenance.createMany({
+    data: [
+      {
+        tenantId: chairman.id,
+        assetId: chairAssetIds.get("AST-0004")!,
+        date: monthsAgo(2),
+        description: "Full service: oil, filters and injector clean",
+        cost: 4500,
+        performedBy: "Kiptoo Power Services",
+        nextDueDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000),
+      },
+      {
+        tenantId: chairman.id,
+        assetId: chairAssetIds.get("AST-0002")!,
+        date: monthsAgo(1),
+        description: "Replaced door gasket and recharged coolant",
+        cost: 2800,
+        performedBy: "Cool Care Fridges",
+      },
+      {
+        tenantId: chairman.id,
+        assetId: chairAssetIds.get("AST-0001")!,
+        date: monthsAgo(5),
+        description: "Re-coned one speaker and replaced an XLR cable",
+        cost: 6500,
+        performedBy: "Sonic Repairs",
+      },
+    ],
+  });
+
+  console.log("  ✓ HR & payroll: 6 employees, 3 leave requests, staff loan, 2 payroll runs\n");
+  console.log("  ✓ Asset register: 7 assets, monthly depreciation schedules, maintenance history\n");
 
   // ═════════════════════════════════════════════════════════════════════
   // ERP Phase 0: provision tier-entitled modules + default chart of accounts

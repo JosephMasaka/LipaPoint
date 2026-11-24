@@ -21,6 +21,7 @@ import {
   Quote,
   Gauge,
 } from "lucide-react";
+import { VERTICAL_PLANS, groupPlanFeatures } from "@/lib/plans";
 
 export const metadata: Metadata = {
   title: {
@@ -88,7 +89,7 @@ export default function HomePage() {
         {/* ---- Trust strip ---- */}
         <div className="border-border bg-background">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-10 gap-y-4 px-6 py-5 text-sm text-text-secondary">
-            <span className="text-text-primary font-semibold">Trusted across Kenya</span>
+            <span className="text-text-primary font-semibold">Founding Partner Offer</span>
             <a
               href="https://www.facebook.com/lipapoint"
               target="_blank"
@@ -654,62 +655,29 @@ export default function HomePage() {
             </div>
 
             <div className="mx-auto mt-10 grid max-w-5xl gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              <PlanCard
-                name="Starter"
-                tagline="For small shops & lorries"
-                price={1500}
-                period="KES / month"
-                ctaHref="/register"
-                ctaLabel="Get started"
-                features={[
-                  "Point of Sale",
-                  "Inventory basics",
-                  "M-Pesa payments",
-                  "1 location",
-                  "Up to 3 users",
-                  "Email support",
-                ]}
-                highlight={false}
-              />
-              <PlanCard
-                name="Growth"
-                tagline="For growing businesses"
-                price={3500}
-                period="KES / month"
-                ctaHref="/register"
-                ctaLabel="Get started"
-                features={[
-                  "Everything in Starter",
-                  "Payroll & Finance",
-                  "More locations",
-                  "More users",
-                  "Reports & dashboards",
-                  "Priority support",
-                ]}
-                highlight={true}
-              />
-              <PlanCard
-                name="Pro"
-                tagline="For high-volume SMEs"
-                price={7000}
-                period="KES / month"
-                ctaHref="/register"
-                ctaLabel="Get started"
-                features={[
-                  "Everything in Growth",
-                  "Advanced reporting",
-                  "Full module access",
-                  "All locations",
-                  "All users",
-                  "Priority support",
-                ]}
-                highlight={false}
-              />
+              {TEASER_TIERS.map((tier) => (
+                <PlanCard
+                  key={tier}
+                  name={TEASER_META[tier].name}
+                  tagline={TEASER_META[tier].tagline}
+                  price={VERTICAL_PLANS.RETAIL_GENERAL[tier].pricing.monthly}
+                  period="month"
+                  ctaHref="/register"
+                  ctaLabel="Get started"
+                  features={teaserFeatures(tier)}
+                  highlight={tier === "PROFESSIONAL"}
+                />
+              ))}
             </div>
 
             <p className="mt-8 text-center text-sm text-text-muted">
-              Additional modules available à la carte. Pricing and modules shown are
-              indicative — see checkout for final pricing.
+              Retail starting prices shown, billed monthly. Restaurants, bars,
+              pharmacies and every other business type have their own tiers and
+              modules à la carte —{" "}
+              <Link href="/pricing" className="font-medium text-text-primary underline-offset-4 hover:underline">
+                see all pricing
+              </Link>
+              .
             </p>
           </div>
         </section>
@@ -1030,7 +998,7 @@ export default function HomePage() {
   );
 }
 
-function SubscriptionPeriodBadge({ tier }: { tier: string }) {
+function SubscriptionPeriodBadge() {
   // Compute "MMM yyyy" from the first of next month using native JS
   const now = new Date();
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -1043,6 +1011,52 @@ function SubscriptionPeriodBadge({ tier }: { tier: string }) {
       Billed monthly · renews {monthly} {year}
     </span>
   );
+}
+
+// The landing teaser reads the same config as /pricing (retail is the default
+// tab there), so tier names, prices and bullets cannot drift apart from the
+// page that actually sells the plans.
+const TEASER_TIERS = ["STARTER", "PROFESSIONAL", "ENTERPRISE"] as const;
+type TeaserTier = (typeof TEASER_TIERS)[number];
+
+const TEASER_META: Record<TeaserTier, { name: string; tagline: string }> = {
+  STARTER: { name: "Starter", tagline: "For small shops & kiosks" },
+  PROFESSIONAL: { name: "Professional", tagline: "For growing businesses" },
+  ENTERPRISE: { name: "Enterprise", tagline: "For chains & high-volume operations" },
+};
+
+function featureLabels(tier: TeaserTier): Set<string> {
+  return new Set(
+    groupPlanFeatures(VERTICAL_PLANS.RETAIL_GENERAL[tier].limits.features).flatMap(
+      (group) => group.items
+    )
+  );
+}
+
+function limitText(value: number, singular: string, plural: string): string {
+  return Number.isFinite(value)
+    ? `${value} ${value === 1 ? singular : plural}`
+    : `Unlimited ${plural}`;
+}
+
+/** Tier bullets built from the plan's own feature list and limits. */
+function teaserFeatures(tier: TeaserTier): string[] {
+  const limits = VERTICAL_PLANS.RETAIL_GENERAL[tier].limits;
+  const limitsLine = `${limitText(limits.locations, "location", "locations")} · ${limitText(
+    limits.staff,
+    "user",
+    "users"
+  )}`;
+  const own = [...featureLabels(tier)];
+  if (tier === "STARTER") return [...own.slice(0, 5), limitsLine];
+
+  const included = tier === "PROFESSIONAL" ? featureLabels("STARTER") : featureLabels("PROFESSIONAL");
+  const extra = own.filter((label) => !included.has(label)).slice(0, 4);
+  return [
+    `Everything in ${tier === "PROFESSIONAL" ? "Starter" : "Professional"}`,
+    ...extra,
+    limitsLine,
+  ];
 }
 
 function PlanCard({
@@ -1064,7 +1078,6 @@ function PlanCard({
   features: string[];
   highlight?: boolean;
 }) {
-  const tier = name.toLowerCase() as "starter" | "growth" | "pro";
   return (
     <div
       className={twMerge(
@@ -1083,7 +1096,7 @@ function PlanCard({
       <div className="flex col">
         <div className="flex items-center justify-between">
           <span className="text-sm font-semibold text-text-primary">{name}</span>
-          <SubscriptionPeriodBadge tier={tier} />
+          <SubscriptionPeriodBadge />
         </div>
 
         <p className="mt-1 text-sm text-text-muted">{tagline}</p>
@@ -1092,7 +1105,7 @@ function PlanCard({
           <span className="text-3xl font-semibold text-text-primary">
             KES {price.toLocaleString()}
           </span>
-          <span className="text-text-muted">/{period.replace(" / ", "")}</span>
+          <span className="text-text-muted">/{period}</span>
         </div>
 
         <ul className="mt-6 space-y-3 text-sm text-text-secondary">

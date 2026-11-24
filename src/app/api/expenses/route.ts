@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
+import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await invalidateIntelligence(user.tenantId);
     return recordSyncResponse(
       request,
       user.tenantId,

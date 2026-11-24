@@ -6,8 +6,13 @@ import { resolveAiScope, AiScopeError } from "@/lib/ai/scope";
 import { checkQuota, recordUsage, recordToolInvocation } from "@/lib/ai/quota";
 import { newRunId } from "@/lib/ai/usage";
 import { citationsFor } from "@/lib/ai/citations";
-import { runTool, toolDeclarations, toolResultForPrompt, AiToolError, type ToolExecution } from "@/lib/ai/tools/registry";
+import { runTool, toolResultForPrompt, AiToolError, type ToolExecution } from "@/lib/ai/tools/registry";
 import { getIntelligence } from "@/lib/ai/intelligence-cache";
+import { getCacheStore } from "@/lib/cache-store";
+import { AiDisabledError, assertAiEnabled } from "@/lib/ai/kill-switch";
+import { isActionTool, proposeAction } from "@/lib/ai/actions";
+import { agentAllowsTool, agentDeclarations, resolveAgent } from "@/lib/ai/agents";
+import { checkAgentQuota, finishAgentRun, startAgentRun } from "@/lib/ai/runs";
 import { AiRateLimitError, AiTimeoutError, type AiCitation, type AiScopeInfo } from "@/lib/ai/types";
 
 const SYSTEM_PROMPT = `You are LipaPoint AI, an expert point-of-sale and retail advisor for small and medium businesses in Kenya. Currency is KES; customers commonly pay by M-Pesa, cash and card.
@@ -34,22 +39,21 @@ RULES
 const MAX_TOOL_CALLS = 5;
 const MAX_MESSAGE_LENGTH = 2000;
 
-// Burst limiter, per user, per server instance. The monthly quota in
-// src/lib/ai/quota.ts is the authoritative ceiling.
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+// Burst limiter, per user. Shared across instances when the cache store is
+// backed by Redis (src/lib/cache-store.ts); the monthly quota in
+// src/lib/ai/quota.ts remains the authoritative ceiling.
 const RATE_LIMIT = 15;
-const RATE_WINDOW = 60 * 1000;
+const RATE_WINDOW_SECONDS = 60;
 
-function checkRateLimit(userId: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(userId);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_WINDOW });
+async function checkRateLimit(userId: string): Promise<boolean> {
+  try {
+    const count = await getCacheStore().increment(`rl:chat:${userId}`, RATE_WINDOW_SECONDS);
+    return count <= RATE_LIMIT;
+  } catch (error) {
+    // A cache outage must not take the assistant down; the quota still applies.
+    console.error("AI burst limiter unavailable — allowing request:", error);
     return true;
   }
-  if (entry.count >= RATE_LIMIT) return false;
-  entry.count++;
-  return true;
 }
 
 function scopeLine(scope: AiScopeInfo): string {
@@ -63,7 +67,7 @@ function errorBody(error: string, code: string, runId: string) {
 export async function POST(request: Request) {
   const runId = newRunId();
 
-  let body: { message?: unknown; from?: unknown; to?: unknown; locationId?: unknown };
+  let body: { message?: unknown; from?: unknown; to?: unknown; locationId?: unknown; agent?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -85,6 +89,17 @@ export async function POST(request: Request) {
   if (guard.response) return guard.response;
   const user = guard.user;
 
+  // Kill switch: a global flag or the tenant's own setting stops model calls.
+  // (Deterministic intelligence and reports are unaffected.)
+  try {
+    await assertAiEnabled(user.tenantId);
+  } catch (error) {
+    if (error instanceof AiDisabledError) {
+      return NextResponse.json(errorBody(error.message, error.code, runId), { status: error.status });
+    }
+    throw error;
+  }
+
   if (!process.env.GEMINI_API_KEY && !process.env.GROQ_API_KEY) {
     return NextResponse.json(
       errorBody("AI service is not configured", "AI_NOT_CONFIGURED", runId),
@@ -92,7 +107,18 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!checkRateLimit(user.id)) {
+  // Agent registry: omitted means the general assistant. An unknown or
+  // disabled agent is rejected rather than silently downgraded, because the
+  // caller asked for a narrower capability set on purpose.
+  const agent = resolveAgent(typeof body.agent === "string" ? body.agent : null);
+  if (!agent) {
+    return NextResponse.json(
+      errorBody(`Unknown or disabled agent "${String(body.agent).slice(0, 40)}".`, "UNKNOWN_AGENT", runId),
+      { status: 400 }
+    );
+  }
+
+  if (!(await checkRateLimit(user.id))) {
     return NextResponse.json(
       errorBody("Rate limit exceeded. Please wait a moment before trying again.", "RATE_LIMITED", runId),
       { status: 429 }
@@ -107,6 +133,7 @@ export async function POST(request: Request) {
   let outputTokens = 0;
   let totalTokens = 0;
   let toolCallCount = 0;
+  let approvalCount = 0;
 
   try {
     const resolved = await resolveAiScope(user, {
@@ -152,8 +179,47 @@ export async function POST(request: Request) {
       `${SYSTEM_PROMPT}\n\n${scopeLine(scope)}\n` +
       `Business name: ${user.tenant.name}. Business type: ${user.tenant.type}.\n\n${businessData}`;
 
+    // Per-agent ceiling on top of the tenant-wide quota, so one agent cannot
+    // use up the whole month's allowance.
+    const agentQuota = await checkAgentQuota(user.tenantId, agent.id, user.tenant.tier);
+    if (!agentQuota.allowed) {
+      await recordUsage({
+        tenantId: user.tenantId,
+        userId: user.id,
+        runId,
+        surface: "chat",
+        provider: "none",
+        status: "QUOTA_EXCEEDED",
+        errorCode: "AGENT_QUOTA_EXCEEDED",
+        latencyMs: Date.now() - startedAt,
+      });
+      return NextResponse.json(
+        {
+          error: `This assistant has reached its monthly limit (${agentQuota.limit} runs). It resets on ${agentQuota.resetsAt.slice(0, 10)}.`,
+          code: "AGENT_QUOTA_EXCEEDED",
+          runId,
+          agent: { id: agent.id, label: agent.label, version: agent.version },
+          quota: agentQuota,
+        },
+        { status: 429 }
+      );
+    }
+
+    // The run exists before the model is called, so a crash still leaves a
+    // trace. `finishAgentRun` closes it on every exit path below.
+    await startAgentRun({
+      tenantId: user.tenantId,
+      userId: user.id,
+      runId,
+      agent,
+      surface: "chat",
+      trigger: "chat",
+    });
+
     const toolsEnabled = process.env.AI_TOOLS_ENABLED !== "false";
-    const declarations = toolsEnabled ? toolDeclarations() : undefined;
+    // Only this agent's granted tools are advertised: read tools answer
+    // questions, action tools only queue an approval.
+    const declarations = agentDeclarations(agent, { readToolsEnabled: toolsEnabled });
 
     let result = await generateAiReply(systemPrompt, message, { tools: declarations });
     provider = result.provider;
@@ -163,6 +229,7 @@ export async function POST(request: Request) {
     totalTokens += result.tokensUsed ?? (result.promptTokens ?? 0) + (result.outputTokens ?? 0);
 
     const executed: ToolExecution[] = [];
+    const proposals: Array<{ id: string; summary: string; status: string; expiresAt: string }> = [];
     const requestedCalls = (result.toolCalls ?? []).slice(0, MAX_TOOL_CALLS);
 
     if (toolsEnabled && requestedCalls.length > 0) {
@@ -176,6 +243,40 @@ export async function POST(request: Request) {
             call.args && typeof call.args === "object" && !Array.isArray(call.args)
               ? (call.args as Record<string, unknown>)
               : {};
+          // Defence in depth: the model only sees this agent's declarations,
+          // but a fabricated tool call must still be refused.
+          if (!agentAllowsTool(agent, call.name)) {
+            throw new AiToolError(`Tool "${call.name}" is not available to the ${agent.label}.`, "TOOL_NOT_PERMITTED");
+          }
+
+          if (isActionTool(call.name)) {
+            // Write tools never execute here: the proposal is validated and
+            // queued for a human, and this turn only reports that.
+            const proposal = await proposeAction({
+              tenantId: user.tenantId,
+              userId: user.id,
+              toolName: call.name,
+              args,
+              runId,
+            });
+            proposals.push({
+              id: proposal.approval.id,
+              summary: proposal.summary,
+              status: proposal.approval.status,
+              expiresAt: proposal.approval.expiresAt.toISOString(),
+            });
+            await recordToolInvocation({
+              tenantId: user.tenantId,
+              runId,
+              toolName: call.name,
+              args,
+              ok: true,
+              resultRows: 1,
+              latencyMs: Date.now() - toolStarted,
+            });
+            continue;
+          }
+
           const execution = runTool(call.name, args, intel);
           executed.push(execution);
           await recordToolInvocation({
@@ -202,10 +303,15 @@ export async function POST(request: Request) {
         }
       }
 
-      if (executed.length > 0) {
+      if (executed.length > 0 || proposals.length > 0) {
         const followup =
           `${message}\n\nTOOL RESULTS (verified, tenant-scoped, read-only). Use these numbers for the answer:\n` +
-          toolResultForPrompt(executed, scope);
+          toolResultForPrompt(executed, scope) +
+          (proposals.length > 0
+            ? `\n\nPROPOSED ACTIONS (queued for the owner's approval — none of these ran):\n` +
+              proposals.map((p) => `- ${p.summary} (request ${p.id})`).join("\n") +
+              `\nTell the user the action is waiting in AI approvals and that nothing has happened yet.`
+            : "");
         const final = await generateAiReply(`${systemPrompt}\n\nAnswer using the TOOL RESULTS provided in the user message.`, followup);
         provider = final.provider;
         model = final.model ?? model;
@@ -217,6 +323,17 @@ export async function POST(request: Request) {
     }
 
     const citations: AiCitation[] = citationsFor(executed, scope);
+    approvalCount = proposals.length;
+
+    // Pending proposals keep the run open until a human decides; the decision
+    // and execute routes close it.
+    await finishAgentRun({
+      tenantId: user.tenantId,
+      runId,
+      status: proposals.length > 0 ? "AWAITING_APPROVAL" : "COMPLETED",
+      toolCallCount,
+      approvalCount,
+    });
 
     await recordUsage({
       tenantId: user.tenantId,
@@ -237,11 +354,31 @@ export async function POST(request: Request) {
       reply: result.reply,
       citations,
       scope,
+      // Actions the model proposed; none of them ran. The user approves them
+      // under AI approvals, which is what actually executes them.
+      approvals: proposals,
+      agent: { id: agent.id, label: agent.label, version: agent.version },
       usage: { tokensUsed: totalTokens, provider, runId },
     });
   } catch (error: unknown) {
     const latencyMs = Date.now() - startedAt;
     const base = { tenantId: user.tenantId, userId: user.id, runId, surface: "chat" as const, provider, model, promptTokens, outputTokens, totalTokens, latencyMs, toolCallCount };
+    const failureCode =
+      error instanceof AiScopeError
+        ? error.code
+        : error instanceof AiRateLimitError
+          ? "RATE_LIMITED"
+          : error instanceof AiTimeoutError
+            ? "TIMEOUT"
+            : "AI_FAILED";
+    await finishAgentRun({
+      tenantId: user.tenantId,
+      runId,
+      status: "FAILED",
+      errorCode: failureCode,
+      toolCallCount,
+      approvalCount,
+    });
 
     if (error instanceof AiScopeError) {
       await recordUsage({ ...base, status: "ERROR", errorCode: error.code });

@@ -2,8 +2,23 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendEmail, lowStockAlertEmail, planExpiryWarningEmail } from "@/lib/email";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    // This route fans out email to every tenant, so it must never be public.
+    // Fail closed when the shared secret is not configured.
+    const secret = process.env.CRON_SECRET;
+    if (!secret) {
+      console.error("CRON_SECRET is not set — refusing to run the notification sweep");
+      return NextResponse.json({ error: "Notification sweep is not configured" }, { status: 503 });
+    }
+    const provided =
+      request.headers.get("x-cron-secret") ??
+      request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ??
+      "";
+    if (provided !== secret) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const tenants = await db.tenant.findMany({
       where: { isActive: true },
       include: {

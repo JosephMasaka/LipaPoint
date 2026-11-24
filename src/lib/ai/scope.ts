@@ -50,9 +50,23 @@ function parseDate(value: unknown, field: string): Date | null {
  * from the client only after it is verified to belong to that tenant — the
  * same ownership pattern as POST /api/orders.
  */
+/** Branch lookup seam, so tests can prove the tenant filter without a database. */
+export interface AiScopeDeps {
+  findLocation: (where: {
+    id: string;
+    tenantId: string;
+    isActive: true;
+  }) => Promise<{ id: string; name: string } | null>;
+}
+
+const defaultDeps: AiScopeDeps = {
+  findLocation: (where) => db.location.findFirst({ where, select: { id: true, name: true } }),
+};
+
 export async function resolveAiScope(
   user: { tenantId: string; tenant: { currency: string } },
-  input: RawAiScopeInput = {}
+  input: RawAiScopeInput = {},
+  deps: AiScopeDeps = defaultDeps
 ): Promise<{ scope: AiScopeInfo; locationName: string | null }> {
   const now = new Date();
   const explicitTo = parseDate(input.to, "to");
@@ -60,10 +74,14 @@ export async function resolveAiScope(
 
   // Snap explicit dates to UTC day boundaries so repeated loads share one
   // cache entry and citations describe whole days, not arbitrary instants.
-  const to = explicitTo ? endOfUtcDay(explicitTo) : now;
+  // Defaults are snapped to UTC day boundaries as well. Both the narrative and
+  // the intelligence caches are keyed on scope.from/scope.to, so a millisecond-
+  // precise default would mint a fresh key — and a fresh model call — on every
+  // load. A whole-day default keeps one cache entry per tenant/branch/day.
+  const to = endOfUtcDay(explicitTo ?? now);
   const from = explicitFrom
     ? startOfUtcDay(explicitFrom)
-    : new Date((explicitTo ?? now).getTime() - DEFAULT_DAYS * DAY);
+    : startOfUtcDay(new Date((explicitTo ?? now).getTime() - (DEFAULT_DAYS - 1) * DAY));
 
   // Today is allowed (it becomes end-of-day); a later day is not.
   if (explicitTo && startOfUtcDay(explicitTo).getTime() > startOfUtcDay(now).getTime()) {
@@ -84,9 +102,10 @@ export async function resolveAiScope(
     if (typeof input.locationId !== "string") {
       throw new AiScopeError("locationId must be a string", 400, "INVALID_LOCATION");
     }
-    const location = await db.location.findFirst({
-      where: { id: input.locationId, tenantId: user.tenantId, isActive: true },
-      select: { id: true, name: true },
+    const location = await deps.findLocation({
+      id: input.locationId,
+      tenantId: user.tenantId,
+      isActive: true,
     });
     if (!location) {
       throw new AiScopeError("Location not found for this business", 404, "LOCATION_NOT_FOUND");

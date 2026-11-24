@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Sparkles, Send, X, MessageCircle, Bot, User, FileCheck2 } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Sparkles, Send, X, MessageCircle, Bot, User, FileCheck2, Inbox } from "lucide-react";
 import type { AiCitation } from "@/lib/ai/types";
 
 interface Message {
@@ -10,6 +12,8 @@ interface Message {
   content: string;
   timestamp: Date;
   citations?: AiCitation[];
+  /** Actions the assistant queued instead of running; the user decides them. */
+  approvals?: Array<{ id: string; summary: string }>;
 }
 
 const QUICK_ACTIONS = [
@@ -25,8 +29,12 @@ export function AIAssistant() {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [agentId, setAgentId] = useState("assistant");
+  const [agents, setAgents] = useState<Array<{ id: string; label: string }>>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const pathname = usePathname();
+  const tenantSlug = pathname.split("/").filter(Boolean)[0] ?? "";
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -41,6 +49,27 @@ export function AIAssistant() {
       inputRef.current.focus();
     }
   }, [isOpen]);
+
+  // The registry is fetched rather than bundled so the client never imports
+  // server-only agent modules.
+  useEffect(() => {
+    if (!isOpen || agents.length > 0) return;
+    let cancelled = false;
+    fetch("/api/ai/agents", { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = await res.json().catch(() => ({}));
+        if (!cancelled && Array.isArray(json.agents)) {
+          setAgents(
+            (json.agents as Array<{ id: string; label: string; enabled: boolean }>)
+              .filter((a) => a.enabled)
+              .map((a) => ({ id: a.id, label: a.label }))
+          );
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isOpen, agents.length]);
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return;
@@ -61,7 +90,7 @@ export function AIAssistant() {
       const res = await fetch("/api/ai/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: content.trim() }),
+        body: JSON.stringify({ message: content.trim(), agent: agentId }),
       });
 
       if (res.status === 403) {
@@ -73,7 +102,7 @@ export function AIAssistant() {
       if (res.status === 429) {
         const data = await res.json().catch(() => ({}));
         setError(
-          data.code === "QUOTA_EXCEEDED"
+          data.code === "QUOTA_EXCEEDED" || data.code === "AGENT_QUOTA_EXCEEDED"
             ? data.error
             : "Rate limit reached. Please wait a moment before trying again."
         );
@@ -96,6 +125,7 @@ export function AIAssistant() {
         content: data.reply,
         timestamp: new Date(),
         citations: Array.isArray(data.citations) ? data.citations : undefined,
+        approvals: Array.isArray(data.approvals) && data.approvals.length > 0 ? data.approvals : undefined,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -149,6 +179,23 @@ export function AIAssistant() {
             </button>
           </div>
 
+          {/* Agent picker: each agent has its own tool grant and monthly limit */}
+          {agents.length > 1 && (
+            <div className="flex items-center gap-2 border-b border-border px-4 py-2">
+              <span className="text-[11px] uppercase tracking-wide text-text-muted">Agent</span>
+              <select
+                value={agentId}
+                onChange={(e) => setAgentId(e.target.value)}
+                disabled={isLoading}
+                className="flex-1 rounded-md border border-border bg-surface-elevated px-2 py-1 text-xs text-text-primary focus:border-gold focus:outline-none disabled:opacity-50"
+              >
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>{a.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto px-4 py-3">
             {messages.length === 0 && (
@@ -195,6 +242,15 @@ export function AIAssistant() {
                   }`}
                 >
                   <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.approvals && msg.approvals.length > 0 && tenantSlug && (
+                    <Link
+                      href={`/${tenantSlug}/approvals`}
+                      className="mt-2 flex items-center gap-1.5 rounded-md bg-background px-2 py-1 text-[11px] font-medium text-gold hover:underline"
+                    >
+                      <Inbox className="h-3 w-3" />
+                      Nothing has run yet — review {msg.approvals.length === 1 ? "the request" : `${msg.approvals.length} requests`} in AI approvals
+                    </Link>
+                  )}
                   {msg.citations && msg.citations.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1 border-t border-border/60 pt-2">
                       {msg.citations.map((c) => (

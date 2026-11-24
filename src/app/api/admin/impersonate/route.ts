@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, startImpersonation } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { AUDIT_ACTIONS, writeAuditLog } from "@/lib/audit";
 
 /**
  * Signs the super-admin in as one of the tenant's users, parking the admin
@@ -60,6 +61,16 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
+
+  await writeAuditLog({
+    tenantId: target.tenantId,
+    userId: user.id,
+    action: AUDIT_ACTIONS.AUTH.IMPERSONATION_START,
+    entity: "user",
+    entityId: target.id,
+    details: `Super-admin ${user.email} opened tenant ${tenant.slug} as ${target.role}`,
+    after: { tenantId: target.tenantId, tenantSlug: tenant.slug, role: target.role },
+  });
 
   return NextResponse.json({
     ok: true,

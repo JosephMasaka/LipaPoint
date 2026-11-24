@@ -7,12 +7,13 @@ import {
   Globe, Shield, Clock, Smartphone, Receipt, Bell,
   ArrowRight, Layers, Database, Zap,
   Landmark, Truck, ShieldCheck, Contact, Banknote, Boxes,
+  Sparkles, Quote, MessagesSquare, Gauge,
 } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "ERP Features — POS, Inventory, Payroll, KRA eTIMS & More",
   description:
-    "Explore LipaPoint features: M-Pesa & card payments, inventory, sales analytics, KRA eTIMS invoicing, Kenyan statutory payroll (PAYE/NSSF/SHIF), HR & leave, accounting and asset depreciation. Best ERP for Kenya.",
+    "Explore LipaPoint features: M-Pesa & card payments, inventory, sales analytics, a grounded AI business assistant, KRA eTIMS invoicing, Kenyan statutory payroll (PAYE/NSSF/SHIF), HR & leave, accounting and asset depreciation. Best ERP for Kenya.",
   alternates: { canonical: "https://lipapoint.co.ke/features" },
   openGraph: {
     title: "LipaPoint ERP Features — POS, Finance, Payroll & Tax Compliance in One",
@@ -51,6 +52,16 @@ const featureGroups = [
       { icon: Users, name: "Staff Reports", desc: "Track who sold what, when. Identify top performers and training needs." },
       { icon: Globe, name: "Multi-Branch", desc: "Compare performance across locations. Identify best and worst performers." },
       { icon: Zap, name: "Real-time Dashboard", desc: "Live sales ticker, hourly breakdown, and instant profit calculations." },
+    ],
+  },
+  {
+    title: "Intelligence Centre",
+    description: "Grounded answers from your own numbers",
+    features: [
+      { icon: Sparkles, name: "Ask in Plain Language", desc: "Ask about sales, stock, customers or pricing the way you would ask a manager — no report builder, no formulas." },
+      { icon: Quote, name: "Cited Answers", desc: "Every reply points back to the sales, inventory or customer figures it used, so numbers can be checked before you act." },
+      { icon: MessagesSquare, name: "Scoped to Your Business", desc: "Answers stay inside your tenant and follow the branch and period you pick — 7, 30 or 90 days, or an exact date range." },
+      { icon: Gauge, name: "Visible Usage & Limits", desc: "Professional and Enterprise plans include a monthly question allowance, with a usage panel for owners and admins." },
     ],
   },
   {

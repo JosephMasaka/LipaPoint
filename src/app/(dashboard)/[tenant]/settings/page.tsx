@@ -40,6 +40,10 @@ interface TenantSettings {
   priceOverrideAvailable?: boolean;
   /** Receipt preference: print "Served by: <cashier>" on receipts. */
   showServedBy?: boolean;
+  /** Days of stock cover the AI restock suggestions aim for (1–120). */
+  restockTargetDays?: number;
+  /** Kill switch: false stops all model calls for this business. */
+  aiEnabled?: boolean;
   paymentGateways?: GatewayStatus[];
 }
 
@@ -104,6 +108,7 @@ export default function SettingsPage() {
     priceOverrideEnabled: false,
     priceFloorMode: "PERCENT",
     priceFloorValue: 0,
+    restockTargetDays: 14,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -902,6 +907,50 @@ export default function SettingsPage() {
                   </>
                 )}
                 <p className="mt-2 italic">{settings.receiptFooter}</p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Intelligence</CardTitle>
+              <CardDescription>How the restock suggestions in the Intelligence Centre are sized</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={settings.aiEnabled ?? true}
+                    onChange={(e) => setSettings({ ...settings, aiEnabled: e.target.checked })}
+                    className="mt-1 h-4 w-4"
+                  />
+                  <span className="text-sm">
+                    <span className="block font-medium text-text-primary">AI assistant enabled</span>
+                    <span className="text-text-muted">
+                      Switch off to stop every AI model call for this business — useful during an
+                      incident or if staff should not reach the assistant. Dashboards, reports and
+                      restock suggestions are calculated from your data and keep working.
+                    </span>
+                  </span>
+                </label>
+
+                <label className="block text-sm font-medium text-text-secondary mb-1.5">
+                  Restock target (days of cover)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={120}
+                  value={settings.restockTargetDays ?? 14}
+                  onChange={(e) => setSettings({ ...settings, restockTargetDays: Number(e.target.value) })}
+                  className="w-full max-w-xs rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm text-text-primary"
+                />
+                <p className="mt-2 text-sm text-text-muted">
+                  A product is flagged for restock when its cover drops below this, and the suggested
+                  quantity brings it back up to {settings.restockTargetDays ?? 14} days at current sales speed.
+                  Typical shops use 7–21 days. Allowed range 1–120.
+                </p>
               </div>
             </CardContent>
           </Card>

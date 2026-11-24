@@ -2,6 +2,7 @@ import { db } from "./db";
 import { postJournalEntry } from "./journal";
 import { hasSoftDependency } from "./features";
 import { writeAuditLog, AUDIT_ACTIONS } from "./audit";
+import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
 import type { Prisma } from "@prisma/client";
 
 /**
@@ -117,6 +118,7 @@ export async function createPurchaseOrder(input: CreatePOInput) {
     after: { poNumber: po.poNumber, total: po.total, status: po.status },
   });
 
+  await invalidateIntelligence(input.tenantId);
   return po;
 }
 
@@ -164,6 +166,7 @@ export async function setPurchaseOrderStatus(
     after: { status },
   });
 
+  await invalidateIntelligence(tenantId);
   return updated;
 }
 
@@ -351,6 +354,7 @@ export async function receiveGoods(input: ReceiveGoodsInput) {
     },
   });
 
+  await invalidateIntelligence(input.tenantId);
   return grn;
 }
 
@@ -398,7 +402,7 @@ export async function recordSupplierInvoice(input: RecordInvoiceInput) {
   // only while Finance's core (`general-ledger`) is active for this tenant.
   const postToGl = await hasSoftDependency(input.tenantId, "general-ledger");
 
-  return db.$transaction(async (tx) => {
+  const invoiceResult = await db.$transaction(async (tx) => {
     const invoice = await tx.supplierInvoice.create({
       data: {
         tenantId: input.tenantId,
@@ -453,6 +457,12 @@ export async function recordSupplierInvoice(input: RecordInvoiceInput) {
     },
     { timeout: 20000 }
   );
+
+  // Awaited: with the shared cache the delete is a network call, and a
+  // fire-and-forget invalidation can leave another instance serving a stale
+  // snapshot after the supplier balance already changed.
+  await invalidateIntelligence(input.tenantId);
+  return invoiceResult;
 }
 
 export interface RecordPaymentInput {
@@ -517,7 +527,7 @@ export async function recordSupplierPayment(input: RecordPaymentInput) {
   // only while Finance's core (`general-ledger`) is active for this tenant.
   const postToGl = await hasSoftDependency(input.tenantId, "general-ledger");
 
-  return db.$transaction(async (tx) => {
+  const paymentResult = await db.$transaction(async (tx) => {
     const payment = await tx.supplierPayment.create({
       data: {
         tenantId: input.tenantId,
@@ -590,6 +600,9 @@ export async function recordSupplierPayment(input: RecordPaymentInput) {
     },
     { timeout: 20000 }
   );
+
+  await invalidateIntelligence(input.tenantId);
+  return paymentResult;
 }
 
 async function defaultLocation(tenantId: string): Promise<string | null> {

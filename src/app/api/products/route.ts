@@ -1,5 +1,6 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
 import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
+import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getPlanLimits } from "@/lib/plans";
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await invalidateIntelligence(user.tenantId);
     return recordSyncResponse(
       request,
       user.tenantId,

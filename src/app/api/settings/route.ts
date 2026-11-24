@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { canonicalCounty } from "@/lib/kenya-counties";
 import { isFeatureEnabled } from "@/lib/features";
 import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
+import { clampTargetCoverDays } from "@/lib/ai/restock-target";
 import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
 
 export async function GET() {
@@ -21,6 +22,9 @@ export async function GET() {
         priceOverrideEnabled: true, priceFloorMode: true, priceFloorValue: true,
         // Receipt preference — who is printed as "Served by" on receipts
         showServedBy: true,
+        // AI restock target (days of cover) and kill switch
+        restockTargetDays: true,
+        aiEnabled: true,
         paymentGateways: {
           select: { provider: true, isActive: true, merchantRef: true },
         },
@@ -58,8 +62,24 @@ export async function PUT(request: Request) {
       name, type, currency, taxRate, receiptHeader, receiptFooter,
       mpesaPaybill, mpesaTill, mpesaAccountName, city, county,
       priceOverrideEnabled, priceFloorMode, priceFloorValue,
-      showServedBy,
+      showServedBy, restockTargetDays, aiEnabled,
     } = body;
+
+    // Kill switch: stop model calls for this tenant. Deterministic panels keep
+    // working, so this is safe to flip during an incident.
+    if (aiEnabled !== undefined && typeof aiEnabled !== "boolean") {
+      return NextResponse.json({ error: "AI enabled must be true or false." }, { status: 400 });
+    }
+
+    // Restock target: days of cover the AI reorder suggestions aim for.
+    let restockTarget: number | undefined;
+    if (restockTargetDays !== undefined) {
+      const parsed = Number(restockTargetDays);
+      if (typeof restockTargetDays === "boolean" || !Number.isFinite(parsed)) {
+        return NextResponse.json({ error: "Restock target must be a number of days." }, { status: 400 });
+      }
+      restockTarget = clampTargetCoverDays(parsed);
+    }
 
     // On-the-go pricing can only be switched on while the tenant actually
     // holds the "Price Override" feature — turning it back off always works
@@ -141,11 +161,14 @@ export async function PUT(request: Request) {
         ...(floorMode !== undefined && { priceFloorMode: floorMode }),
         ...(floorValue !== undefined && { priceFloorValue: floorValue }),
         ...(showServedBy !== undefined && { showServedBy: !!showServedBy }),
+        ...(restockTarget !== undefined && { restockTargetDays: restockTarget }),
+        ...(aiEnabled !== undefined && { aiEnabled }),
       },
     });
 
     // Location and business type change which peers we compare against.
-    if (county !== undefined || city !== undefined || type) invalidateIntelligence(user.tenantId);
+    if (county !== undefined || city !== undefined || type || restockTarget !== undefined)
+      await invalidateIntelligence(user.tenantId);
 
     return recordSyncResponse(request, user.tenantId, NextResponse.json(tenant));
   } catch (error) {

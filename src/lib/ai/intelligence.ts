@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { buildAreaIntelligence } from "./area-intelligence";
 import { clamp, confidenceFromSample, median, normalizeName, percentChange, round } from "./intel-utils";
+import { clampTargetCoverDays } from "./restock-target";
 import type {
   BusinessIntelligence, CustomerIntelligence, DataQuality, IntelligenceInsight,
   InventoryIntelligence, PricingSignal, ProductIntelligence, RestockSuggestion,
@@ -15,7 +16,6 @@ import type {
 
 const ANALYSIS_DAYS = 30;
 const DAY = 24 * 60 * 60 * 1000;
-const TARGET_COVER_DAYS = 14;
 const MIN_TARGET_MARGIN = 20;
 
 export interface IntelligenceOptions {
@@ -40,9 +40,15 @@ export async function buildIntelligence(
 
   const tenant = await db.tenant.findUnique({
     where: { id: tenantId },
-    select: { id: true, name: true, type: true, city: true, county: true, currency: true },
+    select: {
+      id: true, name: true, type: true, city: true, county: true, currency: true,
+      restockTargetDays: true,
+    },
   });
   if (!tenant) throw new Error("Business not found");
+
+  // Per-tenant restock target, clamped so a bad row cannot skew quantities.
+  const targetCoverDays = clampTargetCoverDays(tenant.restockTargetDays);
 
   const completed = { tenantId, status: "COMPLETED", ...locationFilter } as const;
 
@@ -176,13 +182,13 @@ export async function buildIntelligence(
   /* ---------------- restock suggestions (deterministic) ---------------- */
   const restock: RestockSuggestion[] = [];
   for (const p of topProducts) {
-    if (p.stock === null || p.daysOfCover === null || p.daysOfCover >= TARGET_COVER_DAYS) continue;
-    const needed = Math.ceil(p.velocityPerDay * TARGET_COVER_DAYS - p.stock);
+    if (p.stock === null || p.daysOfCover === null || p.daysOfCover >= targetCoverDays) continue;
+    const needed = Math.ceil(p.velocityPerDay * targetCoverDays - p.stock);
     if (needed <= 0) continue;
     restock.push({
       productId: p.productId,
       product: p.name, category: p.category, stock: p.stock, velocityPerDay: p.velocityPerDay,
-      daysOfCover: p.daysOfCover, suggestedQty: needed, targetDays: TARGET_COVER_DAYS,
+      daysOfCover: p.daysOfCover, suggestedQty: needed, targetDays: targetCoverDays,
       urgency: p.daysOfCover < 3 ? "critical" : p.daysOfCover < 7 ? "high" : "medium",
     });
   }
@@ -390,8 +396,8 @@ export async function buildIntelligence(
   if (restock.length > 0)
     insights.push({ id: "restock", title: "Restock needed", category: "inventory",
       priority: restock[0].urgency === "critical" ? "critical" : "high",
-      description: `${restock.length} selling products have under ${TARGET_COVER_DAYS} days of cover. Most urgent: ${restock[0].product} (${restock[0].daysOfCover} days left).`,
-      metric: `${restock[0].suggestedQty} units`, action: `Order about ${restock[0].suggestedQty} units of ${restock[0].product} to reach ${TARGET_COVER_DAYS} days of cover.` });
+      description: `${restock.length} selling products have under ${targetCoverDays} days of cover. Most urgent: ${restock[0].product} (${restock[0].daysOfCover} days left).`,
+      metric: `${restock[0].suggestedQty} units`, action: `Order about ${restock[0].suggestedQty} units of ${restock[0].product} to reach ${targetCoverDays} days of cover.` });
   if (customerIntelligence.churnedCustomers > 0)
     insights.push({ id: "customer-churn", title: "Customers are showing churn signals", category: "customer", priority: "high",
       description: `${customerIntelligence.churnedCustomers} registered customers are overdue against their own purchasing rhythm.`,
@@ -427,7 +433,7 @@ export async function buildIntelligence(
       priority: restock[0].urgency === "critical" ? 1 : 2,
       title: `Restock ${restock.length} product${restock.length > 1 ? "s" : ""}`,
       reason: `Lowest cover first: ${top}.`,
-      expectedImpact: `Reach about ${TARGET_COVER_DAYS} days of cover at current sales speed; adjust for supplier lead time.`,
+      expectedImpact: `Reach about ${targetCoverDays} days of cover at current sales speed; adjust for supplier lead time.`,
     });
   }
   for (const r of risks.slice(0, 3))

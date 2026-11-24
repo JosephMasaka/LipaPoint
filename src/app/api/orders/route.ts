@@ -7,6 +7,7 @@ import { resolveLinePrice, supplierCostPerUnit, type PricePolicy } from "@/lib/p
 import { isFeatureEnabled } from "@/lib/features";
 import { writeAuditLog, AUDIT_ACTIONS } from "@/lib/audit";
 import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
+import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
 
 export async function GET(request: NextRequest) {
   try {
@@ -457,6 +458,7 @@ export async function POST(request: NextRequest) {
       ? null
       : await submitOrderForEtims(user.tenantId, order.id, { userId: user.id });
 
+    await invalidateIntelligence(user.tenantId);
     return recordSyncResponse(
       request,
       user.tenantId,

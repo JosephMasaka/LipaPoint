@@ -1,5 +1,6 @@
 import { requireUserWithFeature } from "@/lib/api-guards";
 import { recordSyncResponse, replaySyncResponse } from "@/lib/idempotency";
+import { invalidateIntelligence } from "@/lib/ai/intelligence-cache";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
       });
 
       await db.$transaction(upserts);
+      await invalidateIntelligence(user.tenantId);
       return recordSyncResponse(
         request,
         user.tenantId,
@@ -175,6 +177,7 @@ export async function POST(request: NextRequest) {
 
       await db.$transaction(stockUpdates);
 
+      await invalidateIntelligence(user.tenantId);
       return recordSyncResponse(
         request,
         user.tenantId,
@@ -232,6 +235,7 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      await invalidateIntelligence(user.tenantId);
       return recordSyncResponse(
         request,
         user.tenantId,
@@ -326,6 +330,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      await invalidateIntelligence(user.tenantId);
       return recordSyncResponse(
         request,
         user.tenantId,

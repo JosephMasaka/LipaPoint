@@ -5,6 +5,7 @@ import { generateAiReply } from "@/lib/ai/orchestrator";
 import { buildPromptPayload } from "@/lib/ai/prompt";
 import { resolveAiScope, AiScopeError } from "@/lib/ai/scope";
 import { checkQuota, recordUsage } from "@/lib/ai/quota";
+import { isAiEnabledForTenant } from "@/lib/ai/kill-switch";
 import { newRunId } from "@/lib/ai/usage";
 import { AiRateLimitError, AiTimeoutError, type AiNarrative, type BusinessIntelligence, type AiScopeInfo } from "@/lib/ai/types";
 
@@ -84,7 +85,12 @@ export async function GET(request: Request) {
     let entry = narrativeCache.get(key);
     if (entry && entry.forGeneratedAt !== intel.generatedAt) entry = undefined;
 
-    if (!entry && (process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY)) {
+    // The kill switch suppresses the model-written brief only; every number
+    // below is computed from the database and stays available.
+    const aiAllowed =
+      (process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY) && (await isAiEnabledForTenant(user.tenantId));
+
+    if (!entry && aiAllowed) {
       const quota = await checkQuota(user.tenantId, user.tenant.tier);
       if (!quota.allowed) {
         return NextResponse.json(
