@@ -1,0 +1,68 @@
+name: Migrations
+
+# Guards the property the M3 baseline was fixed for: `prisma/migrations` must be
+# able to build a database from nothing, and must still describe the schema.
+# Both failures are invisible locally — they only show up in a fresh environment.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  migrate-from-empty:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lipapoint_migrate?schema=public
+      SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/lipapoint_shadow?schema=public
+      ADMIN_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Create empty databases
+        run: |
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE lipapoint_migrate'
+          psql "$ADMIN_URL" -v ON_ERROR_STOP=1 -c 'CREATE DATABASE lipapoint_shadow'
+
+      - name: Apply migrations to the empty database
+        run: npx prisma migrate deploy
+
+      - name: Check migrations are recorded
+        run: |
+          STATUS=$(npx prisma migrate status 2>&1)
+          echo "$STATUS"
+          # "not yet applied" and "failed" both mean the history is out of step
+          # with the files, even though deploy just succeeded.
+          if grep -qiE "not yet applied|failed to apply|have failed"; then
+            echo "::error::migrate status reported unapplied or failed migrations"
+            exit 1
+          fi
+
+      - name: Fail if the history drifts from the Prisma schema
+        # A field added to schema.prisma without a migration applies fine to an
+        # existing database, so only comparing the two catches it.
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code

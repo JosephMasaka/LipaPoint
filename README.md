@@ -31,15 +31,25 @@ cp .env.example .env
 # Generate Prisma client
 npx prisma generate
 
-# Push schema to database
-npx prisma db push
+# Create the schema by applying the migrations
+npx prisma migrate deploy
 
-# Seed demo data
-npx prisma db seed
+# Seed demo data (tenants, products, employees, payroll, assets, GL)
+npm run db:seed
 
 # Start development server
 npm run dev
 ```
+
+`prisma migrate deploy` is the only supported way to build the database.
+`prisma db push` skips the migration history and leaves the database recorded as
+"in sync" while `prisma/migrations` and a fresh environment disagree — the state
+that previously made `migrate deploy` fail on an empty database.
+
+Re-seeding is not idempotent: `npm run db:seed` truncates the tables first and
+takes a while (it approves payroll runs per tenant). To add ERP sample data to a
+tenant that already has employees without wiping anything, use
+`npm run db:seed:erp` instead.
 
 Open [http://localhost:3000](http://localhost:3000)
 
