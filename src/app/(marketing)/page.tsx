@@ -683,6 +683,14 @@ export default function HomePage() {
               </Link>
               .
             </p>
+
+            <p className="mt-3 text-center text-sm text-text-muted">
+              Prefer to see it running before you pick a tier?{" "}
+              <Link href="/demo" className="font-medium text-text-primary underline-offset-4 hover:underline">
+                open a live demo
+              </Link>
+              .
+            </p>
           </div>
         </section>
 
