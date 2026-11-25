@@ -1,4 +1,5 @@
 import { db } from "../src/lib/db";
+import { provisionTenantFeatures } from "../src/lib/features";
 import { provisionTenantModules } from "../src/lib/modules";
 import { seedChartOfAccounts } from "../src/lib/coa";
 import { ensureStatutoryRates } from "../src/lib/payroll";
@@ -24,10 +25,15 @@ async function main() {
   });
   for (const t of tenants) {
     await provisionTenantModules(t.id, t.tier);
+    // Feature rows too: the Connect milestone added a module/feature pair, and
+    // a tenant whose rows predate it would keep a hidden nav entry until the
+    // next tier change. Provisioning is idempotent and leaves addon/manual
+    // grants alone, so re-running is safe.
+    await provisionTenantFeatures(t.id, t.tier);
     // Always run: upsert-only, so it adds accounts introduced by later
     // phases (payroll) to pre-existing tenants without touching edits.
     await seedChartOfAccounts(t.id);
-    console.log(`  ✓ ${t.name} (${t.tier}) — modules + COA`);
+    console.log(`  ✓ ${t.name} (${t.tier}) — modules + features + COA`);
   }
   const count = await db.tenantModule.count();
   console.log(`\nProvisioned ${tenants.length} tenants — ${count} module rows total`);

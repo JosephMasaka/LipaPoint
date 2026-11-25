@@ -92,12 +92,19 @@ const spec = parseSpec();
 const specKeys = new Set(spec.map((r) => r.key));
 const registryKeys = new Set<string>(FEATURE_KEYS);
 
+/** Features added after the spec was written (LipaPoint Connect, 2026-11).
+ * They are held to the module/app/core/price invariants below but cannot
+ * appear in the spec's §1 tables, so they are excluded from the key-set
+ * comparison instead of weakening that check. */
+const POST_SPEC_FEATURES: ReadonlySet<string> = new Set(["connect"]);
+const specComparableKeys = new Set([...registryKeys].filter((k) => !POST_SPEC_FEATURES.has(k)));
+
 console.log("\n1. Spec §1 tables ↔ FEATURE_REGISTRY");
 check(spec.length > 0, `parsed ${spec.length} spec rows`);
 check(
-  specKeys.size === registryKeys.size &&
-    [...specKeys].every((k) => registryKeys.has(k)),
-  `key sets match (${registryKeys.size} in registry)`,
+  specKeys.size === specComparableKeys.size &&
+    [...specKeys].every((k) => specComparableKeys.has(k)),
+  `key sets match (${specComparableKeys.size} spec-comparable in registry, ${POST_SPEC_FEATURES.size} post-spec)`,
   `spec-only: ${[...specKeys].filter((k) => !registryKeys.has(k)).join(", ") || "—"} / registry-only: ${[...registryKeys].filter((k) => !specKeys.has(k)).join(", ") || "—"}`
 );
 check(
@@ -130,11 +137,13 @@ const coreCount = FEATURE_KEYS.filter((k) => FEATURE_REGISTRY[k].core).length;
 const freeCount = FEATURE_KEYS.filter((k) => FEATURE_REGISTRY[k].free).length;
 // 47 since the Connect milestone added the "connect" feature key (46 spec rows + 1).
 check(FEATURE_KEYS.length === 47, `47 features total (got ${FEATURE_KEYS.length})`);
-check(coreCount === 7, `7 core features (got ${coreCount})`);
+// 7 from the spec + connect, which is core (its module's free floor).
+check(coreCount === 8, `8 core features (got ${coreCount})`);
 check(freeCount === 1, `1 free-for-everyone feature (got ${freeCount})`);
+// The post-spec feature is core, so the billable count is unchanged at 38.
 check(
-  FEATURE_KEYS.length - coreCount - freeCount === 39,
-  `39 billable features (got ${FEATURE_KEYS.length - coreCount - freeCount})`
+  FEATURE_KEYS.length - coreCount - freeCount === 38,
+  `38 billable features (got ${FEATURE_KEYS.length - coreCount - freeCount})`
 );
 check(
   FEATURE_REGISTRY["offline-mode"].free === true,

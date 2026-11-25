@@ -514,8 +514,13 @@ export const FEATURE_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
    * existing back-office app until the Apps screen gains a Connect card of
    * its own; the sidebar entry is added separately with module gating. */
   connect: {
+    // Core (the free floor of its module, like every other module's first
+    // feature): Connect ships with every tier, and what differs per tier is
+    // the connection count in src/lib/connect/limits.ts, not access itself.
+    // appKey "finance" keeps it inside the Finance & Procurement app surface
+    // rather than inventing a seventh app — see PHASE 0 ARCHITECTURE §17.
     key: "connect", moduleKey: "connect", appKey: "finance",
-    label: "LipaPoint Connect", core: false, requires: [],
+    label: "LipaPoint Connect", core: true, requires: [],
   },
 };
 
@@ -528,6 +533,7 @@ export const MODULE_CORE_FEATURE: Partial<Record<ModuleKey, FeatureKey>> = {
   assets: "asset-register",
   crm: "customer-records",
   payroll: "employee-records",
+  connect: "connect",
 };
 
 /** True for keys every tenant gets free, regardless of plan or module. */

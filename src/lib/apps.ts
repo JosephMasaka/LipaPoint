@@ -47,8 +47,10 @@ export const APPS: AppDefinition[] = [
   {
     id: "finance",
     label: "Finance & Procurement",
-    tagline: "Chart of accounts, general ledger, suppliers and purchase orders.",
-    modules: ["finance", "procurement"],
+    tagline: "Chart of accounts, general ledger, suppliers, purchase orders and system integrations.",
+    // Connect's module is installed by the back-office app rather than a
+    // seventh app of its own; the sidebar link is a separate nav entry.
+    modules: ["finance", "procurement", "connect"],
     group: "backoffice",
   },
   {

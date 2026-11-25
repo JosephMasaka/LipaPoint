@@ -23,6 +23,7 @@ rate limiting counts rows, so it is correct across instances without a shared ca
 
 ```bash
 npx prisma migrate deploy      # 0015 only — additive
+npx tsx prisma/backfill-modules.ts   # existing tenants: module + feature rows (Connect nav)
 npm run build && npm start
 curl -s -o /dev/null -w "%{http_code}\n" https://<host>/api/health
 ```

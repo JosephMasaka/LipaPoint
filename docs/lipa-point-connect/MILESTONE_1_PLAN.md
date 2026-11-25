@@ -175,3 +175,20 @@ The milestone report will list: what was implemented, files created/modified, mi
 APIs and services, security measures, tests executed with actual results, known limitations,
 deployment requirements, rollback instructions, and the recommended next milestone — as the
 assignment requires. No test result will be reported unless the command was run.
+
+## 10. Architectural blockers and migration risks (recorded before the build)
+
+These are the constraints that shaped Milestone 1. Each is a decision plus its
+residual risk, so a reviewer can disagree with the decision instead of discovering it in production.
+
+| # | Blocker / risk | Decision taken | Residual risk / follow-up |
+|---|---|---|---|
+| 1 | The application has no queue service (no Redis, no BullMQ) | Sync work is an `IntegrationJob` table row claimed by the cron tick and by the request that enqueued it | Up to one tick of latency for scheduled syncs; no priority lanes. Add Redis behind the same `jobs.ts` seam only when volume demands it |
+| 2 | Prisma cannot declare a partial unique index | Duplicate prevention is `findFirst` on QUEUED/RUNNING plus a `P2002` catch | Two inserts in the same millisecond can queue a second job; jobs still run one at a time, so the data stays idempotent |
+| 3 | The only `xlsx` build on npm (0.18.5) lacks the fixes for CVE-2023-30533 and CVE-2024-22363 | Excel is read by an in-house ZIP + SpreadsheetML reader on `node:zlib`; `xlsx` stays a devDependency used only to build a fixture | First worksheet only, no ZIP64, no encrypted workbooks, 5,000-row cap |
+| 4 | `src/middleware.ts` exempts every `/api` path, so a route that forgets its guard is public | Every Connect route calls `requireConnectAccess()`; only the HMAC webhook and `CRON_SECRET` tick are exempt, and both fail closed | The planned route-inventory test (asserting each handler under `/api/connect` calls a guard) is **not implemented yet** |
+| 5 | `ENCRYPTION_KEY` is required but `.env.example` is matched by `.gitignore` (`.env*`), so no env template is tracked | The variables are documented in `RUNBOOK.md` §1 and §6 | Deployments must set the key manually; losing it makes stored credentials permanently unreadable |
+| 6 | Existing tenants have no `TenantModule` / `TenantFeature` rows for the new `connect` module, so the sidebar entry is hidden until provisioning runs | `prisma/backfill-modules.ts` now provisions features as well as modules | Deployments **must** run the backfill (or trigger a tier change) or Connect stays invisible to existing tenants |
+| 7 | `isAdminUser()` returns true for demo tenants, bypassing role checks | Connect writes use `isAdminRole()` instead, so demo mode cannot rotate credentials or disconnect a system | Any future Connect write route must keep using `isAdminRole()` |
+| 8 | Migration `0015_connect_foundation` is the first Connect migration | Additive only — six new tables, no existing table altered. Columns, indexes and foreign keys were compared against `prisma migrate diff` output | Not executed against a live Postgres in this environment; the CI `migrate deploy` + drift gate is the first real execution |
+| 9 | `feature-registry.check.ts` encodes the spec's 46 features and counts | `connect` is declared a post-spec feature (excluded from the spec key-set comparison, counted separately) and made the core feature of its module | When the spec is next revised, move `connect` into the spec tables and delete the exception |
