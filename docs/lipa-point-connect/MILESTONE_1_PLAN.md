@@ -43,7 +43,7 @@ conflict resolution UI, reconciliation, CSV export, AI read tools, approvals. (R
 | `types.ts` | `ConnectEntity`, `SyncDirection`, `ConnectorResult`, `ConnectorContext`, `Connector`, `ConnectorFactory` |
 | `registry.ts` | `PROVIDERS` with `mock`, `file`, and `status: "planned"` entries for `http`, `shopify`, `woocommerce`, `quickbooks`, `xero`, `odoo`, `erpnext`, `zoho`, `hubspot` |
 | `connectors/mock.ts` | deterministic dataset generator (N products/customers), `testConnection` always ok, configurable failure modes for tests |
-| `connectors/file.ts` | CSV parse via `xlsx` (moved to `dependencies`), no network, per-row validation |
+| `connectors/file.ts` | CSV parser plus a minimal ZIP + SpreadsheetML reader using `node:zlib` (no network, per-row validation). `xlsx` stays a devDependency: the only npm build is 0.18.5, whose CVE-2023-30533 / CVE-2024-22363 fixes are not published to npm, so it is used only by tests to generate a fixture workbook |
 | `connectors/index.ts` | `CONNECTORS` map, with a test asserting registry/catalogue agreement |
 | `credentials.ts` | `setCredentials`, `readConnectionCredentials`, `maskCredentials`, uses `src/lib/crypto.ts` only |
 | `connections.ts` | create/update/pause/resume/disconnect/test, entitlement limit check, status transitions |

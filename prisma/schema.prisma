@@ -139,6 +139,7 @@ model Tenant {
   assetMaintenances  AssetMaintenance[]
   aiUsageRecords     AiUsageRecord[]
   aiRecommendations  AiRecommendation[]
+  integrationConnections IntegrationConnection[]
   aiAgentRuns        AiAgentRun[]
 
   @@index([slug])
@@ -1936,4 +1937,162 @@ model AiRecommendation {
   @@unique([tenantId, fingerprint])
   @@index([tenantId, status, createdAt])
   @@index([tenantId, productId])
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// LipaPoint Connect — Milestone 1 (integration foundation)
+//
+// One row per external system a tenant connects. Credentials are AES-256-GCM
+// ciphertext (src/lib/crypto.ts) and never leave the server: API responses
+// carry `maskedHint` only. `providerId` is a string, not a DB enum, because
+// providers live in a code registry (src/lib/connect/registry.ts) and adding
+// one must not require a migration.
+// ═════════════════════════════════════════════════════════════════════
+
+model IntegrationConnection {
+  id                   String    @id @default(cuid())
+  tenantId             String
+  providerId           String
+  name                 String
+  status               String    @default("PENDING") // PENDING | ACTIVE | PAUSED | ERROR | DISCONNECTED
+  authType             String    @default("NONE") // NONE | API_KEY | BEARER | BASIC
+  baseUrl              String?
+  config               Json?
+  credentialsEnc       String?
+  credentialKeyVersion Int       @default(1)
+  maskedHint           String?
+  webhookSecretEnc     String?
+  lastTestedAt         DateTime?
+  lastTestOk           Boolean?
+  lastTestMessage      String?
+  lastSyncAt           DateTime?
+  lastSyncStatus       String?
+  lastErrorAt          DateTime?
+  lastErrorMessage     String?
+  createdById          String?
+  disconnectedAt       DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  tenant          Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  syncConfigs     IntegrationSyncConfig[]
+  jobs            IntegrationJob[]
+  externalRecords IntegrationExternalRecord[]
+  webhookEvents   IntegrationWebhookEvent[]
+
+  @@unique([tenantId, providerId, name])
+  @@index([tenantId, status])
+  @@index([tenantId, providerId])
+}
+
+model IntegrationSyncConfig {
+  id             String    @id @default(cuid())
+  tenantId       String
+  connectionId   String
+  entity         String // products | customers
+  direction      String    @default("INBOUND")
+  enabled        Boolean   @default(true)
+  frequency      String    @default("MANUAL") // MANUAL | HOURLY
+  mapping        Json?
+  conflictPolicy String    @default("KEEP_EXTERNAL") // KEEP_EXTERNAL | KEEP_LOCAL
+  onError        String    @default("CONTINUE") // CONTINUE | ABORT
+  sourceFileName String?
+  sourceFormat   String? // csv | xlsx
+  sourceContent  String? // base64 payload for the file connector (<= 5 MB)
+  cursor         String?
+  lastRunAt      DateTime?
+  nextRunAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, entity])
+  @@index([tenantId])
+  @@index([enabled, nextRunAt])
+}
+
+model IntegrationJob {
+  id             String    @id @default(cuid())
+  tenantId       String
+  connectionId   String
+  syncConfigId   String?
+  direction      String    @default("INBOUND")
+  entity         String
+  trigger        String    @default("MANUAL") // MANUAL | SCHEDULE | WEBHOOK | RETRY
+  status         String    @default("QUEUED") // QUEUED | RUNNING | SUCCEEDED | PARTIAL | FAILED | DEAD
+  attempt        Int       @default(0)
+  maxAttempts    Int       @default(5)
+  runAfter       DateTime  @default(now())
+  lockedAt       DateTime?
+  startedAt      DateTime?
+  finishedAt     DateTime?
+  processedCount Int       @default(0)
+  appliedCount   Int       @default(0)
+  rejectedCount  Int       @default(0)
+  errorCode      String?
+  errorDetail    String?
+  requestedById  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  records    IntegrationJobRecord[]
+
+  @@index([tenantId, createdAt])
+  @@index([connectionId, createdAt])
+  @@index([status, runAfter])
+}
+
+model IntegrationJobRecord {
+  id         String   @id @default(cuid())
+  tenantId   String
+  jobId      String
+  entity     String
+  externalId String?
+  localId    String?
+  status     String // APPLIED | REJECTED | SKIPPED
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  job IntegrationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, status])
+  @@index([tenantId, createdAt])
+}
+
+model IntegrationExternalRecord {
+  id           String   @id @default(cuid())
+  tenantId     String
+  connectionId String
+  entity       String
+  externalId   String
+  localId      String
+  fingerprint  String?
+  lastSyncedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, entity, externalId])
+  @@index([tenantId, entity])
+}
+
+model IntegrationWebhookEvent {
+  id              String    @id @default(cuid())
+  tenantId        String
+  connectionId    String
+  externalEventId String
+  eventType       String?
+  payloadHash     String
+  status          String    @default("RECEIVED") // RECEIVED | ENQUEUED | IGNORED
+  jobId           String?
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, externalEventId])
+  @@index([tenantId, receivedAt])
 }

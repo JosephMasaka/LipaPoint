@@ -25,7 +25,7 @@ import {
   Menu, X, Sun, Moon, Clock, PanelLeftClose, PanelLeftOpen, MapPin, WifiOff, Download,
   UserCircle, Tag, UtensilsCrossed, ChefHat, BookOpen, Globe, Truck, Calendar, Scissors, ListOrdered, CalendarDays,
   FileText, Landmark, Calculator, ShieldCheck, Contact, Banknote, Boxes, BarChart3, Sparkles,
-  Inbox,
+  Inbox, Plug,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -113,6 +113,7 @@ const erpNavItems: NavItem[] = [
   { icon: Banknote, label: "Payroll", featureKey: "payroll", href: "/payroll", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "payroll", app: "payroll" },
   { icon: Boxes, label: "Assets", featureKey: "asset-register", href: "/assets", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "assets", app: "assets" },
   { icon: BarChart3, label: "Reports", href: "/reports", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, app: "insights" },
+  { icon: Plug, label: "Connect", href: "/connect", roles: ["OWNER", "ADMIN", "MANAGER"], feature: null, module: "connect", app: "insights" },
 ];
 
 const suffixNavItems: NavItem[] = [

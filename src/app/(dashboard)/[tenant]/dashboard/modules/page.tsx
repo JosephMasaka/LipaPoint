@@ -85,6 +85,7 @@ const MODULE_ICONS: Record<ModuleKey, React.ComponentType<{ className?: string }
   etims: Globe,
   payroll: HandCoins,
   assets: Boxes,
+  connect: Boxes,
 };
 
 const APP_ICONS: Record<AppId, React.ComponentType<{ className?: string }>> = {

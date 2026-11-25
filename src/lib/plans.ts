@@ -732,6 +732,7 @@ export const FEATURE_DISPLAY: Record<string, string> = {
   "etims": "KRA eTIMS Invoicing",
   "payroll": "HR & Statutory Payroll",
   "assets": "Fixed Assets & Depreciation",
+  "connect": "LipaPoint Connect (integrations)",
 };
 
 export const BUSINESS_TYPES = [

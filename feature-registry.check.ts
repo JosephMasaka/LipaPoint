@@ -128,12 +128,13 @@ for (const row of spec) {
 console.log("\n2. Counts");
 const coreCount = FEATURE_KEYS.filter((k) => FEATURE_REGISTRY[k].core).length;
 const freeCount = FEATURE_KEYS.filter((k) => FEATURE_REGISTRY[k].free).length;
-check(FEATURE_KEYS.length === 46, `46 features total (got ${FEATURE_KEYS.length})`);
+// 47 since the Connect milestone added the "connect" feature key (46 spec rows + 1).
+check(FEATURE_KEYS.length === 47, `47 features total (got ${FEATURE_KEYS.length})`);
 check(coreCount === 7, `7 core features (got ${coreCount})`);
 check(freeCount === 1, `1 free-for-everyone feature (got ${freeCount})`);
 check(
-  FEATURE_KEYS.length - coreCount - freeCount === 38,
-  `38 billable features (got ${FEATURE_KEYS.length - coreCount - freeCount})`
+  FEATURE_KEYS.length - coreCount - freeCount === 39,
+  `39 billable features (got ${FEATURE_KEYS.length - coreCount - freeCount})`
 );
 check(
   FEATURE_REGISTRY["offline-mode"].free === true,

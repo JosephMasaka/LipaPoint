@@ -24,6 +24,7 @@ export const MODULE_KEYS = [
   "procurement",
   "crm",
   "etims",
+  "connect",
 ] as const;
 
 export type ModuleKey = (typeof MODULE_KEYS)[number];
@@ -97,6 +98,13 @@ export const MODULE_REGISTRY: Record<ModuleKey, ModuleDefinition> = {
     requires: ["finance"],
     group: "backoffice",
   },
+  connect: {
+    key: "connect",
+    label: "LipaPoint Connect",
+    description: "Sync products and customers with the systems you already use",
+    requires: [],
+    group: "backoffice",
+  },
 };
 
 /**
@@ -124,8 +132,8 @@ export function expandModuleSet(keys: Iterable<ModuleKey>): Set<ModuleKey> {
  * call sites) when real tier pricing lands.
  */
 export const TIER_MODULES: Record<string, readonly ModuleKey[]> = {
-  STARTER: ["pos", "inventory"],
-  PROFESSIONAL: ["pos", "inventory", "crm"],
+  STARTER: ["pos", "inventory", "connect"],
+  PROFESSIONAL: ["pos", "inventory", "crm", "connect"],
   ENTERPRISE: [
     "pos",
     "inventory",
@@ -135,6 +143,7 @@ export const TIER_MODULES: Record<string, readonly ModuleKey[]> = {
     "etims",
     "payroll",
     "assets",
+    "connect",
   ],
 };
 
@@ -262,6 +271,8 @@ export const FEATURE_KEYS = [
   "multi-location-transfers",
   "expiry-tracking",
   "physical-stock-take",
+  // connect module (LipaPoint Connect)
+  "connect",
 ] as const;
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
@@ -497,6 +508,14 @@ export const FEATURE_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
   "physical-stock-take": {
     key: "physical-stock-take", moduleKey: "inventory", appKey: "pos",
     label: "Physical Stock-Take", core: false, requires: ["stock-records"],
+  },
+
+  /* connect module — integrations. appKey "finance" keeps the feature in the
+   * existing back-office app until the Apps screen gains a Connect card of
+   * its own; the sidebar entry is added separately with module gating. */
+  connect: {
+    key: "connect", moduleKey: "connect", appKey: "finance",
+    label: "LipaPoint Connect", core: false, requires: [],
   },
 };
 
