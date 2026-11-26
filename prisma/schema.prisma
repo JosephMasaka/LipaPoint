@@ -78,6 +78,18 @@ model Tenant {
   mpesaAccountName String?
   mpesaPaybill     String?
   mpesaTill        String?
+  // Per-tenant KRA eTIMS device (Settings > eTIMS). These override the
+  // platform ETIMS_* env vars for this tenant only, so one deployment can
+  // submit under many sellers' TINs. The two secrets are AES-256-GCM
+  // encrypted with ENCRYPTION_KEY (src/lib/crypto.ts) and are never
+  // returned by the API — see src/lib/etims/tenant-config.ts.
+  etimsProvider          String?
+  etimsDeviceType        String?
+  etimsSellerTin         String?
+  etimsSellerBranch      String?
+  etimsSellerName        String?
+  etimsCsidEnc           String?
+  etimsCallbackSecretEnc String?
   // On-the-go pricing at the till (src/lib/price-override.ts):
   // when enabled a cashier may type a custom price, never below
   // setPrice − priceFloorValue (percent of, or flat amount off, the set

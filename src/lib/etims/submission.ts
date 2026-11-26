@@ -6,6 +6,7 @@ import {
   normalizePaymentMethod,
   type EtimsSubmissionPayload,
 } from "./provider";
+import { ETIMS_TENANT_SELECT, toEtimsTenantConfig } from "./tenant-config";
 import { isModuleEnabled } from "../modules";
 import { writeAuditLog, AUDIT_ACTIONS } from "../audit";
 
@@ -248,9 +249,13 @@ export async function submitEtimsInvoice(
 
   const tenant = await tx.tenant.findUnique({
     where: { id: row.tenantId },
-    select: { name: true, taxRate: true },
+    select: { name: true, taxRate: true, ...ETIMS_TENANT_SELECT },
   });
   if (!tenant) throw new EtimsError("Tenant not found", 404);
+
+  // This tenant's own KRA device (Settings > eTIMS); unset fields fall back
+  // to the platform ETIMS_* env inside the provider layer.
+  const etimsConfig = toEtimsTenantConfig(tenant, row.tenantId);
 
   // Build the payload from the source document; a missing source is a
   // permanent rejection (the sale was deleted/voided) needing a human.
@@ -324,20 +329,20 @@ export async function submitEtimsInvoice(
     return rejected;
   }
 
-  // Fill seller identity from env (KRA TIN/branch) at the last moment so
-  // the payload builder stays free of process-global config. The OSCU/VSCU
-  // adapter overwrites these from its own config too — this is for
-  // traceability of what was attempted (rawResponse, logs).
+  // Fill seller identity at the last moment so the payload builder stays
+  // free of configuration lookups. The tenant's own TIN/branch win, then the
+  // platform env. The OSCU/VSCU adapter overwrites these from its own config
+  // too — this is for traceability of what was attempted (rawResponse, logs).
   payload.seller = {
-    tin: process.env.ETIMS_SELLER_TIN?.trim() || "",
-    branch: process.env.ETIMS_SELLER_BRANCH?.trim() || "",
-    name: tenant.name,
+    tin: etimsConfig.sellerTin ?? process.env.ETIMS_SELLER_TIN?.trim() ?? "",
+    branch: etimsConfig.sellerBranch ?? process.env.ETIMS_SELLER_BRANCH?.trim() ?? "",
+    name: etimsConfig.sellerName ?? tenant.name,
   };
   // Echoed to the device so an async confirmation can resolve this exact row
   // (see src/lib/etims/callback.ts) instead of matching on internalRef.
   payload.submissionId = row.id;
 
-  const provider = getEtimsProvider();
+  const provider = getEtimsProvider(etimsConfig);
   let outcome;
   try {
     outcome = await provider.submit(payload);

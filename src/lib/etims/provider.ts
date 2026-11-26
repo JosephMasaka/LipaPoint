@@ -9,6 +9,10 @@
  * does ship first, its hosted integration layer drops in as a second
  * provider implementation without touching submission, storage or UI.
  *
+ * Seller identity and the OSCU/VSCU choice resolve per tenant (Settings >
+ * eTIMS, see tenant-config.ts) and fall back to the platform env vars below,
+ * so one deployment can submit for many sellers.
+ *
  * Both KRA eTIMS device types are supported:
  * - OSCU (Online Sales Control Unit) — retail/POS merchants: till sales
  *   and credit notes, captured in real time.
@@ -31,6 +35,8 @@
  *   device endpoint is configured. Generates clearly-labelled MOCK- invoice
  *   numbers so they can never be mistaken for real KRA documents.
  */
+import type { EtimsTenantConfig } from "./tenant-config";
+
 export type EtimsDocumentType = "sale" | "credit_note" | "supplier_invoice";
 export interface EtimsItemLine {
   description: string;
@@ -112,7 +118,13 @@ export class EtimsConfigError extends Error {
 function baseUrlVarFor(deviceType: EtimsDeviceType): string {
   return deviceType === "VSCU" ? "ETIMS_VSCU_BASE_URL" : "ETIMS_OSCU_BASE_URL";
 }
-export function readEtimsHttpConfig(deviceType: EtimsDeviceType): EtimsHttpConfig {
+export function readEtimsHttpConfig(
+  deviceType: EtimsDeviceType,
+  /** Per-tenant seller identity (Settings > eTIMS). Wins over env; the
+   * endpoint itself stays a platform setting — one middleware serves every
+   * tenant, and a tenant cannot point submissions at an arbitrary URL. */
+  tenant?: EtimsTenantConfig | null
+): EtimsHttpConfig {
   const deviceVar = baseUrlVarFor(deviceType);
   // Prefer the device-specific base URL. When only the shared single-middleware
   // endpoint is configured, fall back to ETIMS_BASE_URL so one deployed
@@ -123,15 +135,20 @@ export function readEtimsHttpConfig(deviceType: EtimsDeviceType): EtimsHttpConfi
     (deviceType === "VSCU"
       ? process.env.ETIMS_VSCU_BASE_URL?.trim()
       : process.env.ETIMS_OSCU_BASE_URL?.trim());
-  const tin = process.env.ETIMS_SELLER_TIN?.trim();
-  const branch = process.env.ETIMS_SELLER_BRANCH?.trim();
-  const csid = process.env.ETIMS_CSID?.trim();
+  const tenantTin = tenant?.sellerTin ?? undefined;
+  const tenantBranch = tenant?.sellerBranch ?? undefined;
+  const tenantCsid = tenant?.csid ?? undefined;
+  const tin = tenantTin ?? process.env.ETIMS_SELLER_TIN?.trim();
+  const branch = tenantBranch ?? process.env.ETIMS_SELLER_BRANCH?.trim();
+  const csid = tenantCsid ?? process.env.ETIMS_CSID?.trim();
 
+  // Where a value is missing, name the place the operator can actually fix it:
+  // the tenant's own Settings > eTIMS, or the platform env for everything else.
   const missing = [
     !baseUrl && `${deviceVar} (or ETIMS_BASE_URL, or ${deviceType === "VSCU" ? "ETIMS_VSCU_BASE_URL" : "ETIMS_OSCU_BASE_URL"})`,
-    !tin && "ETIMS_SELLER_TIN",
-    !branch && "ETIMS_SELLER_BRANCH",
-    !csid && "ETIMS_CSID",
+    !tin && "seller TIN (Settings > eTIMS, or ETIMS_SELLER_TIN)",
+    !branch && "seller branch (Settings > eTIMS, or ETIMS_SELLER_BRANCH)",
+    !csid && "CSID (Settings > eTIMS, or ETIMS_CSID)",
   ].filter(Boolean);
 
   if (missing.length > 0) {
@@ -148,7 +165,8 @@ export function readEtimsHttpConfig(deviceType: EtimsDeviceType): EtimsHttpConfi
     branch: branch!,
     csid: csid!,
     apiKey: process.env.ETIMS_API_KEY?.trim() || undefined,
-    sellerName: process.env.ETIMS_SELLER_NAME?.trim() || "LipaPoint Merchant",
+    sellerName:
+      tenant?.sellerName ?? process.env.ETIMS_SELLER_NAME?.trim() ?? "LipaPoint Merchant",
     timeoutMs: parseInt(process.env.ETIMS_TIMEOUT_MS || "5000", 10),
   };
 }
@@ -297,26 +315,32 @@ export class MockEtimsProvider implements EtimsProvider {
  * - anything else        → EtimsConfigError: a typo must never silently
  *                          pick a device.
  */
-export function getEtimsProvider(): EtimsProvider {
-  const mode = process.env.ETIMS_PROVIDER?.trim().toLowerCase();
+export function getEtimsProvider(tenant?: EtimsTenantConfig | null): EtimsProvider {
+  // The tenant's own mode wins: it is what the operator set on the Settings
+  // screen for this business, and it is the only value that can differ per
+  // tenant. Env stays the default for tenants that have not been configured.
+  const tenantMode = tenant?.provider ?? null;
+  const mode = tenantMode ?? process.env.ETIMS_PROVIDER?.trim().toLowerCase();
 
   if (mode === "mock") return new MockEtimsProvider();
-  if (mode === "oscu") return new EtimsHttpProvider(readEtimsHttpConfig("OSCU"));
-  if (mode === "vscu") return new EtimsHttpProvider(readEtimsHttpConfig("VSCU"));
+  if (mode === "oscu") return new EtimsHttpProvider(readEtimsHttpConfig("OSCU", tenant));
+  if (mode === "vscu") return new EtimsHttpProvider(readEtimsHttpConfig("VSCU", tenant));
   if (mode) {
     throw new EtimsConfigError(
       `Unknown ETIMS_PROVIDER "${mode}" — expected "mock", "oscu" or "vscu".`
     );
   }
 
-  // Unset: live when an endpoint is configured. The device type is inferred
-  // from which base URL is present; with only the shared ETIMS_BASE_URL
-  // set, OSCU is assumed (set ETIMS_PROVIDER=vscu to override).
-  if (process.env.ETIMS_VSCU_BASE_URL?.trim()) {
-    return new EtimsHttpProvider(readEtimsHttpConfig("VSCU"));
+  // Unset: live when an endpoint is configured. An explicit per-tenant device
+  // type picks the device; otherwise it is inferred from which base URL is
+  // present, and with only the shared ETIMS_BASE_URL set OSCU is assumed
+  // (set ETIMS_PROVIDER=vscu to override).
+  const configuredDevice = tenant?.deviceType ?? null;
+  if (configuredDevice === "VSCU" || process.env.ETIMS_VSCU_BASE_URL?.trim()) {
+    return new EtimsHttpProvider(readEtimsHttpConfig(configuredDevice ?? "VSCU", tenant));
   }
   if (process.env.ETIMS_OSCU_BASE_URL?.trim() || process.env.ETIMS_BASE_URL?.trim()) {
-    return new EtimsHttpProvider(readEtimsHttpConfig("OSCU"));
+    return new EtimsHttpProvider(readEtimsHttpConfig(configuredDevice ?? "OSCU", tenant));
   }
 
   return new MockEtimsProvider();

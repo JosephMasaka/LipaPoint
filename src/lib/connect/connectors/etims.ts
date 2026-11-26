@@ -25,6 +25,7 @@ import type {
 import { db } from "@/lib/db";
 import type { EtimsDeviceType } from "@/lib/etims/provider";
 import { readEtimsHttpConfig } from "@/lib/etims/provider";
+import { loadEtimsTenantConfig } from "@/lib/etims/tenant-config";
 
 const ACCOUNT_LABEL = "eTIMS (KRA) — tenant submission record mirror";
 
@@ -34,13 +35,17 @@ export const etimsConnector: Connector = {
   async testConnection(context: ConnectorContext): Promise<ConnectorTestResult> {
     // The connector reads this tenant's own submitted records, so the real
     // connectivity test is "does this tenant have usable seller config".
-    const configured = context.config.deviceType;
+    // Settings > eTIMS is the source of truth; the connection's own
+    // `deviceType` config is only a hint for older connections created before
+    // the tenant columns existed. Either way, env remains the last resort.
+    const tenantConfig = await loadEtimsTenantConfig(context.connectionId);
+    const configured = tenantConfig.deviceType ?? context.config.deviceType;
     const deviceType: EtimsDeviceType = configured === "VSCU" ? "VSCU" : "OSCU";
 
     try {
       // Throws EtimsConfigError when seller config is missing, so the test
       // surfaces the same message the real submission path would show.
-      readEtimsHttpConfig(deviceType);
+      readEtimsHttpConfig(deviceType, tenantConfig);
     } catch (error) {
       return {
         ok: false,

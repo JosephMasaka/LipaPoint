@@ -12,10 +12,11 @@ import { writeAuditLog, AUDIT_ACTIONS } from "../audit";
  * deliberately blocked (it would double-submit), so this is the only path
  * that closes the loop.
  *
- * Authentication is a shared secret (ETIMS_CALLBACK_SECRET) in the
- * x-etims-callback-secret header. The endpoint refuses to run at all while
- * the secret is unconfigured — an unauthenticated way to mark invoices
- * accepted is a KRA-compliance hole, so there is no dev bypass.
+ * Authentication is a shared secret in the x-etims-callback-secret header.
+ * The tenant's own secret (Settings > eTIMS) is used when one is stored, and
+ * the platform ETIMS_CALLBACK_SECRET otherwise. The endpoint refuses to run
+ * at all while neither is configured — an unauthenticated way to mark
+ * invoices accepted is a KRA-compliance hole, so there is no dev bypass.
  */
 
 export const CALLBACK_SECRET_HEADER = "x-etims-callback-secret";
@@ -24,13 +25,18 @@ export type SecretCheck =
   | { ok: true }
   | { ok: false; status: number; error: string };
 
-export function verifyCallbackSecret(provided: string | null | undefined): SecretCheck {
-  const configured = process.env.ETIMS_CALLBACK_SECRET?.trim();
+export function verifyCallbackSecret(
+  provided: string | null | undefined,
+  /** The tenant's own secret, when it has one stored. */
+  tenantSecret?: string | null
+): SecretCheck {
+  const configured = tenantSecret?.trim() || process.env.ETIMS_CALLBACK_SECRET?.trim();
   if (!configured) {
     return {
       ok: false,
       status: 503,
-      error: "eTIMS callback is not configured (set ETIMS_CALLBACK_SECRET)",
+      error:
+        "eTIMS callback is not configured (set it under Settings > eTIMS, or ETIMS_CALLBACK_SECRET)",
     };
   }
   if (!provided) {
@@ -42,6 +48,34 @@ export function verifyCallbackSecret(provided: string | null | undefined): Secre
     return { ok: false, status: 401, error: "Invalid callback secret" };
   }
   return { ok: true };
+}
+
+/**
+ * Which tenant a callback body refers to, resolved the same way the
+ * confirmation itself resolves the row. Null when it matches nothing.
+ *
+ * The secret has to be checked before a row may be changed, and a tenant can
+ * have its own secret, so the route needs the tenant before it can verify.
+ */
+export async function resolveSubmissionTenantId(input: {
+  submissionId?: string | null;
+  internalReference?: string | null;
+}): Promise<string | null> {
+  if (input.submissionId) {
+    const row = await db.etimsInvoice.findUnique({
+      where: { id: input.submissionId },
+      select: { tenantId: true },
+    });
+    return row?.tenantId ?? null;
+  }
+  if (!input.internalReference) return null;
+  const matches = await db.etimsInvoice.findMany({
+    where: { sourceRef: input.internalReference },
+    select: { tenantId: true },
+    take: 2,
+  });
+  if (matches.length !== 1) return null;
+  return matches[0].tenantId;
 }
 
 export interface ConfirmSubmissionInput {

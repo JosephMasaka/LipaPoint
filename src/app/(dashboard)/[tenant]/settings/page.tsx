@@ -44,13 +44,18 @@ interface TenantSettings {
   restockTargetDays?: number;
   /** Kill switch: false stops all model calls for this business. */
   aiEnabled?: boolean;
-  // Per-tenant KRA eTIMS device config, surfaced to Settings and Connect
+  // Per-tenant KRA eTIMS device config, surfaced to Settings and Connect.
+  // The two credentials are write-only: `etimsCsid`/`etimsCallbackSecret`
+  // hold only what the operator has just typed (the server never returns
+  // them), and the `...Set` flags say whether one is already stored.
   etimsDeviceType?: "OSCU" | "VSCU" | null;
   etimsSellerTin?: string | null;
   etimsSellerBranch?: string | null;
-  etimsCsid?: string | null;
+  etimsCsid?: string;
+  etimsCsidSet?: boolean;
   etimsSellerName?: string | null;
-  etimsCallbackSecret?: string | null;
+  etimsCallbackSecret?: string;
+  etimsCallbackSecretSet?: boolean;
   etimsProvider?: "mock" | "oscu" | "vscu" | null;
   paymentGateways?: GatewayStatus[];
 }
@@ -189,7 +194,16 @@ export default function SettingsPage() {
       if (res.ok) {
         setSaved(true);
         setTimeout(() => setSaved(false), 3000);
-        try { localStorage.setItem("lipapoint-oc-settings", JSON.stringify({ data: settings, timestamp: Date.now() })); } catch {}
+        // A just-typed eTIMS credential has now been stored encrypted on the
+        // server; drop it from component state and the offline cache so a
+        // secret is never left sitting in localStorage.
+        const next = { ...settings, etimsCsid: undefined, etimsCallbackSecret: undefined };
+        const typedSecret = Boolean(settings.etimsCsid || settings.etimsCallbackSecret);
+        if (typedSecret) {
+          setSettings(next);
+          refreshSettings().catch(() => {});
+        }
+        try { localStorage.setItem("lipapoint-oc-settings", JSON.stringify({ data: next, timestamp: Date.now() })); } catch {}
       }
     } catch {
       if (!navigator.onLine) {
@@ -983,7 +997,7 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>KRA eTIMS Device</CardTitle>
               <CardDescription>
-                Configure the KRA eTIMS device for this tenant. This configuration is used by both the eTIMS submission path and the read-only eTIMS connector in LipaPoint Connect.
+                Configure the KRA eTIMS device for this tenant. This configuration is used by both the eTIMS submission path and the read-only eTIMS connector in LipaPoint Connect, and overrides the platform ETIMS_* settings for this business only. The CSID and callback secret are stored encrypted and are never shown again after saving.
               </CardDescription>
             </CardHeader>
             <CardContent className="grid gap-4">
@@ -1015,9 +1029,15 @@ export default function SettingsPage() {
               />
               <Input
                 label="CSID (optional)"
+                type="password"
                 value={settings.etimsCsid ?? ""}
-                onChange={(e) => setSettings({ ...settings, etimsCsid: e.target.value || null })}
-                placeholder="KRA eTIMS client/server ID"
+                onChange={(e) => setSettings({ ...settings, etimsCsid: e.target.value })}
+                placeholder={
+                  settings.etimsCsidSet
+                    ? "Stored — leave blank to keep it, type to replace"
+                    : "KRA eTIMS client/server ID"
+                }
+                autoComplete="new-password"
               />
               <Input
                 label="Seller name (optional)"
@@ -1029,8 +1049,13 @@ export default function SettingsPage() {
                 label="Callback secret (optional)"
                 type="password"
                 value={settings.etimsCallbackSecret ?? ""}
-                onChange={(e) => setSettings({ ...settings, etimsCallbackSecret: e.target.value || null })}
-                placeholder="Shared secret for eTIMS HMAC callbacks (x-etims-callback-secret)"
+                onChange={(e) => setSettings({ ...settings, etimsCallbackSecret: e.target.value })}
+                placeholder={
+                  settings.etimsCallbackSecretSet
+                    ? "Stored — leave blank to keep it, type to replace"
+                    : "Shared secret for eTIMS callbacks (x-etims-callback-secret)"
+                }
+                autoComplete="new-password"
               />
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
