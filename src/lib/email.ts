@@ -5,14 +5,14 @@ const transporter = nodemailer.createTransport({
   port: parseInt(process.env.MAIL_PORT || "587"),
   secure: false,
   auth: {
-    user: process.env.MAIL_USERNAME || "lipapoint@tunzaassets.co.ke",
+    user: process.env.MAIL_USERNAME || "lipapoint@lipapoint.co.ke",
     pass: process.env.MAIL_PASSWORD || "",
   },
 });
 
 const FROM = process.env.MAIL_FROM_NAME
   ? `${process.env.MAIL_FROM_NAME} <${process.env.MAIL_FROM_ADDRESS}>`
-  : "LipaPoint <lipapoint@tunzaassets.co.ke>";
+  : "LipaPoint <lipapoint@lipapoint.co.ke>";
 
 interface EmailOptions {
   to: string;
@@ -64,7 +64,7 @@ function wrapTemplate(body: string): string {
     <div class="body">${body}</div>
     <div class="footer">
       <p>&copy; ${new Date().getFullYear()} LipaPoint ERP &middot; Built for Kenyan businesses</p>
-      <p>lipapoint@tunzaassets.co.ke</p>
+      <p>lipapoint.co.ke</p>
     </div>
   </div>
 </body>

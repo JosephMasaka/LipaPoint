@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     const emailContent = contactFormEmail(name, email, phone || "", subject, message);
     await sendEmail({
-      to: "lipapoint@tunzaassets.co.ke",
+      to: "lipapoint@lipapoint.co.ke",
       subject: emailContent.subject,
       html: emailContent.html,
       replyTo: email,

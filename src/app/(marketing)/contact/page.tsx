@@ -74,7 +74,7 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-text-primary mb-1">Email</h3>
-                  <p className="text-sm text-text-secondary">lipapoint@tunzaassets.co.ke</p>
+                  <p className="text-sm text-text-secondary">lipapoint.co.ke</p>
                   {/*<p className="text-sm text-text-secondary">support@lipapoint.co.ke</p>*/}
                 </div>
               </CardContent>

@@ -181,7 +181,7 @@ export default function MarketingLayout({
               <h4 className="text-sm font-semibold text-text-primary mb-3">Contact</h4>
               <address className="space-y-2 not-italic">
                 <Link href="/contact" className="block text-sm text-text-muted hover:text-text-secondary">Contact Us</Link>
-                <a href="mailto:lipapoint@tunzaassets.co.ke" className="block text-sm text-text-muted hover:text-text-secondary">lipapoint@tunzaassets.co.ke</a>
+                <a href="mailto:lipapoint@lipapoint.co.ke" className="block text-sm text-text-muted hover:text-text-secondary">lipapoint.co.ke</a>
                 <a href="tel:+254791298382" className="block text-sm text-text-muted hover:text-text-secondary">+254 791 298 382</a>
                 <span className="block text-sm text-text-muted">Nairobi, Kenya</span>
               </address>
