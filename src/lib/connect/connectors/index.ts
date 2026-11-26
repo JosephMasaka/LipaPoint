@@ -2,6 +2,7 @@ import type { Connector } from "../types";
 import { fileConnector } from "./file";
 import { httpConnector } from "./http";
 import { mockConnector } from "./mock";
+import { etimsConnector } from "./etims";
 
 /**
  * Connector implementations, keyed by provider id. A provider in the
@@ -11,6 +12,7 @@ import { mockConnector } from "./mock";
  */
 const CONNECTORS: Record<string, Connector> = {
   "custom-api": httpConnector,
+  etims: etimsConnector,
   file: fileConnector,
   mock: mockConnector,
 };

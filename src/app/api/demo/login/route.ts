@@ -8,7 +8,13 @@ import { createSession } from "@/lib/auth";
  * makes it safe is `tenant.demoMode`: real customer tenants have it false and
  * are rejected here before any user is looked up. Do not relax that check —
  * it is the whole boundary between a demo shortcut and an auth bypass.
+ *
+ * Retired: the public demo accounts are switched off, so every request is
+ * redirected to the demo-request form before any lookup happens. Flip this to
+ * true only together with a deliberate decision to hand out shared logins
+ * again — the `demoMode` guard below still applies either way.
  */
+const DEMO_LOGIN_ENABLED = false;
 
 // Preferred landing account per demo workspace: whoever sees the whole app.
 const DEMO_ROLES: UserRole[] = [UserRole.OWNER, UserRole.ADMIN, UserRole.MANAGER];
@@ -18,6 +24,8 @@ function back(request: NextRequest, path: string, status = 303) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!DEMO_LOGIN_ENABLED) return back(request, "/demo-request");
+
   let slug = "";
   let email = "";
 

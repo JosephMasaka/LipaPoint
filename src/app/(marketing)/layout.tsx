@@ -6,6 +6,20 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
+import {
+  jsonLdGraph,
+  organizationJsonLd,
+  serializeJsonLd,
+  softwareApplicationJsonLd,
+  websiteJsonLd,
+} from "@/lib/seo";
+
+// Site-wide entities. Emitted from the marketing layout so every public page
+// carries the same Organization / WebSite / SoftwareApplication graph — the
+// login and dashboard trees are deliberately left out of it.
+const SITE_JSON_LD = serializeJsonLd(
+  jsonLdGraph(organizationJsonLd, websiteJsonLd, softwareApplicationJsonLd)
+);
 
 /** Shared by the desktop bar and the mobile dropdown so the two can never
  *  drift — below `md` the desktop nav is hidden, the dropdown is the only
@@ -13,7 +27,6 @@ import { Logo } from "@/components/logo";
 const NAV_LINKS = [
   { href: "/features", label: "Features" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/demo", label: "Live Demo" },
   { href: "/industries", label: "Industries" },
   { href: "/contact", label: "Contact" },
   { href: "/demo-request", label: "Request Demo" },
@@ -45,6 +58,10 @@ export default function MarketingLayout({
 
   return (
     <div className="min-h-screen bg-surface flex flex-col">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: SITE_JSON_LD }}
+      />
       <header className="sticky top-0 z-50 border-b border-border/50 bg-surface/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
@@ -143,8 +160,7 @@ export default function MarketingLayout({
               <nav aria-label="Product navigation" className="space-y-2">
                 <Link href="/features" className="block text-sm text-text-muted hover:text-text-secondary">ERP Features</Link>
                 <Link href="/pricing" className="block text-sm text-text-muted hover:text-text-secondary">ERP Pricing</Link>
-                <Link href="/demo" className="block text-sm text-text-muted hover:text-text-secondary">Live Demo</Link>
-                <Link href="/demo-request" className="block text-sm text-text-muted hover:text-text-secondary">Request Free Demo</Link>
+                <Link href="/demo-request" className="block text-sm text-text-muted hover:text-text-secondary">Request a Demo</Link>
                 <Link href="/register" className="block text-sm text-text-muted hover:text-text-secondary">Get started</Link>
               </nav>
             </div>

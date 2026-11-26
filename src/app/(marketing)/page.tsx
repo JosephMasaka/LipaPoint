@@ -25,8 +25,10 @@ import {
   Building2,
 } from "lucide-react";
 import { VERTICAL_PLANS, formatPrice, groupPlanFeatures } from "@/lib/plans";
+import { keywords } from "@/lib/seo";
 
 export const metadata: Metadata = {
+  keywords: keywords("pos", "inventory", "finance", "payroll", "compliance", "crm", "ai", "integrations", "industries"),
   title: {
     absolute:
       "LipaPoint ERP — #1 Business Management System in Kenya | POS, Payroll & eTIMS",
@@ -36,58 +38,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://lipapoint.co.ke" },
 };
 
-const jsonLd = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "SoftwareApplication",
-      name: "LipaPoint ERP",
-      applicationCategory: "BusinessApplication",
-      operatingSystem: "Web, Android, iOS, Windows",
-      description:
-        "All-in-one ERP system for Kenyan businesses: point of sale, M-Pesa integration, inventory management, real-time analytics, KRA eTIMS invoicing, statutory payroll, accounting, fixed assets and multi-location support.",
-      url: "https://lipapoint.co.ke",
-      offers: {
-        "@type": "AggregateOffer",
-        priceCurrency: "KES",
-        price: "KES 0",
-        offerCurrency: "KES",
-        eligibleRegion: "KE",
-      },
-      aggregateRating: {
-        "@type": "AggregateRating",
-        ratingValue: "4.9",
-        ratingCount: "3,200+",
-        bestRating: "5",
-        worstRating: "1",
-      },
-      seller: {
-        "@type": "Organization",
-        name: "LipaPoint",
-        url: "https://lipapoint.co.ke",
-      },
-    },
-    {
-      "@type": "Organization",
-      name: "LipaPoint",
-      url: "https://lipapoint.co.ke",
-      logo: "https://lipapoint.co.ke/icon.svg",
-      sameAs: [
-        "https://www.facebook.com/lipapoint",
-        "https://twitter.com/lipapoint",
-        "https://www.instagram.com/lipapoint",
-      ],
-    },
-  ],
-};
-
 export default function HomePage() {
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
       <main className="relative min-h-screen bg-background">
         {/* ---- Trust strip ---- */}
         <div className="border-border bg-background">
@@ -686,8 +639,8 @@ export default function HomePage() {
 
             <p className="mt-3 text-center text-sm text-text-muted">
               Prefer to see it running before you pick a tier?{" "}
-              <Link href="/demo" className="font-medium text-text-primary underline-offset-4 hover:underline">
-                open a live demo
+              <Link href="/demo-request" className="font-medium text-text-primary underline-offset-4 hover:underline">
+                request a free demo
               </Link>
               .
             </p>

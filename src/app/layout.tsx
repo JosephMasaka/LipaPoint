@@ -27,6 +27,15 @@ export const viewport: Viewport = {
 
 const SITE_URL = "https://lipapoint.co.ke";
 
+/**
+ * Search Console. Set GOOGLE_SITE_VERIFICATION to the token Search Console
+ * gives you for the "HTML tag" method (or BING_SITE_VERIFICATION for Bing);
+ * when unset no meta tag is rendered, rather than shipping a placeholder that
+ * silently fails verification.
+ */
+const GOOGLE_SITE_VERIFICATION = process.env.GOOGLE_SITE_VERIFICATION?.trim();
+const BING_SITE_VERIFICATION = process.env.BING_SITE_VERIFICATION?.trim();
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
@@ -106,7 +115,8 @@ export const metadata: Metadata = {
     title: "LipaPoint",
   },
   verification: {
-    google: "ADD_YOUR_GOOGLE_VERIFICATION_CODE",
+    ...(GOOGLE_SITE_VERIFICATION && { google: GOOGLE_SITE_VERIFICATION }),
+    ...(BING_SITE_VERIFICATION && { other: { "msvalidate.01": BING_SITE_VERIFICATION } }),
   },
   category: "business",
 };

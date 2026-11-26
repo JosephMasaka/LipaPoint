@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
+import { canonical, keywords } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  title: "Contact Us — Get ERP Support & Sales Inquiries",
+  title: "Contact LipaPoint — Sales, Onboarding & Support in Kenya",
   description:
-    "Contact LipaPoint for ERP demos, pricing questions, technical support or partnership inquiries. Based in Nairobi, Kenya. Call, email or WhatsApp us.",
-  alternates: { canonical: "https://lipapoint.co.ke/contact" },
+    "Talk to the LipaPoint team about POS, M-Pesa, inventory, accounting, payroll and KRA eTIMS for your business. Book onboarding, ask about pricing, or get support — we reply from Nairobi, Kenya.",
+  keywords: keywords("pos", "payroll", "compliance", "industries", "counties"),
+  alternates: { canonical: canonical("/contact") },
   openGraph: {
-    title: "Contact LipaPoint — ERP Support Kenya",
-    description: "Reach our team for demos, support or sales. Nairobi-based, available 24/7.",
-    url: "https://lipapoint.co.ke/contact",
+    title: "Contact LipaPoint ERP Kenya",
+    description:
+      "Sales, onboarding and support for LipaPoint ERP — POS, M-Pesa, inventory, accounting, payroll and KRA eTIMS.",
+    url: canonical("/contact"),
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Contact LipaPoint ERP" }],
   },
 };
 

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Boxes, Truck, ClipboardList } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("inventory", "industries"),
   title: "LipaPoint ERP for Logistics & Warehousing — Stock in Motion",
   description:
     "LipaPoint's logistics and warehousing solution: multi-location stock control, transfers, order fulfilment and valuation for transport and storage businesses.",

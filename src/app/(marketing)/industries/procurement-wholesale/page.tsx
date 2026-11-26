@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ClipboardList, Truck, Boxes } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("inventory", "industries", "finance"),
   title: "LipaPoint ERP for Procurement & Wholesale — Purchase to Payment",
   description:
     "LipaPoint's procurement and wholesale solution: purchase orders, supplier invoicing, multi-location stock control and B2B selling.",

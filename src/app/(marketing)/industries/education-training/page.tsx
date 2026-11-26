@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, Banknote, CalendarDays } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("industries", "finance", "payroll"),
   title: "LipaPoint ERP for Education & Training — Fees, Staff & Operations",
   description:
     "LipaPoint's education solution: learner records, fee and expense tracking, staff payroll and scheduling for schools, colleges and training centres.",

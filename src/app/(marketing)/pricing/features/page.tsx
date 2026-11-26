@@ -10,8 +10,10 @@ import {
 } from "@/lib/module-registry";
 import type { FeatureKey, ModuleKey } from "@/lib/module-registry";
 import { formatFeaturePrice } from "@/lib/plans";
+import { keywords } from "@/lib/seo";
 
 export const metadata: Metadata = {
+  keywords: keywords("pos", "inventory", "finance", "payroll", "compliance", "crm"),
   title: "Individual Feature Pricing — Buy One Feature at a Time | LipaPoint",
   description:
     "Every LipaPoint add-on feature priced on its own: barcode scanning, purchase orders, payroll runs and more from KSh 300/mo, on top of any plan. Core features and Offline Mode are free on every plan.",

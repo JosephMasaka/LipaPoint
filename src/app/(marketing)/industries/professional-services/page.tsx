@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Briefcase, Calculator, BarChart3 } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("industries", "finance", "crm"),
   title: "LipaPoint ERP for Professional Services — Clients, Billing & Books",
   description:
     "LipaPoint's professional services solution: client records and statements, invoicing, general ledger and practice reports for agencies and consultancies.",

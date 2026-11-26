@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("industries", "pos", "crm"),
   title: "LipaPoint ERP for Restaurants & Hospitality — Front to Back of House",
   description:
     "Run service, kitchen, stock, staff and the books on one ERP: table and order management, food cost, statutory payroll and KRA eTIMS for Kenyan restaurants.",

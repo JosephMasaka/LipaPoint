@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Landmark, Calculator, ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("finance", "compliance", "industries"),
   title: "LipaPoint ERP for Finance & Accounting — Books, Banking & eTIMS",
   description:
     "LipaPoint's finance solution: chart of accounts, general ledger, bank reconciliation, financial statements and KRA eTIMS compliance for Kenyan businesses.",

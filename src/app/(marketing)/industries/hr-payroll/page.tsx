@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Users, Banknote, Shield, Package } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("payroll", "industries", "finance"),
   title: "LipaPoint ERP for HR & Payroll — Statutory Payroll & People",
   description:
     "Run statutory payroll, PAYE, NSSF, SHIF and housing levy, leave and employee records on one ERP — with every payroll run posted to the books.",

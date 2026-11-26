@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("industries", "pos", "inventory"),
   title: "LipaPoint ERP for Retail & Supermarkets — Sales, Stock & Branches",
   description:
     "Run every shop and supermarket branch on one ERP: point of sale, replenishment, purchasing, staff and daily margin reporting — M-Pesa and KRA eTIMS ready.",

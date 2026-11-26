@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("pos", "inventory", "finance", "payroll", "compliance", "crm", "ai", "integrations"),
   title: "ERP Features — POS, Inventory, Payroll, KRA eTIMS & More",
   description:
     "Explore LipaPoint features: M-Pesa & card payments, inventory, sales analytics, a grounded AI business assistant, KRA eTIMS invoicing, Kenyan statutory payroll (PAYE/NSSF/SHIF), HR & leave, accounting and asset depreciation. Best ERP for Kenya.",

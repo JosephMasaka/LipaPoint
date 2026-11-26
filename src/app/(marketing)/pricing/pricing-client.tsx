@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Check, Zap, Crown, Building2, Printer, ScanBarcode, Tablet } from "lucide-react";
+import { PRICING_FAQ } from "@/lib/pricing-faq";
 import {
   type BusinessCategory,
   VERTICAL_PLANS,
@@ -473,8 +474,8 @@ export function PricingClient() {
           </p>
           <p className="mt-3 text-center text-xs text-text-muted">
             Prefer to see it running before you pay?{" "}
-            <Link href="/demo" className="text-gold hover:underline">
-              Open a live demo →
+            <Link href="/demo-request" className="text-gold hover:underline">
+              Request a free demo →
             </Link>
           </p>
           <p className="mt-3 text-center text-xs text-text-muted">
@@ -488,44 +489,29 @@ export function PricingClient() {
           </p>
         </div>
 
-        {/* FAQ — answers the two questions this granularity exists to settle
-            (skill §7 / sub-feature spec §11). */}
+        {/* FAQ — also emitted as FAQPage structured data (src/lib/pricing-faq.ts),
+            so the answers here and the markup Google reads are identical. */}
         <div className="mt-20">
-          <h2 className="text-2xl font-bold text-text-primary text-center mb-8">
-            Questions about buying less than everything
+          <h2 className="text-2xl font-bold text-text-primary text-center mb-3">
+            Pricing questions, answered
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="rounded-2xl border border-border bg-surface-elevated p-6">
-              <h3 className="font-semibold text-text-primary mb-2">
-                Can I buy just one app?
-              </h3>
-              <p className="text-sm text-text-secondary">
-                Yes. Every app stands alone — a shop can run Point of Sale and
-                Inventory with no accounting, and a services business can run
-                Finance and Payroll with no POS at all.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-gold/30 bg-gold/5 p-6">
-              <h3 className="font-semibold text-text-primary mb-2">
-                Can I buy just part of an app?
-              </h3>                <p className="text-sm text-text-secondary">
-                  Yes — by module, not by feature. Each module is sold as one
-                  bundle (the Point of Sale module includes barcode scanning,
-                  discounts and multi-till at a single price), so nothing is
-                  split out for separate billing. For one capability on its own,
-                  contact sales.
-                </p>
-            </div>
-            <div className="rounded-2xl border border-border bg-surface-elevated p-6">
-              <h3 className="font-semibold text-text-primary mb-2">
-                What is always included?
-              </h3>
-              <p className="text-sm text-text-secondary">
-                The core of every app is free with the app itself: the Till, Stock
-                Tracking, Employee Records, General Ledger, Suppliers, Asset
-                Register and Customer Records.
-              </p>
-            </div>
+          <p className="text-center text-text-secondary mb-8 max-w-2xl mx-auto">
+            What you are buying, what is included, and what happens on the day you stop paying.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {PRICING_FAQ.map((item, index) => (
+              <div
+                key={item.question}
+                className={
+                  index === 1
+                    ? "rounded-2xl border border-gold/30 bg-gold/5 p-6"
+                    : "rounded-2xl border border-border bg-surface-elevated p-6"
+                }
+              >
+                <h3 className="font-semibold text-text-primary mb-2">{item.question}</h3>
+                <p className="text-sm text-text-secondary">{item.answer}</p>
+              </div>
+            ))}
           </div>
         </div>
 

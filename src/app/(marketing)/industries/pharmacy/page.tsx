@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("industries", "inventory", "compliance"),
   title: "LipaPoint ERP for Pharmacies — Stock, Expiry & eTIMS",
   description:
     "Run dispensing, stock and expiry control, staff payroll and KRA eTIMS invoicing on one ERP. Built for Kenyan pharmacies, drug stores and dispensaries.",

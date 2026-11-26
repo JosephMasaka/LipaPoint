@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Package, Users, Shield, Banknote } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("finance", "industries"),
   title: "LipaPoint ERP for Asset Management — Equipment & Depreciation",
   description:
     "LipaPoint's asset management solution: track equipment, vehicles, and fixed assets across all your business locations.",

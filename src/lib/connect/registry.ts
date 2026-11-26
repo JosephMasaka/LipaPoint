@@ -19,6 +19,7 @@ export const PROVIDER_CATEGORIES = [
   "Accounting",
   "CRM",
   "ERP",
+  "Compliance",
   "Testing",
 ] as const;
 export type ProviderCategory = (typeof PROVIDER_CATEGORIES)[number];
@@ -236,7 +237,44 @@ const PLANNED: ProviderDefinition[] = [
   },
 ];
 
-export const PROVIDERS: ProviderDefinition[] = [CUSTOM_API, FILE, MOCK, ...PLANNED];
+/** The tenant's own KRA eTIMS submission data, surfaced read-only as products
+ * and customers through the same catalogue / job / webhook surfaces as the
+ * other connectors. It is not a second submission path — that stays on the
+ * etims module — and it does not write anything back to KRA.
+ *
+ * The connector reuses the existing EtimsHttpProvider / MockEtimsProvider seam
+ * so the catalogue snapshot and the real submission path agree on seller
+ * identity, line format and invoice-number semantics. Stored seller
+ * configuration is per-tenant (Settings > eTIMS), resolved at connect time.
+ *
+ * Auth: eTIMS is a KRA-registered device, not a per-connection API credential,
+ * so there is no credential form — the device is configured once per tenant in
+ * settings, and the connector uses the stored seller config + ETIMS_BASE_URL.
+ */
+const ETIMS: ProviderDefinition = {
+  id: "etims",
+  label: "eTIMS (KRA)",
+  category: "Compliance",
+  description:
+    "Read-only mirror of the tenant's own KRA eTIMS submission records (sales and credit notes) exposed as products and customers, so eTIMS participates in Connect sync, job history and webhooks alongside the other providers. Not a second submission path — that stays on the etims module.",
+  status: "available",
+  authTypes: ["NONE"],
+  entities: ["products", "customers"],
+  supportsFile: false,
+  supportsWebhooks: true,
+  setupHint:
+    "Configure the KRA eTIMS device once per tenant under Settings > eTIMS, then Connect exposes the tenant's own submission history as products (invoice lines) and customers (buyers) through the standard catalogue.",
+  configFields: [
+    {
+      key: "deviceType",
+      label: "Device type",
+      placeholder: "OSCU or VSCU",
+      help: "KRA eTIMS device type used by this tenant.",
+    },
+  ],
+};
+
+export const PROVIDERS: ProviderDefinition[] = [CUSTOM_API, FILE, MOCK, ETIMS, ...PLANNED];
 
 const PROVIDER_INDEX = new Map(PROVIDERS.map((provider) => [provider.id, provider]));
 

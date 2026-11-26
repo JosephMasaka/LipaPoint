@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ogImage } from "@/lib/og";
+import { keywords } from "@/lib/seo";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
+  keywords: keywords("industries", "crm", "pos"),
   title: "LipaPoint ERP for Barbershops & Salons — Bookings to Commissions",
   description:
     "Run bookings, services, retail products, staff commissions and payroll on one ERP. Built for Kenyan barbershops, salons and grooming businesses.",

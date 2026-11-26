@@ -15,28 +15,40 @@ export async function GET() {
     const tenant = await db.tenant.findUnique({
       where: { id: user.tenantId },
       select: {
-        name: true, slug: true, type: true, tier: true, currency: true,
-        taxRate: true, receiptHeader: true, receiptFooter: true, isActive: true,
-        mpesaPaybill: true, mpesaTill: true, mpesaAccountName: true,
-        city: true, county: true,
-        // On-the-go pricing at the till (src/lib/price-override.ts)
-        priceOverrideEnabled: true, priceFloorMode: true, priceFloorValue: true,
-        // Receipt preference — who is printed as "Served by" on receipts
+        name: true,
+        slug: true,
+        type: true,
+        tier: true,
+        currency: true,
+        taxRate: true,
+        receiptHeader: true,
+        receiptFooter: true,
+        isActive: true,
+        mpesaPaybill: true,
+        mpesaTill: true,
+        mpesaAccountName: true,
+        city: true,
+        county: true,
+        priceOverrideEnabled: true,
+        priceFloorMode: true,
+        priceFloorValue: true,
         showServedBy: true,
-        // AI restock target (days of cover) and kill switch
         restockTargetDays: true,
         aiEnabled: true,
         paymentGateways: {
-          select: { provider: true, isActive: true, merchantRef: true },
+          select: {
+            provider: true,
+            isActive: true,
+            merchantRef: true,
+          },
         },
       },
     });
+    if (!tenant) {
+      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    }
     return NextResponse.json({
       ...tenant,
-      // On-the-go pricing is a sellable sub-feature — the toggle is only
-      // meaningful while "Price Override" is switched on for this tenant
-      // (sub-feature spec §1/§4). Told separately so the Settings UI can
-      // grey the switch out and explain why instead of silently ignoring it.
       priceOverrideAvailable: await isFeatureEnabled(user.tenantId, "price-override"),
     });
   } catch (error) {
@@ -53,26 +65,34 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: "Only an owner or admin can change business settings." }, { status: 403 });
     }
 
-    // Settings changed offline are replayed until they land (PUT is
-    // idempotent anyway, but the receipt keeps the response consistent).
     const replay = await replaySyncResponse(request, user.tenantId);
     if (replay) return replay;
 
     const body = await request.json();
     const {
-      name, type, currency, taxRate, receiptHeader, receiptFooter,
-      mpesaPaybill, mpesaTill, mpesaAccountName, city, county,
-      priceOverrideEnabled, priceFloorMode, priceFloorValue,
-      showServedBy, restockTargetDays, aiEnabled,
+      name,
+      type,
+      currency,
+      taxRate,
+      receiptHeader,
+      receiptFooter,
+      mpesaPaybill,
+      mpesaTill,
+      mpesaAccountName,
+      city,
+      county,
+      priceOverrideEnabled,
+      priceFloorMode,
+      priceFloorValue,
+      showServedBy,
+      restockTargetDays,
+      aiEnabled,
     } = body;
 
-    // Kill switch: stop model calls for this tenant. Deterministic panels keep
-    // working, so this is safe to flip during an incident.
     if (aiEnabled !== undefined && typeof aiEnabled !== "boolean") {
       return NextResponse.json({ error: "AI enabled must be true or false." }, { status: 400 });
     }
 
-    // Restock target: days of cover the AI reorder suggestions aim for.
     let restockTarget: number | undefined;
     if (restockTargetDays !== undefined) {
       const parsed = Number(restockTargetDays);
@@ -82,9 +102,6 @@ export async function PUT(request: Request) {
       restockTarget = clampTargetCoverDays(parsed);
     }
 
-    // On-the-go pricing can only be switched on while the tenant actually
-    // holds the "Price Override" feature — turning it back off always works
-    // (otherwise a revoked tenant could get stuck with a live setting).
     if (priceOverrideEnabled !== undefined && priceOverrideEnabled) {
       const available = await isFeatureEnabled(user.tenantId, "price-override");
       if (!available) {
@@ -95,10 +112,6 @@ export async function PUT(request: Request) {
       }
     }
 
-    // On-the-go pricing: mode is percent-or-amount, the tolerance is a
-    // non-negative number — and a percentage can never exceed 100 (that
-    // would mean giving stock away for free). When only one of the two is
-    // being updated, the stored row decides which rule applies.
     let floorMode: string | undefined;
     let floorValue: number | undefined;
     if (priceFloorMode !== undefined) {
@@ -110,11 +123,11 @@ export async function PUT(request: Request) {
     if (priceFloorValue !== undefined) {
       const effectiveMode =
         floorMode ??
-        (await db.tenant.findUnique({
+        ((await db.tenant.findUnique({
           where: { id: user.tenantId },
           select: { priceFloorMode: true },
-        }))?.priceFloorMode ??
-        "PERCENT";
+        }))?.priceFloorMode ?? "PERCENT");
+
       floorValue = parseFloat(priceFloorValue);
       if (!Number.isFinite(floorValue) || floorValue < 0) {
         return NextResponse.json(
@@ -130,46 +143,41 @@ export async function PUT(request: Request) {
       }
     }
 
-    // County must be one of Kenya's 47 counties — it drives area benchmarks and census lookups.
-    let countyValue: string | null | undefined;
-    if (county !== undefined) {
-      if (county === null || county === "") {
-        countyValue = null;
-      } else {
-        const canonical = canonicalCounty(county);
-        if (!canonical) {
-          return NextResponse.json({ error: "Select a valid Kenyan county." }, { status: 400 });
-        }
-        countyValue = canonical;
-      }
-    }
-
     const tenant = await db.tenant.update({
       where: { id: user.tenantId },
       data: {
         ...(name && { name }),
         ...(type && { type }),
         ...(currency && { currency }),
-        ...(taxRate !== undefined && { taxRate: parseFloat(taxRate) }),
+        ...(taxRate !== undefined && { taxRate: Number(taxRate) }),
         ...(receiptHeader !== undefined && { receiptHeader }),
         ...(receiptFooter !== undefined && { receiptFooter }),
         ...(mpesaPaybill !== undefined && { mpesaPaybill }),
         ...(mpesaTill !== undefined && { mpesaTill }),
         ...(mpesaAccountName !== undefined && { mpesaAccountName }),
-        ...(city !== undefined && { city: typeof city === "string" && city.trim() ? city.trim().slice(0, 80) : null }),
-        ...(countyValue !== undefined && { county: countyValue }),
-        ...(priceOverrideEnabled !== undefined && { priceOverrideEnabled: !!priceOverrideEnabled }),
+        ...(city !== undefined && {
+          city: typeof city === "string" && city.trim() !== "" ? city.trim().slice(0, 80) : null,
+        }),
+        ...(county !== undefined && {
+          county:
+            county === null || county === ""
+              ? null
+              : canonicalCounty(county) ?? county,
+        }),
+        ...(priceOverrideEnabled !== undefined && {
+          priceOverrideEnabled: Boolean(priceOverrideEnabled),
+        }),
         ...(floorMode !== undefined && { priceFloorMode: floorMode }),
         ...(floorValue !== undefined && { priceFloorValue: floorValue }),
-        ...(showServedBy !== undefined && { showServedBy: !!showServedBy }),
+        ...(showServedBy !== undefined && { showServedBy: Boolean(showServedBy) }),
         ...(restockTarget !== undefined && { restockTargetDays: restockTarget }),
         ...(aiEnabled !== undefined && { aiEnabled }),
       },
     });
 
-    // Location and business type change which peers we compare against.
-    if (county !== undefined || city !== undefined || type || restockTarget !== undefined)
+    if (county !== undefined || city !== undefined || type || restockTarget !== undefined) {
       await invalidateIntelligence(user.tenantId);
+    }
 
     return recordSyncResponse(request, user.tenantId, NextResponse.json(tenant));
   } catch (error) {

@@ -44,6 +44,14 @@ interface TenantSettings {
   restockTargetDays?: number;
   /** Kill switch: false stops all model calls for this business. */
   aiEnabled?: boolean;
+  // Per-tenant KRA eTIMS device config, surfaced to Settings and Connect
+  etimsDeviceType?: "OSCU" | "VSCU" | null;
+  etimsSellerTin?: string | null;
+  etimsSellerBranch?: string | null;
+  etimsCsid?: string | null;
+  etimsSellerName?: string | null;
+  etimsCallbackSecret?: string | null;
+  etimsProvider?: "mock" | "oscu" | "vscu" | null;
   paymentGateways?: GatewayStatus[];
 }
 
@@ -108,7 +116,12 @@ export default function SettingsPage() {
     priceOverrideEnabled: false,
     priceFloorMode: "PERCENT",
     priceFloorValue: 0,
+    showServedBy: false,
     restockTargetDays: 14,
+    aiEnabled: true,
+    // Per-tenant KRA eTIMS device config, surfaced to Settings and Connect
+
+    paymentGateways: undefined,
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -355,6 +368,7 @@ export default function SettingsPage() {
     { id: "receipts", label: "Receipts", icon: Receipt },
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "security", label: "Security", icon: Shield },
+    { id: "etims", label: "eTIMS (KRA)", icon: Receipt },
   ];
 
   if (loading) {
@@ -962,7 +976,91 @@ export default function SettingsPage() {
         <NotificationsTab notify={notify} />
       )}
 
-      {/* Security */}
+      {/* eTIMS (KRA) */}
+      {activeTab === "etims" && (
+        <div className="grid gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>KRA eTIMS Device</CardTitle>
+              <CardDescription>
+                Configure the KRA eTIMS device for this tenant. This configuration is used by both the eTIMS submission path and the read-only eTIMS connector in LipaPoint Connect.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid md:grid-cols-1 gap-4">
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium text-text-secondary">Device type</span>
+                  <select
+                  value={settings.etimsDeviceType ?? ""}
+                  onChange={(e) => setSettings({ ...settings, etimsDeviceType: (e.target.value as "OSCU" | "VSCU") || undefined })}
+                  className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm text-text-primary"
+                >
+                  <option value="">Device type</option>
+                  <option value="OSCU">OSCU — Online Sales Control Unit (retail / POS)</option>
+                  <option value="VSCU">VSCU — Virtual Sales Control Unit (wholesale / B2B)</option>
+                  </select>
+                </label>
+              </div>
+              <Input
+                label="Seller TIN (optional)"
+                value={settings.etimsSellerTin ?? ""}
+                onChange={(e) => setSettings({ ...settings, etimsSellerTin: e.target.value || null })}
+                placeholder="KRA Tax Identification Number for this seller"
+              />
+              <Input
+                label="Seller branch (optional)"
+                value={settings.etimsSellerBranch ?? ""}
+                onChange={(e) => setSettings({ ...settings, etimsSellerBranch: e.target.value || null })}
+                placeholder="KRA-registered branch identifier"
+              />
+              <Input
+                label="CSID (optional)"
+                value={settings.etimsCsid ?? ""}
+                onChange={(e) => setSettings({ ...settings, etimsCsid: e.target.value || null })}
+                placeholder="KRA eTIMS client/server ID"
+              />
+              <Input
+                label="Seller name (optional)"
+                value={settings.etimsSellerName ?? ""}
+                onChange={(e) => setSettings({ ...settings, etimsSellerName: e.target.value || null })}
+                placeholder="Name printed on KRA invoices / receipts"
+              />
+              <Input
+                label="Callback secret (optional)"
+                type="password"
+                value={settings.etimsCallbackSecret ?? ""}
+                onChange={(e) => setSettings({ ...settings, etimsCallbackSecret: e.target.value || null })}
+                placeholder="Shared secret for eTIMS HMAC callbacks (x-etims-callback-secret)"
+              />
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">eTIMS provider mode</label>
+                  <select
+                    value={settings.etimsProvider ?? ""}
+                    onChange={(e) => setSettings({ ...settings, etimsProvider: (e.target.value as "mock" | "oscu" | "vscu") || undefined })}
+                    className="w-full rounded-lg border border-border bg-surface-elevated px-3 py-2.5 text-sm text-text-primary"
+                  >
+                    <option value="">Provider mode</option>
+                    <option value="mock">Mock — accept every submission locally (dev / test only)</option>
+                    <option value="oscu">OSCU — live KRA middleware for retail / POS</option>
+                    <option value="vscu">VSCU — live KRA middleware for wholesale / B2B</option>
+                  </select>
+                </div>
+                <div className="flex items-start gap-2 rounded-lg border border-border bg-surface-elevated px-3 py-2.5">
+                  <svg className="mt-0.5 h-4 w-4 text-text-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M12 9v4M12 17h.01" strokeLinecap="round" />
+                    <path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <div className="text-xs text-text-muted">
+                    The eTIMS connector in LipaPoint Connect is a <strong className="text-text-primary">read-only mirror</strong> of this tenant's own submission history. It does not submit anything to KRA — that stays on the eTIMS module.
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {activeTab === "security" && (
         <div className="grid gap-6">
           <Card>

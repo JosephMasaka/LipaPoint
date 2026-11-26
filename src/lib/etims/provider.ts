@@ -31,9 +31,7 @@
  *   device endpoint is configured. Generates clearly-labelled MOCK- invoice
  *   numbers so they can never be mistaken for real KRA documents.
  */
-
 export type EtimsDocumentType = "sale" | "credit_note" | "supplier_invoice";
-
 export interface EtimsItemLine {
   description: string;
   quantity: number;
@@ -43,7 +41,6 @@ export interface EtimsItemLine {
   taxRate: number;
   taxAmount: number;
 }
-
 export interface EtimsSubmissionPayload {
   /** orderNo / creditNoteNumber — our traceable reference. */
   internalRef: string;
@@ -66,7 +63,6 @@ export interface EtimsSubmissionPayload {
   total: number;
   memo?: string | null;
 }
-
 /**
  * Outcome of one submission attempt. The distinction that matters:
  * - `rejected`  — KRA saw it and said no. Needs a human fix, then a retry.
@@ -81,15 +77,12 @@ export type EtimsSubmitOutcome =
   | { outcome: "submitted"; reference?: string | null; raw?: unknown }
   | { outcome: "rejected"; reason: string; raw?: unknown }
   | { outcome: "unreachable"; error: string };
-
 export interface EtimsProvider {
   readonly name: string;
   submit(payload: EtimsSubmissionPayload): Promise<EtimsSubmitOutcome>;
 }
-
 /** Which KRA eTIMS device type this deployment speaks for. */
 export type EtimsDeviceType = "OSCU" | "VSCU";
-
 /**
  * Middleware connection settings for one device type, resolved from env.
  * Seller identity (TIN/branch/CSID) is shared — a deployment registers one
@@ -105,28 +98,37 @@ export interface EtimsHttpConfig {
   sellerName: string;
   timeoutMs: number;
 }
-
 export class EtimsConfigError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "EtimsConfigError";
   }
 }
-
-/** Base-URL env var for a device type; ETIMS_BASE_URL covers either. */
+/**
+ * Base-URL env var for a device type; ETIMS_BASE_URL covers either, and when
+ * only the shared single-middleware endpoint is configured that one endpoint
+ * can serve both OSCU and VSCU traffic.
+ */
 function baseUrlVarFor(deviceType: EtimsDeviceType): string {
   return deviceType === "VSCU" ? "ETIMS_VSCU_BASE_URL" : "ETIMS_OSCU_BASE_URL";
 }
-
 export function readEtimsHttpConfig(deviceType: EtimsDeviceType): EtimsHttpConfig {
   const deviceVar = baseUrlVarFor(deviceType);
-  const baseUrl = process.env[deviceVar]?.trim() || process.env.ETIMS_BASE_URL?.trim();
+  // Prefer the device-specific base URL. When only the shared single-middleware
+  // endpoint is configured, fall back to ETIMS_BASE_URL so one deployed
+  // middleware can serve both OSCU and VSCU traffic.
+  const baseUrl =
+    process.env[deviceVar]?.trim() ||
+    process.env.ETIMS_BASE_URL?.trim() ||
+    (deviceType === "VSCU"
+      ? process.env.ETIMS_VSCU_BASE_URL?.trim()
+      : process.env.ETIMS_OSCU_BASE_URL?.trim());
   const tin = process.env.ETIMS_SELLER_TIN?.trim();
   const branch = process.env.ETIMS_SELLER_BRANCH?.trim();
   const csid = process.env.ETIMS_CSID?.trim();
 
   const missing = [
-    !baseUrl && `${deviceVar} (or ETIMS_BASE_URL)`,
+    !baseUrl && `${deviceVar} (or ETIMS_BASE_URL, or ${deviceType === "VSCU" ? "ETIMS_VSCU_BASE_URL" : "ETIMS_OSCU_BASE_URL"})`,
     !tin && "ETIMS_SELLER_TIN",
     !branch && "ETIMS_SELLER_BRANCH",
     !csid && "ETIMS_CSID",
@@ -150,7 +152,6 @@ export function readEtimsHttpConfig(deviceType: EtimsDeviceType): EtimsHttpConfi
     timeoutMs: parseInt(process.env.ETIMS_TIMEOUT_MS || "5000", 10),
   };
 }
-
 /**
  * Real HTTP adapter for the eTIMS middleware, for either device type.
  * Maps our normalized payload onto the invoice envelope, tags it with the
@@ -268,7 +269,6 @@ export class EtimsHttpProvider implements EtimsProvider {
     };
   }
 }
-
 /**
  * Deterministic stand-in used in dev/test. Accepts every payload, assigns a
  * clearly-fake `MOCK-` invoice number, and never touches the network.
@@ -285,7 +285,6 @@ export class MockEtimsProvider implements EtimsProvider {
     };
   }
 }
-
 /**
  * Resolves the active provider from env.
  * - ETIMS_PROVIDER=oscu  → OSCU adapter (throws EtimsConfigError if unconfigured)
@@ -322,7 +321,6 @@ export function getEtimsProvider(): EtimsProvider {
 
   return new MockEtimsProvider();
 }
-
 /** KRA payment-method buckets (spec §4.1 payment methods → eTIMS codes). */
 export function normalizePaymentMethod(
   method: string,

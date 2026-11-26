@@ -1,27 +1,56 @@
 import type { Metadata } from "next";
-import { ogImage } from "@/lib/og";
+import { breadcrumbJsonLd, canonical, keywords, jsonLdGraph, serializeJsonLd } from "@/lib/seo";
+
+const titleDefault = "ERP by Industry — Retail, Restaurants, Pharmacy, Payroll & More";
+const description =
+  "LipaPoint ERP configured for your industry: retail and supermarkets, restaurants, bars and lodges, pharmacies, barbershops and salons, wholesale, warehousing, schools, professional services, HR and payroll, finance and asset management. POS, M-Pesa, stock, accounting and KRA eTIMS included.";
 
 export const metadata: Metadata = {
+  // The default covers the index page; the template brands every industry
+  // page that sets its own title.
   title: {
-    default: "Industry ERP Solutions in Kenya",
+    default: titleDefault,
     template: "%s | LipaPoint ERP Kenya",
   },
-  description:
-    "Industry-ready ERP for Kenyan businesses: retail, hospitality, pharmacy, finance, payroll, logistics and professional services — sales, stock, staff and books in one system.",
-  alternates: { canonical: "https://lipapoint.co.ke/industries" },
+  description,
+  keywords: keywords("industries", "pos", "inventory", "finance", "payroll", "compliance"),
+  alternates: { canonical: canonical("/industries") },
   openGraph: {
-    title: "LipaPoint ERP — Built for How Kenya Runs Business",
+    title: "LipaPoint ERP by Industry",
     description:
-      "Industry-ready ERP for retail, hospitality, pharmacy, services and logistics — one platform for sales, stock, staff and books.",
-    url: "https://lipapoint.co.ke/industries",
-    images: ogImage("industries", "LipaPoint ERP industry solutions"),
+      "Industry-specific ERP setups for Kenyan businesses — retail, hospitality, pharmacy, wholesale, logistics, education, professional services, HR and finance.",
+    url: canonical("/industries"),
+    images: [{ url: "/images/og/industries.png", width: 1200, height: 630, alt: "LipaPoint ERP industries" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "LipaPoint ERP by Industry",
+    description: "ERP setups for retail, hospitality, pharmacy, wholesale, logistics, education and finance.",
+    images: ["/images/og/industries.png"],
   },
 };
 
-export default function IndustriesLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return children;
+const jsonLd = serializeJsonLd(
+  jsonLdGraph(
+    breadcrumbJsonLd([
+      { name: "Home", path: "/" },
+      { name: "Industries", path: "/industries" },
+    ]),
+    {
+      "@type": "CollectionPage",
+      name: titleDefault,
+      description,
+      url: canonical("/industries"),
+      isPartOf: { "@id": `${canonical("/")}/#website` },
+    }
+  )
+);
+
+export default function IndustriesLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />
+      {children}
+    </>
+  );
 }

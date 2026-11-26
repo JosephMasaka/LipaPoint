@@ -277,22 +277,16 @@ export const FEATURE_KEYS = [
 
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
-/**
- * The single source of truth for sub-features (spec §1 — 46 entries:
- * 7 core + 1 free ("offline-mode") + 38 billable; the spec's prose
- * "41 / 8 / 33" total is a miscount, its own per-module tables sum to this —
- * see handoff D8).
- *
- * Vertical filtering uses the spec's §7 rule — only where the spec is
- * explicit (restaurant-only and barbershop-only POS capabilities) do we set
- * `applicableCategories`; "primarily <vertical>" rows stay visible to all so
- * no tenant silently loses a feature it has today.
- */
 export const FEATURE_REGISTRY: Record<FeatureKey, FeatureDefinition> = {
-  /* payroll module */
+  // ── LipaPoint Connect (integrations) ──
+  // A feature is not a module: the connect feature is the entitlement to use
+  // the integration engine (catalogue, connections, sync, jobs, webhooks).
+  // Keep this entry in sync with feature-registry.check.ts.
+  //
+/* payroll module */
   "employee-records": {
     key: "employee-records", moduleKey: "payroll", appKey: "payroll",
-    label: "Employee Records", core: true, requires: [],
+    label: "Employee Records", core: false, requires: [],
   },
   attendance: {
     key: "attendance", moduleKey: "payroll", appKey: "payroll",
@@ -533,6 +527,7 @@ export const MODULE_CORE_FEATURE: Partial<Record<ModuleKey, FeatureKey>> = {
   assets: "asset-register",
   crm: "customer-records",
   payroll: "employee-records",
+  etims: undefined,
   connect: "connect",
 };
 
