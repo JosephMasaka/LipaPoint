@@ -61,7 +61,9 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-text-primary mb-1">Call Us</h3>
-                  <p className="text-sm text-text-secondary">+254 793973146</p>
+                  <a href="tel:+254791298382" className="block text-sm text-text-secondary hover:text-gold">
+                    +254 791298382
+                  </a>
                   <p className="text-sm text-text-secondary">Mon-Fri 8am - 6pm EAT</p>
                 </div>
               </CardContent>
@@ -87,7 +89,14 @@ export default function ContactPage() {
                 </div>
                 <div>
                   <h3 className="font-semibold text-text-primary mb-1">WhatsApp</h3>
-                  <p className="text-sm text-text-secondary">+254 791298382</p>
+                  <a
+                    href="https://wa.me/254793973146"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-sm text-text-secondary hover:text-gold"
+                  >
+                    +254 793973146
+                  </a>
                   <p className="text-sm text-text-secondary">Instant response during business hours</p>
                 </div>
               </CardContent>

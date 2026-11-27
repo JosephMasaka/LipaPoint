@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
+import { WhatsAppButton } from "@/components/whatsapp-button";
 import {
   jsonLdGraph,
   organizationJsonLd,
@@ -195,6 +196,9 @@ export default function MarketingLayout({
           </div>
         </div>
       </footer>
+
+      {/* Site-wide, so every public page carries the same contact route. */}
+      <WhatsAppButton />
     </div>
   );
 }
