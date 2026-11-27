@@ -453,6 +453,7 @@ export async function updateConnection(args: {
 
   await db.integrationConnection.update({ where: { id: connection.id }, data });
 
+  // Field names only — never a value, not even a masked one.
   await writeAuditLog({
     tenantId,
     userId,
@@ -462,6 +463,21 @@ export async function updateConnection(args: {
     entityId: connection.id,
     details: Object.keys(data).join(", "),
   });
+
+  // A credential rotation is the security-relevant half of an update, so it
+  // gets its own row rather than hiding inside the column list above: an
+  // operator filtering for who replaced a provider token must find it.
+  if (data.credentialsEnc !== undefined) {
+    await writeAuditLog({
+      tenantId,
+      userId,
+      action: AUDIT_ACTIONS.CONNECT.CREDENTIALS_SET,
+      module: "connect",
+      entity: "integrationConnection",
+      entityId: connection.id,
+      details: `${connection.name} · ${authType} credentials replaced`,
+    });
+  }
 
   return getConnection(tenantId, id);
 }
@@ -498,6 +514,18 @@ export async function disconnectConnection(args: {
     entity: "integrationConnection",
     entityId: connection.id,
     details: connection.name,
+  });
+
+  // The ciphertext is wiped above; record that it happened. Absence of a row
+  // here would make "were the credentials ever removed?" unanswerable.
+  await writeAuditLog({
+    tenantId: args.tenantId,
+    userId: args.userId,
+    action: AUDIT_ACTIONS.CONNECT.CREDENTIALS_SET,
+    module: "connect",
+    entity: "integrationConnection",
+    entityId: connection.id,
+    details: `${connection.name} · credentials cleared on disconnect`,
   });
 
   return getConnection(args.tenantId, connection.id);

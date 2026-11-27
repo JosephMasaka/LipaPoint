@@ -117,11 +117,13 @@ before each request, not only at save time (DNS rebinding is real):
 ## 8. Audit logging
 
 All state changes write `ActivityLog` rows via `src/lib/audit.ts` with a `CONNECT.*` namespace:
-connection created/updated/paused/resumed/disconnected, credentials set/cleared (never the
-values), test performed, sync started/completed/failed, job retried, webhook rejected, mapping
-updated. Entries carry `tenantId`, `userId` (or null for cron/webhook), and
-`details.impersonating`. Failed webhook authentication is logged with the connection id and
-reason, never the body.
+connection created/updated/paused/resumed/disconnected, credentials set (rotation) and cleared
+(on disconnect) — never the values, only the fact and the auth type — test performed,
+sync completed/failed, job retried, webhook received/rejected, mapping updated. A sync's start
+is the job row itself (`IntegrationJob.startedAt`, status `RUNNING`), not an audit entry, so a
+job has one outcome row rather than a start/finish pair. Entries carry `tenantId`, `userId` (or
+null for cron/webhook), and `details.impersonating`. Failed webhook authentication is logged
+with the connection id and reason, never the body.
 
 ## 9. AI safety (Milestone 6)
 
@@ -140,7 +142,7 @@ reason, never the body.
 
 | Requirement | Detail |
 |---|---|
-| Env vars | `ENCRYPTION_KEY` (32-byte base64, **must be documented — it is missing from `.env.example` today**), `CONNECT_CRON_BATCH` (default 5), `CONNECT_ALLOW_INSECURE_LOCAL` (dev only, default false), plus `CRON_SECRET` and optional `UPSTASH_REDIS_REST_*` |
+| Env vars | `ENCRYPTION_KEY` (32-byte base64, documented in `.env.example`), `CONNECT_CRON_BATCH` (default 5), `CONNECT_RETENTION_DAYS` (default 90), `CONNECT_ALLOW_INSECURE_LOCAL` (dev only, default false), plus `CRON_SECRET` and optional `UPSTASH_REDIS_REST_*` |
 | Key rotation | Not implemented in M1; `credentialKeyVersion` reserves the column. Rotation = add key v2, re-encrypt on read, drop v1 |
 | Backup | Connect tables live in the same database; no separate store to back up |
 | Incident | Disconnect a connection (`credentialsEnc` nulled) is the immediate kill switch; pausing stops jobs but keeps credentials |
@@ -159,3 +161,41 @@ reason, never the body.
 4. **No field-level encryption of payload snapshots** — `IntegrationJobRecord.reason` and
    `errorDetail` may contain customer business data in plaintext inside an encrypted-at-rest
    database; retention (default 90 days) bounds it.
+5. **SSRF address check races DNS (TOCTOU)** — the guard resolves the host, then `fetch`
+   resolves it again, so a host whose DNS flips between the two calls can still be reached.
+   Bounded by HTTPS-only, default port, no redirects and a 10 s timeout; a socket pinned to the
+   checked address would close it (see `src/lib/connect/ssrf.ts`).
+6. **Webhook endpoint existence is enumerable** — an unauthenticated caller can tell a live
+   connection (`409`) from an unknown id (`404`). Ids are cuids and no payload or tenant data
+   is disclosed by the status alone.
+
+## 12. Review log
+
+**November 2026 — tenant isolation, credential handling, SSRF, webhook auth, audit coverage.**
+
+Checked every `/api/connect` route: each reads `user.tenantId` from the session and passes it
+into a tenant-scoped query, including the `[id]` routes, `jobs/[id]/retry` and the sync-config
+`PUT`. No handler uses a path or body id as a tenant key. Public responses go through
+`toPublicConnection`, which exposes `maskedHint` and `hasCredentials` only; `credentialsEnc`
+and `webhookSecretEnc` never leave the server, and the webhook URL alone is useless without the
+secret.
+
+Fixed as a result:
+
+- Credential rotation wrote no `CONNECT.CREDENTIALS_SET` row, despite §8 promising it — a token
+  replacement was indistinguishable from a rename in `ActivityLog`. Rotation and disconnect
+  (which wipes the ciphertext) now each write one, with no value in `details`.
+- Connector reads were scoped by connection id rather than tenant id, so the eTIMS sync queried
+the wrong business and reported success with zero records (fixed separately; guarded by
+`tests/connect/context.test.ts`).
+
+Open decisions for the product owner, not defects:
+
+- `POST /connections/[id]/sync` requires read access (`requireConnectAccess()`), so a STAFF user
+  can start a sync that writes products and customers. Every other mutating route requires
+  OWNER/ADMIN. Tighten it to `{ write: true }` if staff should not trigger syncs.
+- Plan downgrades do not stop Connect. A tenant whose tier limit becomes 0 keeps active
+  connections, and the scheduler keeps running their jobs; today an operator must pause or
+  disconnect them (RUNBOOK §5). Decide whether downgrade should auto-pause.
+- The Connect UI renders create/disconnect controls for every role and relies on the API's 403,
+  so a staff user sees buttons that cannot succeed.
