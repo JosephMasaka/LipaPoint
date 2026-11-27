@@ -1,10 +1,12 @@
 # LipaPoint Connect — Runbook (Milestone 1)
 
 What is deployed: the integration engine (`src/lib/connect`), the API surface under
-`/api/connect`, and the tenant UI under `/[tenant]/connect`. Two connectors ship usable —
-**Custom API** (read-only REST) and **CSV/Excel file** — plus a clearly-labelled **sandbox**
-provider for demos. No named provider integration is included, and none is presented as
-available in the catalogue.
+`/api/connect`, and the tenant UI under `/[tenant]/connect`. Four connectors ship usable —
+**Custom API** (read-only REST), **CSV/Excel file**, **eTIMS (KRA)** (a read-only mirror of the
+tenant's own submitted invoices; no credentials, configured under Settings > eTIMS) — plus a
+clearly-labelled **sandbox** provider for demos. Named providers that are not built are listed
+in the catalogue as `planned` and cannot be connected; the registry test enforces that every
+`available` provider has an implementation and no `planned` one does.
 
 ## 1. Pre-deploy checklist
 
@@ -40,11 +42,13 @@ curl -s -X POST https://<host>/api/connect/cron/tick \
   -H "x-cron-secret: $CRON_SECRET"
 ```
 
-Each call: re-queues jobs whose process died (>15 min in RUNNING), enqueues due hourly syncs,
-claims up to `CONNECT_CRON_BATCH` jobs (default 5, max 25) and runs them. It logs one line:
+Each call: re-queues jobs whose process died (>15 min in RUNNING), purges history older than
+`CONNECT_RETENTION_DAYS` (default 90) from `IntegrationJobRecord` and `IntegrationWebhookEvent`,
+enqueues due hourly syncs, claims up to `CONNECT_CRON_BATCH` jobs (default 5, max 25) and runs
+them. It logs one line:
 
 ```
-[connect-cron] recovered=0 due=2 enqueued=2 ran=2
+[connect-cron] recovered=0 purgedRecords=0 purgedEvents=0 due=2 enqueued=2 ran=2
 ```
 
 Alert if the response is non-200 for two consecutive minutes, or if `ran` stays 0 while
@@ -84,6 +88,14 @@ Alert if the response is non-200 for two consecutive minutes, or if `ran` stays 
 
 - Inbound only. Connect never writes to the external system.
 - Two entities (products, customers). Orders/invoices arrive with the conflict-resolution work.
+- Mapping is a JSON document edited in the connection screen; there is no point-and-click field
+  mapper, no source-of-truth setting, no conflict policy beyond the stored `conflictPolicy`, no
+  reconciliation report and no manual review queue. Those are M4 in `IMPLEMENTATION_ROADMAP.md`.
+- Outbound webhooks are not built. Inbound only: the provider calls us, we never call it on an
+  event.
+- A connector receives both `connectionId` and `tenantId`. Anything reading LipaPoint's own
+  tables must scope by `tenantId`; using the connection id matches nothing and produces a
+  sync that "succeeds" with zero records. `tests/connect/context.test.ts` guards this.
 - Custom API endpoints must be public HTTPS on the default port; private networks, IP literals and
   redirects are refused (SSRF guard).
 - Excel import reads the first worksheet, up to 5,000 rows / 5 MB, and refuses ZIP64 workbooks.

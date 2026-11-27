@@ -1,8 +1,23 @@
 # LipaPoint Connect — Implementation Roadmap
 
-Status: Phase 0 proposal. Sequencing follows the assignment, but each milestone's scope is set
-by what the repository can support today (`REPOSITORY_AUDIT.md`) and by what can be shipped
-without new infrastructure.
+Status: Phase 0 proposal, with delivery tracked below. Sequencing follows the assignment, but
+each milestone's scope is set by what the repository can support today (`REPOSITORY_AUDIT.md`)
+and by what can be shipped without new infrastructure.
+
+## 0. Delivered so far
+
+| Milestone | State | What exists |
+|---|---|---|
+| 1 — foundation | shipped | Connector interface, provider registry, tenant-scoped connections behind `requireConnectAccess`, AES-GCM credentials, health check, DB-backed job runner with stuck-job recovery and exponential backoff, per-record trail, sync history, monitoring UI, mock + file connectors, `0015_connect_foundation` |
+| 2 — custom integrations | mostly shipped | Generic REST connector (SSRF-guarded, API key/bearer/basic, cursor pagination, JSON-path extraction), JSON field mapping with validation, inbound webhooks (HMAC, replay window, per-connection rate limit, dedupe), CSV/Excel import, hourly scheduling honoured by the tick, retries, idempotency via `IntegrationExternalRecord`, history purge |
+| 3 — real providers | one shipped | **eTIMS (KRA)** read-only mirror of the tenant's own submitted invoices (products, customers). Nothing is written back to KRA |
+| 4 — advanced sync | not started | Mapping editor, source-of-truth config, conflict policies, reconciliation, review queue |
+| 5 — automation | not started | Cross-system workflows with approvals |
+| 6 — connected intelligence | not started | Read-only AI tools over connected data |
+
+Not built from M2: outbound webhooks, Excel **export**, webhook subscription management UI and
+the dead-letter UI. Named providers in the catalogue other than eTIMS are `planned` and cannot be
+connected — the registry test keeps the catalogue honest.
 
 ## 1. Sequencing principles
 

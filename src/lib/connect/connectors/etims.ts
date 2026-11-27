@@ -15,6 +15,10 @@
  * Auth: eTIMS is a KRA-registered device, not a per-connection API credential,
  * so this connector has no credential form. The device is configured once per
  * tenant in Settings > eTIMS.
+ *
+ * Tenancy: every read is scoped by `context.tenantId`, never by the connection
+ * id — a connection is a row in IntegrationConnection and must not be used as
+ * a tenant key, or the query silently matches nothing.
  */
 import type {
   Connector,
@@ -38,7 +42,7 @@ export const etimsConnector: Connector = {
     // Settings > eTIMS is the source of truth; the connection's own
     // `deviceType` config is only a hint for older connections created before
     // the tenant columns existed. Either way, env remains the last resort.
-    const tenantConfig = await loadEtimsTenantConfig(context.connectionId);
+    const tenantConfig = await loadEtimsTenantConfig(context.tenantId);
     const configured = tenantConfig.deviceType ?? context.config.deviceType;
     const deviceType: EtimsDeviceType = configured === "VSCU" ? "VSCU" : "OSCU";
 
@@ -60,7 +64,7 @@ export const etimsConnector: Connector = {
   },
 
   async fetchRecords(context: ConnectorContext): Promise<ConnectorResult> {
-    const { entity, connectionId: tenantId, limit } = context;
+    const { entity, tenantId, limit } = context;
 
     if (entity !== "products" && entity !== "customers") {
       return {

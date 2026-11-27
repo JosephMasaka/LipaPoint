@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { routeError } from "@/lib/api-guards";
 import { claimNextJobs, enqueueJob, recoverStuckJobs } from "@/lib/connect/jobs";
+import { purgeExpiredConnectHistory } from "@/lib/connect/retention";
 import { runClaimedJobs } from "@/lib/connect/sync";
 import { isConnectEntity } from "@/lib/connect/types";
 
@@ -41,6 +42,16 @@ export async function POST(request: Request) {
 
     const recovered = await recoverStuckJobs();
 
+    // Retention runs before the batch so housekeeping can never starve the
+    // syncs; a failure here is logged and skipped rather than failing the tick.
+    let purged: { perRecords: number; webhookEvents: number } | null = null;
+    try {
+      const result = await purgeExpiredConnectHistory();
+      purged = { perRecords: result.perRecords, webhookEvents: result.webhookEvents };
+    } catch (error) {
+      console.error("[connect-cron] retention failed", error);
+    }
+
     const due = await db.integrationSyncConfig.findMany({
       where: {
         enabled: true,
@@ -70,11 +81,12 @@ export async function POST(request: Request) {
     const results = await runClaimedJobs(claimed);
 
     console.log(
-      `[connect-cron] recovered=${recovered} due=${due.length} enqueued=${enqueued.length} ran=${results.length}`
+      `[connect-cron] recovered=${recovered} purgedRecords=${purged?.perRecords ?? "skipped"} purgedEvents=${purged?.webhookEvents ?? "skipped"} due=${due.length} enqueued=${enqueued.length} ran=${results.length}`
     );
 
     return NextResponse.json({
       recovered,
+      purged,
       due: due.length,
       enqueued: enqueued.length,
       ran: results.length,

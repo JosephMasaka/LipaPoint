@@ -73,6 +73,14 @@ export interface ConnectorSource {
 /** Everything a connector needs for one page of one entity. */
 export interface ConnectorContext {
   connectionId: string;
+  /**
+   * The tenant that owns the connection.
+   *
+   * Connectors that read LipaPoint's own tables (eTIMS) need this: a connection
+   * id is not a tenant id, and using one as the other silently scopes queries
+   * to the wrong business. Connectors that only call an external API ignore it.
+   */
+  tenantId: string;
   entity: ConnectEntity;
   baseUrl?: string | null;
   config: Record<string, unknown>;

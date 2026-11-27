@@ -140,6 +140,7 @@ export function buildConnectorContext(
   const secrets = readSecrets(connection);
   return {
     connectionId: connection.id,
+    tenantId: connection.tenantId,
     entity,
     baseUrl: connection.baseUrl,
     config: asConfig(connection.config),
